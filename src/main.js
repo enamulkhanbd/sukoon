@@ -243,7 +243,7 @@ async function fetchData(mode, id) {
     const endpointText = mode === 'chapter' ? `by_chapter/${id}` : `by_juz/${id}`;
     
     // We use per_page=1000 to cleanly fetch even large chapters/juz lengths without additional async pagination.
-    const versesRes = await fetch(`${CONFIG.apiBase}/verses/${endpointText}?language=en&fields=text_uthmani&audio=${state.currentReciter}&per_page=1000`);
+    const versesRes = await fetch(`${CONFIG.apiBase}/verses/${endpointText}?language=en&fields=text_uthmani_tajweed&audio=${state.currentReciter}&per_page=1000`);
     
     if(!versesRes.ok) throw new Error('Failed to fetch data');
 
@@ -284,7 +284,7 @@ function loadVerse(index) {
   elements.verseText.style.opacity = 0;
   
   setTimeout(() => {
-      elements.verseText.textContent = verse.text_uthmani;
+      elements.verseText.innerHTML = verse.text_uthmani_tajweed;
       elements.verseText.style.opacity = 1;
 
       // Extract chapter from verse_key (e.g. "2:255" -> "2")
@@ -441,7 +441,7 @@ async function precacheAllMetadata() {
     const promises = [];
     for (let i = batch; i < Math.min(batch + BATCH_SIZE, 114); i++) {
       const chapterId = i + 1;
-      const url = `${CONFIG.apiBase}/verses/by_chapter/${chapterId}?language=en&fields=text_uthmani&audio=${CONFIG.defaultReciter}&per_page=1000`;
+      const url = `${CONFIG.apiBase}/verses/by_chapter/${chapterId}?language=en&fields=text_uthmani_tajweed&audio=${CONFIG.defaultReciter}&per_page=1000`;
       promises.push(cache.add(url).catch(() => {}));
     }
     await Promise.all(promises);
@@ -452,7 +452,7 @@ async function precacheAllMetadata() {
 
   // Pre-cache 30 juz metadata
   for (let juz = 1; juz <= 30; juz++) {
-    const url = `${CONFIG.apiBase}/verses/by_juz/${juz}?language=en&fields=text_uthmani&audio=${CONFIG.defaultReciter}&per_page=1000`;
+    const url = `${CONFIG.apiBase}/verses/by_juz/${juz}?language=en&fields=text_uthmani_tajweed&audio=${CONFIG.defaultReciter}&per_page=1000`;
     await cache.add(url).catch(() => {});
     await new Promise(r => setTimeout(r, 100));
   }
@@ -490,7 +490,7 @@ async function prefetchUpcomingAudio() {
 
     try {
       // First fetch the verse metadata (which includes audio URLs)
-      const metaUrl = `${CONFIG.apiBase}/verses/${endpoint}/${nextId}?language=en&fields=text_uthmani&audio=${state.currentReciter}&per_page=1000`;
+      const metaUrl = `${CONFIG.apiBase}/verses/${endpoint}/${nextId}?language=en&fields=text_uthmani_tajweed&audio=${state.currentReciter}&per_page=1000`;
       const res = await fetch(metaUrl, { signal });
       if (!res.ok || signal.aborted) continue;
 

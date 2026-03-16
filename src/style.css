@@ -28,6 +28,31 @@
   }
 }
 
+/* Tajweed Color Rules */
+tajweed.ham_wasl, tajweed.slnt, tajweed.laam_shamsiyah {
+  color: #9e9484;
+}
+tajweed.madda_normal, tajweed.madda_permissible, tajweed.madda_necessary, tajweed.madda_obligatory {
+  color: #3b82f6;
+}
+tajweed.ghunnah, tajweed.idgham_with_ghunnah {
+  color: #f97316;
+}
+tajweed.idgham_without_ghunnah, tajweed.idgham_shafawi {
+  color: #22c55e;
+}
+tajweed.qalqalah {
+  color: #ef4444;
+}
+tajweed.ikhfa, tajweed.ikhfa_shafawi, tajweed.iqlab {
+  color: #a855f7;
+}
+.end {
+  color: var(--color-gold);
+  font-size: 0.75em;
+  padding: 0 0.35rem;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

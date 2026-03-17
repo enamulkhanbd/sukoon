@@ -22,7 +22,7 @@ export async function fetchChapters() {
 export async function fetchVerses(mode, id) {
   const endpoint = mode === 'chapter' ? `by_chapter/${id}` : `by_juz/${id}`;
   const res = await fetch(
-    `${API_BASE}/verses/${endpoint}?language=en&fields=text_uthmani_tajweed&audio=${DEFAULT_RECITER}&per_page=${VERSES_PER_PAGE}&words=true&word_fields=text_uthmani_tajweed`
+    `${API_BASE}/verses/${endpoint}?language=en&translations=161&fields=text_uthmani_tajweed&audio=${DEFAULT_RECITER}&per_page=${VERSES_PER_PAGE}&words=true&word_fields=text_uthmani_tajweed`
   );
   if (!res.ok) throw new Error(`Failed to fetch verses for ${mode} ${id}`);
   const data = await res.json();

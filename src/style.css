@@ -21,6 +21,7 @@
   --font-cinzel: 'Cinzel Decorative', serif;
   --font-vibes: 'Vibes', cursive;
   --font-montserrat: 'Montserrat', sans-serif;
+  --font-anek: 'Anek Bangla', sans-serif;
 }
 
 @layer base {
@@ -30,22 +31,38 @@
 }
 
 /* Tajweed Color Rules */
-tajweed.ham_wasl, tajweed.slnt, tajweed.laam_shamsiyah {
+/* Ensure tags are inline */
+rule, tajweed {
+  display: inline;
+}
+/* Support <rule>, <tajweed> tags, and .tajweed classes */
+rule.ham_wasl, tajweed.ham_wasl, .tajweed.ham_wasl, 
+rule.slnt, tajweed.slnt, .tajweed.slnt, 
+rule.laam_shamsiyah, tajweed.laam_shamsiyah, .tajweed.laam_shamsiyah {
   color: #9e9484 !important;
 }
-tajweed.madda_normal, tajweed.madda_permissible, tajweed.madda_necessary, tajweed.madda_obligatory {
+rule.madda_normal, tajweed.madda_normal, .tajweed.madda_normal, 
+rule.madda_permissible, tajweed.madda_permissible, .tajweed.madda_permissible, 
+rule.madda_necessary, tajweed.madda_necessary, .tajweed.madda_necessary, 
+rule.madda_obligatory, tajweed.madda_obligatory, .tajweed.madda_obligatory {
   color: #3b82f6 !important;
 }
-tajweed.ghunnah, tajweed.idgham_with_ghunnah {
+rule.ghunnah, tajweed.ghunnah, .tajweed.ghunnah, 
+rule.idgham_with_ghunnah, tajweed.idgham_with_ghunnah, .tajweed.idgham_with_ghunnah {
   color: #f97316 !important;
 }
-tajweed.idgham_without_ghunnah, tajweed.idgham_shafawi {
+rule.idgham_without_ghunnah, tajweed.idgham_without_ghunnah, .tajweed.idgham_without_ghunnah, 
+rule.idgham_shafawi, tajweed.idgham_shafawi, .tajweed.idgham_shafawi {
   color: #22c55e !important;
 }
-tajweed.qalqalah {
+rule.qalqalah, tajweed.qalqalah, .tajweed.qalqalah,
+rule.qalaqah, tajweed.qalaqah, .tajweed.qalaqah {
   color: #ef4444 !important;
 }
-tajweed.ikhfa, tajweed.ikhfa_shafawi, tajweed.iqlab {
+rule.ikhfa, tajweed.ikhfa, .tajweed.ikhfa, 
+rule.ikhafa, tajweed.ikhafa, .tajweed.ikhafa,
+rule.ikhfa_shafawi, tajweed.ikhfa_shafawi, .tajweed.ikhfa_shafawi, 
+rule.iqlab, tajweed.iqlab, .tajweed.iqlab {
   color: #a855f7 !important;
 }
 .end {

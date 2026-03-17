@@ -9,6 +9,7 @@ import { AUDIO_BASE } from '../constants/config';
 export function useAudioPlayer() {
   const { state, dispatch, audioRef } = usePlayer();
   const animFrameRef = useRef(null);
+  const lastWordIndexRef = useRef(-1);
 
   const audio = audioRef.current;
   const {
@@ -57,6 +58,10 @@ export function useAudioPlayer() {
         ],
       });
     }
+
+    // Reset word index when verse changes
+    lastWordIndexRef.current = -1;
+    dispatch({ type: 'SET_ACTIVE_WORD', payload: -1 });
   }, [currentVerseIndex, verses, isPlaying, mode, currentChapter, currentJuz, dispatch, audio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Audio event listeners
@@ -101,7 +106,24 @@ export function useAudioPlayer() {
   // Progress tracking via requestAnimationFrame for smooth updates
   useEffect(() => {
     function tick() {
-      // This dispatches nothing — progress is computed in the component from audio.currentTime
+      const verse = verses[currentVerseIndex];
+      if (verse?.audio?.segments) {
+        const currentTimeMs = audio.currentTime * 1000;
+        // Find if we are currently within any segment
+        const segment = verse.audio.segments.find(
+          (s) => currentTimeMs >= s[2] && currentTimeMs <= s[3]
+        );
+        
+        const newWordIndex = segment ? segment[0] : -1;
+        if (newWordIndex !== lastWordIndexRef.current) {
+          lastWordIndexRef.current = newWordIndex;
+          dispatch({ type: 'SET_ACTIVE_WORD', payload: newWordIndex });
+        }
+      } else if (lastWordIndexRef.current !== -1) {
+        lastWordIndexRef.current = -1;
+        dispatch({ type: 'SET_ACTIVE_WORD', payload: -1 });
+      }
+
       animFrameRef.current = requestAnimationFrame(tick);
     }
 

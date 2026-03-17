@@ -25,16 +25,32 @@ export default function VerseDisplay() {
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <p
-        className="font-amiri text-3xl md:text-5xl text-center leading-relaxed md:leading-relaxed text-sepia-dark transition-opacity duration-300"
+      <div
+        className="relative flex flex-wrap flex-row-reverse justify-center gap-x-1 gap-y-2 font-alhabsyi text-[40px] text-center leading-relaxed transition-opacity duration-300 py-4"
         style={{ opacity: isLoading ? 0.3 : 1 }}
-        dangerouslySetInnerHTML={{
-          __html: isLoading
-            ? ''
-            : verse?.text_uthmani_tajweed || 'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
-        }}
-      />
-      <p className="font-montserrat text-sm opacity-50">{verseInfo}</p>
+      >
+        {isLoading ? (
+          <div className="h-10 w-48 bg-gold/5 animate-pulse rounded-full" />
+        ) : verse?.words ? (
+          verse.words.map((word, idx) => {
+            const isActive = state.activeWordIndex === (word.position - 1);
+            return (
+              <span
+                key={`${verse.id}-${idx}`}
+                className={`px-1 rounded-md transition-colors duration-200 cursor-default ${
+                  isActive
+                    ? 'text-gold-dark'
+                    : 'opacity-80'
+                }`}
+                dangerouslySetInnerHTML={{ __html: word.text_uthmani_tajweed }}
+              />
+            );
+          })
+        ) : (
+          <span dangerouslySetInnerHTML={{ __html: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ' }} />
+        )}
+      </div>
+      <p className="font-montserrat text-xs opacity-50 mt-2">{verseInfo}</p>
     </div>
   );
 }

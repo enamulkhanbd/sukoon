@@ -13,6 +13,7 @@ const initialState = {
   totalDurationMs: 0,
   isPlaying: false,
   isLoading: false,
+  activeWordIndex: -1,
   error: null,
   chapters: [],
 };
@@ -42,6 +43,8 @@ function playerReducer(state, action) {
       return { ...state, isPlaying: action.payload };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
+    case 'SET_ACTIVE_WORD':
+      return { ...state, activeWordIndex: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload, isLoading: false };
     case 'SET_CHAPTERS':

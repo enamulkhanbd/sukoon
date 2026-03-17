@@ -30,7 +30,7 @@ export default function VerseDisplay() {
         style={{ opacity: isLoading ? 0.3 : 1 }}
         dangerouslySetInnerHTML={{
           __html: isLoading
-            ? 'Loading...'
+            ? ''
             : verse?.text_uthmani_tajweed || 'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
         }}
       />

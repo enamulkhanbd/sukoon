@@ -10,66 +10,15 @@ import {
   CACHE_NAMES,
 } from '../constants/config';
 
-const METADATA_FLAG = 'sukoon-metadata-precached';
-
 /**
  * Hook that manages background offline caching:
- * 1. Pre-caches all chapter/juz metadata on first visit (runs once)
- * 2. Prefetches audio for the next 2 surahs/juzs when playback starts
+ * Prefetches audio for the next 2 surahs/juzs when playback starts.
  */
 export function useOfflineCache() {
   const { state, audioRef } = usePlayer();
   const abortRef = useRef(null);
 
-  // Layer 1: Background metadata pre-cache (runs once ever)
-  useEffect(() => {
-    if (localStorage.getItem(METADATA_FLAG)) return;
-
-    async function precacheMetadata() {
-      try {
-        const cache = await caches.open(CACHE_NAMES.metadata);
-
-        // Chapter list
-        await cache.add(`${API_BASE}/chapters?language=en`).catch(() => {});
-
-        // All 114 surahs in batches of 6
-        const BATCH = 6;
-        for (let b = 0; b < TOTAL_CHAPTERS; b += BATCH) {
-          const promises = [];
-          for (let i = b; i < Math.min(b + BATCH, TOTAL_CHAPTERS); i++) {
-            const url = `${API_BASE}/verses/by_chapter/${i + 1}?language=en&fields=text_uthmani_tajweed&audio=${DEFAULT_RECITER}&per_page=${VERSES_PER_PAGE}`;
-            promises.push(cache.add(url).catch(() => {}));
-          }
-          await Promise.all(promises);
-          await new Promise((r) => setTimeout(r, 200));
-        }
-
-        // All 30 juzs
-        for (let j = 1; j <= TOTAL_JUZ; j++) {
-          const url = `${API_BASE}/verses/by_juz/${j}?language=en&fields=text_uthmani_tajweed&audio=${DEFAULT_RECITER}&per_page=${VERSES_PER_PAGE}`;
-          await cache.add(url).catch(() => {});
-          await new Promise((r) => setTimeout(r, 100));
-        }
-
-        localStorage.setItem(METADATA_FLAG, 'true');
-        console.log('[Sukoon] ✓ Metadata pre-cached.');
-      } catch (err) {
-        console.warn('[Sukoon] Metadata pre-cache failed:', err.message);
-      }
-    }
-
-    // Start after idle
-    const id = 'requestIdleCallback' in window
-      ? requestIdleCallback(() => precacheMetadata())
-      : setTimeout(() => precacheMetadata(), 3000);
-
-    return () => {
-      if ('requestIdleCallback' in window) cancelIdleCallback(id);
-      else clearTimeout(id);
-    };
-  }, []);
-
-  // Layer 3: Smart audio prefetch on playback
+  // Smart audio prefetch on playback
   useEffect(() => {
     const audio = audioRef.current;
 

@@ -13,6 +13,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'script-defer',
       includeAssets: ['fonts/Alhabsyi.otf', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Sukoon - Quran Player',

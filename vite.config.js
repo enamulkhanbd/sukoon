@@ -57,17 +57,7 @@ export default defineConfig({
               },
             },
           },
-          {
-            urlPattern: /^https:\/\/verses\.quran\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'quran-audio-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7,
-              },
-            },
-          },
+
           {
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
             handler: 'CacheFirst',

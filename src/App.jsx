@@ -1,14 +1,12 @@
 import { Suspense, lazy } from 'react';
 import { PlayerProvider } from './context/PlayerContext';
 import { useQuranData } from './hooks/useQuranData';
-import { useOfflineCache } from './hooks/useOfflineCache';
 import Header from './components/Header';
 
 const Player = lazy(() => import('./components/Player'));
 
 function AppContent() {
   useQuranData();
-  useOfflineCache();
 
   return (
     <div className="min-h-screen bg-cream flex items-center justify-center p-4 sm:p-6 md:p-10">

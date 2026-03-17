@@ -86,33 +86,15 @@ export function useAudioPlayer() {
       // Browser is waiting for data to download. Don't pause, let it buffer.
     };
 
-    const handleNativePause = () => {
-      // Sync React state if the OS suddenly pauses the audio (e.g., headphones unplugged)
-      if (audio.paused) {
-        dispatch({ type: 'SET_PLAYING', payload: false });
-      }
-    };
-
-    const handleNativePlay = () => {
-      // Sync React state if the OS suddenly resumes the audio
-      if (!audio.paused) {
-        dispatch({ type: 'SET_PLAYING', payload: true });
-      }
-    };
-
     audio.addEventListener('error', handleError);
     audio.addEventListener('stalled', handleStalled);
     audio.addEventListener('waiting', handleStalled);
-    audio.addEventListener('pause', handleNativePause);
-    audio.addEventListener('play', handleNativePlay);
 
     return () => {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('stalled', handleStalled);
       audio.removeEventListener('waiting', handleStalled);
-      audio.removeEventListener('pause', handleNativePause);
-      audio.removeEventListener('play', handleNativePlay);
     };
   }, [audio, currentVerseIndex, verses.length, dispatch]);
 

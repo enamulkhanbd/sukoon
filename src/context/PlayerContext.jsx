@@ -16,6 +16,7 @@ const initialState = {
   activeWordIndex: -1,
   error: null,
   chapters: [],
+  sidebarOpen: false,
 };
 
 function playerReducer(state, action) {
@@ -49,6 +50,8 @@ function playerReducer(state, action) {
       return { ...state, error: action.payload, isLoading: false };
     case 'SET_CHAPTERS':
       return { ...state, chapters: action.payload };
+    case 'SET_SIDEBAR_OPEN':
+      return { ...state, sidebarOpen: action.payload };
 
     default:
       return state;

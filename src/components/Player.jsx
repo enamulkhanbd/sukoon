@@ -24,14 +24,16 @@ export default function Player() {
         value: ch.id,
         label: `${ch.id}. ${ch.name_simple} (${ch.translated_name.name})`,
         isSelected: ch.id === currentChapter,
+        isFavorite: state.favoriteChapters.includes(ch.id),
       }));
     }
     return Array.from({ length: 30 }, (_, i) => ({
       value: i + 1,
       label: `Juz ${i + 1}`,
       isSelected: i + 1 === currentJuz,
+      isFavorite: false,
     }));
-  }, [mode, chapters, currentChapter, currentJuz]);
+  }, [mode, chapters, currentChapter, currentJuz, state.favoriteChapters]);
 
   const activeItem = itemOptions.find((o) => o.isSelected);
   const itemLabel = activeItem?.label || 'Select...';
@@ -48,6 +50,10 @@ export default function Player() {
     } else {
       dispatch({ type: 'SET_JUZ', payload: value });
     }
+  };
+
+  const handleToggleFavorite = (id) => {
+    dispatch({ type: 'TOGGLE_FAVORITE_CHAPTER', payload: id });
   };
 
 
@@ -72,6 +78,8 @@ export default function Player() {
             label={itemLabel}
             options={itemOptions}
             onSelect={handleItemChange}
+            onToggleFavorite={mode === 'chapter' ? handleToggleFavorite : undefined}
+            showFavorites={mode === 'chapter'}
             searchable={true}
             searchPlaceholder={mode === 'chapter' ? 'Search surah...' : 'Search juz...'}
             bottomSheetTitle={mode === 'chapter' ? 'Select Surah' : 'Select Juz'}

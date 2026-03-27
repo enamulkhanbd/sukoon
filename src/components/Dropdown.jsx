@@ -68,7 +68,7 @@ function SearchInput({ searchQuery, setSearchQuery, searchPlaceholder, inputRef 
 /**
  * Options list used in both dropdown and bottom sheet.
  */
-function OptionsList({ filteredOptions, onSelect, listRef, isBottomSheet = false }) {
+function OptionsList({ filteredOptions, onSelect, onToggleFavorite, showFavorites, listRef, isBottomSheet = false }) {
   return (
     <div
       ref={listRef}
@@ -86,20 +86,55 @@ function OptionsList({ filteredOptions, onSelect, listRef, isBottomSheet = false
         </div>
       ) : (
         filteredOptions.map((opt) => (
-          <button
+          <div
             key={opt.value}
             data-selected={opt.isSelected}
-            className={`text-left px-5 transition-colors font-medium w-full border-b border-[#e8dcb8]/30 last:border-0 ${
-              isBottomSheet ? 'py-3.5 text-[15px]' : 'py-2.5 text-sm'
-            } ${
+            className={`group flex items-center transition-colors border-b border-[#e8dcb8]/30 last:border-0 ${
               opt.isSelected
-                ? 'text-gold bg-gold/5'
-                : 'text-sepia-dark/80 hover:bg-sepia-dark/5 hover:text-gold active:bg-sepia-dark/8'
+                ? 'bg-gold/5'
+                : 'hover:bg-sepia-dark/5 active:bg-sepia-dark/8'
             }`}
-            onClick={() => onSelect(opt.value)}
           >
-            {opt.label}
-          </button>
+            <button
+              className={`flex-1 text-left px-5 font-medium outline-none ${
+                isBottomSheet ? 'py-3.5 text-[15px]' : 'py-2.5 text-sm'
+              } ${
+                opt.isSelected
+                  ? 'text-gold'
+                  : 'text-sepia-dark/80 hover:text-gold transition-colors'
+              }`}
+              onClick={() => onSelect(opt.value)}
+            >
+              {opt.label}
+            </button>
+            
+            {showFavorites && onToggleFavorite && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite(opt.value);
+                }}
+                className={`pr-5 py-2 group-hover:opacity-100 transition-all ${
+                  opt.isFavorite ? 'opacity-100 text-gold scale-110' : 'opacity-20 hover:opacity-100 text-sepia-dark/40 hover:text-gold hover:scale-110'
+                }`}
+                aria-label={opt.isFavorite ? "Remove from favorites" : "Add to favorites"}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width={isBottomSheet ? "20" : "16"}
+                  height={isBottomSheet ? "20" : "16"}
+                  viewBox="0 0 24 24"
+                  fill={opt.isFavorite ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </button>
+            )}
+          </div>
         ))
       )}
     </div>
@@ -119,6 +154,8 @@ function BottomSheet({
   setSearchQuery,
   filteredOptions,
   onSelect,
+  onToggleFavorite,
+  showFavorites,
   searchInputRef,
   listRef,
 }) {
@@ -239,7 +276,7 @@ function BottomSheet({
 
         {/* Search */}
         {searchable && (
-          <div className="px-4 pb-3">
+          <div className="p-4 border-b border-[#e8dcb8]/40">
             <SearchInput
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
@@ -256,6 +293,8 @@ function BottomSheet({
             onSelect(value);
             handleClose();
           }}
+          onToggleFavorite={onToggleFavorite}
+          showFavorites={showFavorites}
           listRef={listRef}
           isBottomSheet={true}
         />
@@ -278,6 +317,8 @@ export default function Dropdown({
   className = '',
   btnClassName = '',
   menuClassName = '',
+  onToggleFavorite,
+  showFavorites = false,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -315,12 +356,28 @@ export default function Dropdown({
     }
   }, [isOpen, searchable, isMobile]);
 
-  // Filter options based on search query
+  // Filter and sort options based on search query and favorites
   const filteredOptions = useMemo(() => {
-    if (!searchable || !searchQuery.trim()) return options;
-    const q = searchQuery.toLowerCase().trim();
-    return options.filter((opt) => opt.label.toLowerCase().includes(q));
-  }, [options, searchQuery, searchable]);
+    // 1. Start with the base options
+    let result = [...options];
+
+    // 2. Sort favorites to the top if showFavorites is enabled
+    if (showFavorites) {
+      result.sort((a, b) => {
+        if (a.isFavorite && !b.isFavorite) return -1;
+        if (!a.isFavorite && b.isFavorite) return 1;
+        return 0; // maintain original relative order (which is 1 to 114)
+      });
+    }
+
+    // 3. Filter if searching
+    if (searchable && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter((opt) => opt.label.toLowerCase().includes(q));
+    }
+
+    return result;
+  }, [options, searchQuery, searchable, showFavorites]);
 
   // Scroll selected item into view when dropdown opens (desktop)
   useEffect(() => {
@@ -383,7 +440,7 @@ export default function Dropdown({
             }}
           >
             {searchable && (
-              <div className="sticky top-0 bg-[#FCFAF5] border-b border-[#e8dcb8]/60 p-2 z-10">
+              <div className="sticky top-0 bg-[#FCFAF5] border-b border-[#e8dcb8]/60 p-4 z-10">
                 <SearchInput
                   searchQuery={searchQuery}
                   setSearchQuery={setSearchQuery}
@@ -399,6 +456,8 @@ export default function Dropdown({
                 setIsOpen(false);
                 setSearchQuery('');
               }}
+              onToggleFavorite={onToggleFavorite}
+              showFavorites={showFavorites}
               listRef={listRef}
             />
           </div>,
@@ -420,6 +479,8 @@ export default function Dropdown({
           onSelect={(value) => {
             onSelect(value);
           }}
+          onToggleFavorite={onToggleFavorite}
+          showFavorites={showFavorites}
           searchInputRef={searchInputRef}
           listRef={listRef}
         />
@@ -437,6 +498,8 @@ export default function Dropdown({
               setIsOpen(false);
               setSearchQuery('');
             }}
+            onToggleFavorite={onToggleFavorite}
+            showFavorites={showFavorites}
             listRef={listRef}
           />
         </div>

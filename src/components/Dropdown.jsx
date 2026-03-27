@@ -1,39 +1,354 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
- * Reusable dropdown component.
- * @param {object} props
- * @param {string} props.label - Current selected label text
- * @param {Array} props.options - Array of { value, label, isSelected }
- * @param {function} props.onSelect - Callback when option is chosen
- * @param {string} [props.className] - Additional CSS for the root
- * @param {string} [props.btnClassName] - Additional CSS for the trigger button
- * @param {string} [props.menuClassName] - Additional CSS for the menu
+ * Hook to detect mobile viewport.
+ */
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpoint);
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const handler = (e) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [breakpoint]);
+
+  return isMobile;
+}
+
+/**
+ * Search input used in both dropdown and bottom sheet.
+ */
+function SearchInput({ searchQuery, setSearchQuery, searchPlaceholder, inputRef }) {
+  return (
+    <div className="relative">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sepia-dark/40"
+      >
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder={searchPlaceholder}
+        className="w-full pl-8 pr-8 py-2.5 text-sm bg-sepia-dark/5 rounded-lg border border-[#e8dcb8]/40 text-sepia-dark placeholder-sepia-dark/35 outline-none focus:border-gold/50 focus:ring-1 focus:ring-gold/20 transition-all font-montserrat"
+      />
+      {searchQuery && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSearchQuery('');
+            inputRef.current?.focus();
+          }}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sepia-dark/40 hover:text-sepia-dark/70 transition-colors cursor-pointer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Options list used in both dropdown and bottom sheet.
+ */
+function OptionsList({ filteredOptions, onSelect, listRef, isBottomSheet = false }) {
+  return (
+    <div
+      ref={listRef}
+      className={`overflow-y-auto custom-scrollbar ${
+        isBottomSheet ? 'flex-1 pb-[env(safe-area-inset-bottom,16px)]' : 'max-h-64 py-1.5'
+      }`}
+    >
+      {filteredOptions.length === 0 ? (
+        <div className="px-4 py-8 text-center text-sm text-sepia-dark/40 font-montserrat flex flex-col items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-30">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          No results found
+        </div>
+      ) : (
+        filteredOptions.map((opt) => (
+          <button
+            key={opt.value}
+            data-selected={opt.isSelected}
+            className={`text-left px-5 transition-colors font-medium w-full border-b border-[#e8dcb8]/30 last:border-0 ${
+              isBottomSheet ? 'py-3.5 text-[15px]' : 'py-2.5 text-sm'
+            } ${
+              opt.isSelected
+                ? 'text-gold bg-gold/5'
+                : 'text-sepia-dark/80 hover:bg-sepia-dark/5 hover:text-gold active:bg-sepia-dark/8'
+            }`}
+            onClick={() => onSelect(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bottom sheet component for mobile view.
+ */
+function BottomSheet({
+  isOpen,
+  onClose,
+  title,
+  searchable,
+  searchPlaceholder,
+  searchQuery,
+  setSearchQuery,
+  filteredOptions,
+  onSelect,
+  searchInputRef,
+  listRef,
+}) {
+  const sheetRef = useRef(null);
+  const dragRef = useRef({ startY: 0, currentY: 0, isDragging: false });
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Lock body scroll when open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      // Focus search after the slide-up animation
+      if (searchable && searchInputRef.current) {
+        setTimeout(() => searchInputRef.current?.focus(), 350);
+      }
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen, searchable, searchInputRef]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (isOpen && listRef.current) {
+      setTimeout(() => {
+        const selectedEl = listRef.current?.querySelector('[data-selected="true"]');
+        if (selectedEl) {
+          selectedEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      }, 350);
+    }
+  }, [isOpen, listRef]);
+
+  const handleClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 250);
+  }, [onClose]);
+
+  // Touch drag-to-dismiss
+  const handleTouchStart = (e) => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    dragRef.current.startY = e.touches[0].clientY;
+    dragRef.current.isDragging = true;
+    sheet.style.transition = 'none';
+  };
+
+  const handleTouchMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    const deltaY = e.touches[0].clientY - dragRef.current.startY;
+    if (deltaY > 0) {
+      sheet.style.transform = `translateY(${deltaY}px)`;
+      dragRef.current.currentY = deltaY;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!dragRef.current.isDragging) return;
+    dragRef.current.isDragging = false;
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    sheet.style.transition = '';
+    if (dragRef.current.currentY > 120) {
+      handleClose();
+    } else {
+      sheet.style.transform = '';
+    }
+    dragRef.current.currentY = 0;
+  };
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="bottom-sheet-overlay" data-closing={isClosing || undefined}>
+      {/* Backdrop */}
+      <div
+        className="bottom-sheet-backdrop"
+        onClick={handleClose}
+      />
+
+      {/* Sheet */}
+      <div
+        ref={sheetRef}
+        className="bottom-sheet-container"
+        data-closing={isClosing || undefined}
+        onKeyDown={(e) => e.key === 'Escape' && handleClose()}
+      >
+        {/* Drag handle */}
+        <div
+          className="bottom-sheet-handle-area"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="bottom-sheet-handle" />
+        </div>
+
+        {/* Title */}
+        <div className="bottom-sheet-header">
+          <h3 className="font-montserrat text-sm font-semibold text-sepia-dark/70 tracking-wide uppercase">
+            {title}
+          </h3>
+          <button
+            onClick={handleClose}
+            className="p-1 rounded-full hover:bg-sepia-dark/10 transition-colors cursor-pointer text-sepia-dark/50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Search */}
+        {searchable && (
+          <div className="px-4 pb-3">
+            <SearchInput
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              searchPlaceholder={searchPlaceholder}
+              inputRef={searchInputRef}
+            />
+          </div>
+        )}
+
+        {/* Options */}
+        <OptionsList
+          filteredOptions={filteredOptions}
+          onSelect={(value) => {
+            onSelect(value);
+            handleClose();
+          }}
+          listRef={listRef}
+          isBottomSheet={true}
+        />
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * Reusable dropdown component with optional search and mobile bottom sheet.
  */
 export default function Dropdown({
   label,
   options,
   onSelect,
+  searchable = false,
+  searchPlaceholder = 'Search...',
+  bottomSheetTitle = 'Select',
   className = '',
   btnClassName = '',
   menuClassName = '',
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef(null);
+  const dropdownPortalRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const listRef = useRef(null);
+  const isMobile = useIsMobile();
 
-  // Close on outside click
+  // Close on outside click (desktop only)
   useEffect(() => {
+    if (isMobile) return;
     function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      const inContainer = containerRef.current?.contains(e.target);
+      const inPortal = dropdownPortalRef.current?.contains(e.target);
+      if (!inContainer && !inPortal) {
         setIsOpen(false);
+        setSearchQuery('');
       }
     }
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+  }, [isMobile]);
+
+  // Auto-focus search input when dropdown opens (desktop)
+  useEffect(() => {
+    if (isMobile) return;
+    if (isOpen && searchable && searchInputRef.current) {
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+      });
+    }
+    if (!isOpen) {
+      setSearchQuery('');
+    }
+  }, [isOpen, searchable, isMobile]);
+
+  // Filter options based on search query
+  const filteredOptions = useMemo(() => {
+    if (!searchable || !searchQuery.trim()) return options;
+    const q = searchQuery.toLowerCase().trim();
+    return options.filter((opt) => opt.label.toLowerCase().includes(q));
+  }, [options, searchQuery, searchable]);
+
+  // Scroll selected item into view when dropdown opens (desktop)
+  useEffect(() => {
+    if (isMobile) return;
+    if (isOpen && listRef.current) {
+      requestAnimationFrame(() => {
+        const selectedEl = listRef.current?.querySelector('[data-selected="true"]');
+        if (selectedEl) {
+          selectedEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      });
+    }
+  }, [isOpen, isMobile]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+      setSearchQuery('');
+    }
+  };
+
+  const handleClose = () => {
+    setIsOpen(false);
+    setSearchQuery('');
+  };
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative ${className}`} ref={containerRef} onKeyDown={!isMobile ? handleKeyDown : undefined}>
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className={`flex items-center gap-2 outline-none cursor-pointer transition-colors ${btnClassName}`}
@@ -53,26 +368,77 @@ export default function Dropdown({
         </svg>
       </button>
 
-      {isOpen && (
-        <div
-          className={`absolute top-full mt-2 bg-[#FCFAF5] border border-[#e8dcb8] py-1.5 z-20 flex flex-col max-h-64 overflow-y-auto custom-scrollbar transform origin-top animate-dropdown ${menuClassName}`}
-        >
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              className={`text-left px-4 py-2.5 text-sm transition-colors font-medium w-full border-b border-[#e8dcb8]/50 last:border-0 ${
-                opt.isSelected
-                  ? 'text-gold bg-gold/5'
-                  : 'text-sepia-dark/80 hover:bg-sepia-dark/5 hover:text-gold'
-              }`}
-              onClick={() => {
-                onSelect(opt.value);
+      {/* Desktop dropdown via portal */}
+      {isOpen && !isMobile && (() => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return null;
+        return createPortal(
+          <div
+            ref={dropdownPortalRef}
+            className={`fixed z-50 bg-[#FCFAF5] border border-[#e8dcb8] flex flex-col transform origin-top animate-dropdown shadow-lg overflow-hidden ${menuClassName}`}
+            style={{
+              top: rect.bottom + 8,
+              left: rect.left,
+              minWidth: Math.max(rect.width, 280),
+            }}
+          >
+            {searchable && (
+              <div className="sticky top-0 bg-[#FCFAF5] border-b border-[#e8dcb8]/60 p-2 z-10">
+                <SearchInput
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  searchPlaceholder={searchPlaceholder}
+                  inputRef={searchInputRef}
+                />
+              </div>
+            )}
+            <OptionsList
+              filteredOptions={filteredOptions}
+              onSelect={(value) => {
+                onSelect(value);
                 setIsOpen(false);
+                setSearchQuery('');
               }}
-            >
-              {opt.label}
-            </button>
-          ))}
+              listRef={listRef}
+            />
+          </div>,
+          document.body
+        );
+      })()}
+
+      {/* Mobile bottom sheet */}
+      {isMobile && searchable && (
+        <BottomSheet
+          isOpen={isOpen}
+          onClose={handleClose}
+          title={bottomSheetTitle}
+          searchable={searchable}
+          searchPlaceholder={searchPlaceholder}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filteredOptions={filteredOptions}
+          onSelect={(value) => {
+            onSelect(value);
+          }}
+          searchInputRef={searchInputRef}
+          listRef={listRef}
+        />
+      )}
+
+      {/* Mobile non-searchable dropdown (standard) */}
+      {isOpen && isMobile && !searchable && (
+        <div
+          className={`absolute top-full mt-2 bg-[#FCFAF5] border border-[#e8dcb8] z-20 flex flex-col transform origin-top animate-dropdown overflow-hidden ${menuClassName}`}
+        >
+          <OptionsList
+            filteredOptions={filteredOptions}
+            onSelect={(value) => {
+              onSelect(value);
+              setIsOpen(false);
+              setSearchQuery('');
+            }}
+            listRef={listRef}
+          />
         </div>
       )}
     </div>

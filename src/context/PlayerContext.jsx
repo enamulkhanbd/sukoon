@@ -18,6 +18,7 @@ const initialState = {
   chapters: [],
   sidebarOpen: false,
   playerVisible: false,
+  favoriteChapters: JSON.parse(localStorage.getItem('sukoon_favorites') || '[]'),
 };
 
 function playerReducer(state, action) {
@@ -55,6 +56,15 @@ function playerReducer(state, action) {
       return { ...state, sidebarOpen: action.payload };
     case 'SET_PLAYER_VISIBLE':
       return { ...state, playerVisible: action.payload };
+    case 'TOGGLE_FAVORITE_CHAPTER': {
+      const isFavorite = state.favoriteChapters.includes(action.payload);
+      const newFavorites = isFavorite
+        ? state.favoriteChapters.filter(id => id !== action.payload)
+        : [...state.favoriteChapters, action.payload];
+      
+      localStorage.setItem('sukoon_favorites', JSON.stringify(newFavorites));
+      return { ...state, favoriteChapters: newFavorites };
+    }
 
     default:
       return state;

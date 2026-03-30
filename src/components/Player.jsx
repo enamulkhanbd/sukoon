@@ -24,14 +24,16 @@ export default function Player() {
         value: ch.id,
         label: `${ch.id}. ${ch.name_simple} (${ch.translated_name.name})`,
         isSelected: ch.id === currentChapter,
+        isFavorite: state.favoriteChapters.includes(ch.id),
       }));
     }
     return Array.from({ length: 30 }, (_, i) => ({
       value: i + 1,
       label: `Juz ${i + 1}`,
       isSelected: i + 1 === currentJuz,
+      isFavorite: false,
     }));
-  }, [mode, chapters, currentChapter, currentJuz]);
+  }, [mode, chapters, currentChapter, currentJuz, state.favoriteChapters]);
 
   const activeItem = itemOptions.find((o) => o.isSelected);
   const itemLabel = activeItem?.label || 'Select...';
@@ -50,12 +52,16 @@ export default function Player() {
     }
   };
 
+  const handleToggleFavorite = (id) => {
+    dispatch({ type: 'TOGGLE_FAVORITE_CHAPTER', payload: id });
+  };
+
 
 
   return (
     <div className="w-full bg-[#FCFAF5]/70 backdrop-blur-md rounded-3xl p-6 md:p-10 border border-gold/20 flex flex-col gap-8 md:gap-10">
       {/* Selection Controls */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full border-b border-[#e8dcb8]/50 pb-5 mb-2 gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full border-b border-[#e8dcb8]/50 pb-5 mb-2 gap-4 overflow-visible z-10">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 flex-1">
           {/* Mode Dropdown */}
           <Dropdown
@@ -72,9 +78,14 @@ export default function Player() {
             label={itemLabel}
             options={itemOptions}
             onSelect={handleItemChange}
+            onToggleFavorite={mode === 'chapter' ? handleToggleFavorite : undefined}
+            showFavorites={mode === 'chapter'}
+            searchable={true}
+            searchPlaceholder={mode === 'chapter' ? 'Search surah...' : 'Search juz...'}
+            bottomSheetTitle={mode === 'chapter' ? 'Select Surah' : 'Select Juz'}
             className="w-full sm:w-auto"
             btnClassName="w-full justify-center sm:justify-start bg-transparent font-montserrat text-sm text-sepia-dark hover:text-gold sm:max-w-[220px] text-center sm:text-left"
-            menuClassName="w-full sm:w-[260px] left-0 rounded-xl"
+            menuClassName="w-full sm:w-[280px] sm:right-auto sm:left-0 rounded-xl"
           />
         </div>
       </div>

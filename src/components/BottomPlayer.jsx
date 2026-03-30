@@ -14,7 +14,7 @@ export default function BottomPlayer({ onOpenSelection }) {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
-      <div className="w-full bg-[#FCFAF5]/95 backdrop-blur-2xl border-t border-gold/20 shadow-[0_-8px_30px_rgba(195,155,86,0.1)] rounded-t-[2.5rem] p-7 md:p-10 pb-8 md:pb-12 flex flex-col gap-6 md:gap-8 pointer-events-auto transform animate-slide-up-sm transition-all duration-500">
+      <div className="w-full bg-[#FCFAF5]/95 backdrop-blur-2xl border-t border-gold/10 shadow-[0_-8px_30px_rgba(195,155,86,0.05)] rounded-t-[2rem] md:rounded-t-[2.5rem] p-6 md:p-10 pb-8 md:pb-12 flex flex-col gap-6 md:gap-8 pointer-events-auto transform animate-slide-up-sm transition-all duration-500">
         
         {/* Info & Metadata */}
         <div className="flex items-center justify-between gap-4">
@@ -22,10 +22,10 @@ export default function BottomPlayer({ onOpenSelection }) {
             <span className="text-[10px] font-bold text-gold/60 uppercase tracking-widest mb-0.5">
               Playing Now
             </span>
-            <h4 className="text-sm md:text-base font-bold text-sepia-dark flex items-center gap-2">
+            <h4 className="text-xs md:text-base font-bold text-sepia-dark flex items-center gap-2">
               {mode === 'chapter' ? currentItem.name_simple : `Juz ${currentJuz}`}
               <span className="w-1.5 h-1.5 rounded-full bg-gold/30 animate-pulse" />
-              <span className="text-[10px] font-medium text-sepia-dark/40 font-montserrat tracking-tight">
+              <span className="text-[9px] md:text-[10px] font-medium text-sepia-dark/40 font-montserrat tracking-tight">
                 Verse {currentVerseIndex + 1} of {verses.length}
               </span>
             </h4>

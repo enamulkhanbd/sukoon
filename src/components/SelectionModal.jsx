@@ -57,7 +57,7 @@ export default function SelectionModal({ isOpen, onClose }) {
       />
 
       {/* Sheet */}
-      <div className="relative w-full max-w-2xl bg-[#ffffff] rounded-t-[3rem] shadow-2xl p-6 md:p-10 flex flex-col gap-8 animate-slide-up h-[85vh] overflow-hidden">
+      <div className="relative w-full max-w-2xl bg-[#ffffff] rounded-t-[2rem] md:rounded-t-[3rem] shadow-2xl p-5 md:p-10 flex flex-col gap-8 animate-slide-up h-[85vh] overflow-hidden">
         {/* Drag Handle */}
         <div className="w-16 h-1.5 bg-gold/10 rounded-full mx-auto self-center -mt-2 mb-2" />
 
@@ -99,11 +99,11 @@ export default function SelectionModal({ isOpen, onClose }) {
                     {itemOptions.map((opt) => (
                         <div 
                           key={opt.value}
-                          className={`flex items-center justify-between py-4 border-b border-gold/5 transition-colors group cursor-pointer ${opt.isSelected ? 'text-gold' : 'text-sepia-dark'}`}
+                          className={`flex items-center justify-between py-3.5 border-b border-gold/5 transition-colors group cursor-pointer ${opt.isSelected ? 'text-gold' : 'text-sepia-dark'}`}
                           onClick={() => handleSelect(opt.value)}
                         >
                             <div className="flex-1">
-                                <p className={`text-lg transition-all ${opt.isSelected ? 'font-bold pl-2' : 'font-medium'}`}>
+                                <p className={`text-base md:text-lg transition-all ${opt.isSelected ? 'font-bold pl-2' : 'font-medium'}`}>
                                     {opt.label}
                                 </p>
                             </div>

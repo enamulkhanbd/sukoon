@@ -35,7 +35,7 @@ export default function VerseDisplay() {
   }
 
   return (
-    <div className="flex flex-col gap-16 md:gap-24 w-full">
+    <div className="flex flex-col gap-12 md:gap-24 w-full">
       {verses.map((verse, vIdx) => {
         const isActiveVerse = currentVerseIndex === vIdx;
         
@@ -43,13 +43,13 @@ export default function VerseDisplay() {
           <div 
             key={verse.id} 
             ref={el => verseRefs.current[vIdx] = el}
-            className={`flex flex-col items-center gap-8 transition-all duration-700 ${
+            className={`flex flex-col items-center gap-6 md:gap-8 transition-all duration-700 ${
                 isActiveVerse ? 'opacity-100 scale-100' : 'opacity-20 scale-95 grayscale pointer-events-none'
             }`}
           >
             {/* Arabic Text */}
             <div
-              className={`relative flex flex-wrap flex-row-reverse justify-center gap-x-2 gap-y-4 font-alhabsyi text-[44px] md:text-[56px] text-center leading-[1.8] text-sepia-dark transition-colors duration-500`}
+              className={`relative flex flex-wrap flex-row-reverse justify-center gap-x-2 gap-y-4 font-alhabsyi text-[32px] md:text-[56px] text-center leading-[1.8] text-sepia-dark transition-colors duration-500`}
             >
               {verse.words?.map((word, wIdx) => {
                 const isActiveWord = isActiveVerse && state.activeWordIndex === (word.position - 1);
@@ -63,7 +63,7 @@ export default function VerseDisplay() {
                   />
                 );
               })}
-              <span className="end font-amiri text-3xl flex items-center justify-center min-w-[4rem] text-gold/40">
+              <span className="end font-amiri text-2xl md:text-3xl flex items-center justify-center min-w-[4rem] text-gold/40">
                 ({verse.verse_number.toLocaleString('ar-EG')})
               </span>
             </div>
@@ -71,7 +71,7 @@ export default function VerseDisplay() {
             {/* Translation */}
             {verse.translations?.[0] && (
               <div 
-                className={`font-anek text-xl md:text-2xl text-center max-w-2xl leading-relaxed transition-colors duration-500 ${
+                className={`font-anek text-lg md:text-2xl text-center max-w-2xl leading-relaxed transition-colors duration-500 ${
                   isActiveVerse ? 'text-sepia-dark/90' : 'text-sepia-dark/40'
                 }`}
                 dangerouslySetInnerHTML={{ __html: verse.translations[0].text }}

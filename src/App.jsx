@@ -14,12 +14,12 @@ function AppContent() {
   return (
     <div className="fixed inset-0 bg-[#f4ecd8] flex flex-col overflow-hidden">
       {/* Top Header */}
-      <div className="bg-white border-b border-gold/5 px-6 py-5 flex items-center justify-center z-50 shadow-sm">
-        <Header className="scale-75" />
+      <div className="bg-white border-b border-gold/5 px-6 py-4 flex items-center justify-center z-50 shadow-sm/5">
+        <Header className="scale-[0.65] md:scale-75" />
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 md:p-10 pb-[220px]">
+      <main className="flex-1 overflow-y-auto custom-scrollbar p-5 sm:p-6 md:p-10 pb-[220px]">
         <div className="max-w-4xl mx-auto w-full flex flex-col gap-8 md:gap-12">
           <Suspense fallback={<div className="w-full bg-[#FCFAF5]/70 backdrop-blur-md rounded-3xl h-[400px] border border-gold/20 animate-pulse"></div>}>
             <Player />

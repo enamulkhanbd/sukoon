@@ -30,10 +30,10 @@ export default function Player() {
     <div className="w-full flex flex-col gap-10 md:gap-14 px-4 sm:px-0">
       {/* Static Selection Title (Focused) */}
       <div className="w-full flex flex-col items-center gap-4 text-center mb-2">
-        <span className="text-1rem text-gold/56 uppercase tracking-[0.2em] mb-2 font-montserrat">
+        <span className="text-xs md:text-1rem text-gold/56 uppercase tracking-[0.2em] mb-2 font-montserrat">
             {mode === 'chapter' ? 'Surah' : 'Juz'}
         </span>
-        <h2 className="font-alhabsyi text-3xl md:text-6xl text-sepia-dark cursor-default leading-tight">
+        <h2 className="font-alhabsyi text-2xl md:text-6xl text-sepia-dark cursor-default leading-tight">
             {title}
         </h2>
       </div>

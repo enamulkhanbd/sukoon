@@ -52,18 +52,22 @@ export default function ProgressBar() {
   );
 
   return (
-    <div className="flex items-center gap-4 text-xs font-montserrat opacity-60">
-      <span>{formatTime(currentMs / 1000)}</span>
-      <div
-        className="flex-1 h-1.5 bg-[#e8dcb8] rounded-full overflow-hidden cursor-pointer"
+    <div className="w-full group pt-1">
+      {/* Progress Line */}
+      <div 
+        className="w-full h-1 bg-[#ece3d1] relative cursor-pointer"
         onClick={handleClick}
       >
-        <div
-          className="h-full bg-gold transition-none"
+        <div 
+          className="absolute h-full bg-sepia-dark transition-all duration-150 ease-linear"
           style={{ width: `${progressPercent}%` }}
         />
+        {/* Handle dot on hover */}
+        <div 
+          className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-sepia-dark rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ left: `${progressPercent}%`, transform: 'translate(-50%, -50%)' }}
+        />
       </div>
-      <span>{formatTime(totalDurationMs / 1000)}</span>
     </div>
   );
 }

@@ -17,6 +17,7 @@ const initialState = {
   error: null,
   chapters: [],
   sidebarOpen: false,
+  playerVisible: false,
 };
 
 function playerReducer(state, action) {
@@ -41,7 +42,7 @@ function playerReducer(state, action) {
     case 'SET_VERSE_INDEX':
       return { ...state, currentVerseIndex: action.payload };
     case 'SET_PLAYING':
-      return { ...state, isPlaying: action.payload };
+      return { ...state, isPlaying: action.payload, playerVisible: action.payload || state.playerVisible };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'SET_ACTIVE_WORD':
@@ -52,6 +53,8 @@ function playerReducer(state, action) {
       return { ...state, chapters: action.payload };
     case 'SET_SIDEBAR_OPEN':
       return { ...state, sidebarOpen: action.payload };
+    case 'SET_PLAYER_VISIBLE':
+      return { ...state, playerVisible: action.payload };
 
     default:
       return state;

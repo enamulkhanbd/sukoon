@@ -70,6 +70,21 @@ export default defineConfig({
             },
           },
           {
+            urlPattern: /^https:\/\/verses\.quran\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sukoon-audio-prefetch-v1',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              rangeRequests: true,
+            },
+          },
+          {
             urlPattern: /^https:\/\/cdnjs\.cloudflare\.com\/.*/i,
             handler: 'CacheFirst',
             options: {

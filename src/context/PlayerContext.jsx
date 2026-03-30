@@ -17,6 +17,7 @@ const initialState = {
   error: null,
   chapters: [],
   favoriteChapters: JSON.parse(localStorage.getItem('sukoon_favorites') || '[]'),
+  downloaded: JSON.parse(localStorage.getItem('sukoon_downloaded') || '{}'), // { "chapter-1": true, "juz-30": true, etc. }
 };
 
 function playerReducer(state, action) {
@@ -58,6 +59,17 @@ function playerReducer(state, action) {
       
       localStorage.setItem('sukoon_favorites', JSON.stringify(newFavorites));
       return { ...state, favoriteChapters: newFavorites };
+    }
+    case 'UPDATE_DOWNLOADED': {
+      const newDownloaded = { ...state.downloaded, ...action.payload };
+      localStorage.setItem('sukoon_downloaded', JSON.stringify(newDownloaded));
+      return { ...state, downloaded: newDownloaded };
+    }
+    case 'REMOVE_DOWNLOADED': {
+      const newDownloaded = { ...state.downloaded };
+      delete newDownloaded[action.payload];
+      localStorage.setItem('sukoon_downloaded', JSON.stringify(newDownloaded));
+      return { ...state, downloaded: newDownloaded };
     }
 
     default:

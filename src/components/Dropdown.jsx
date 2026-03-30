@@ -53,7 +53,16 @@ function SearchInput({ searchQuery, setSearchQuery, searchPlaceholder, inputRef 
 /**
  * Options list used in both dropdown and bottom sheet.
  */
-function OptionsList({ filteredOptions, onSelect, onToggleFavorite, showFavorites, listRef, isBottomSheet = false }) {
+function OptionsList({ 
+  filteredOptions, 
+  onSelect, 
+  onToggleFavorite, 
+  showFavorites, 
+  onDownload,
+  onDelete,
+  listRef, 
+  isBottomSheet = false 
+}) {
   return (
     <div
       ref={listRef}
@@ -99,7 +108,7 @@ function OptionsList({ filteredOptions, onSelect, onToggleFavorite, showFavorite
                   e.stopPropagation();
                   onToggleFavorite(opt.value);
                 }}
-                className={`pr-5 py-2 group-hover:opacity-100 transition-all ${
+                className={`px-3 py-2 group-hover:opacity-100 transition-all ${
                   opt.isFavorite ? 'opacity-100 text-gold scale-110' : 'opacity-20 hover:opacity-100 text-sepia-dark/40 hover:text-gold hover:scale-110'
                 }`}
                 aria-label={opt.isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -118,6 +127,52 @@ function OptionsList({ filteredOptions, onSelect, onToggleFavorite, showFavorite
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
               </button>
+            )}
+
+            {/* Download Button */}
+            {(onDownload || onDelete) && (
+              <div className="pr-4 flex items-center">
+                {opt.isDownloading ? (
+                  <div className="relative w-8 h-8 flex items-center justify-center">
+                    <svg className="animate-spin w-5 h-5 text-gold" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="absolute text-[8px] font-bold text-gold/80">{Math.round((opt.downloadProgress || 0) * 100)}%</span>
+                  </div>
+                ) : opt.isDownloaded ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete?.(opt.value);
+                    }}
+                    className="p-2 text-green-600/80 hover:text-red-500 transition-colors group/del"
+                    title="Remove from offline"
+                  >
+                    <svg className="w-5 h-5 group-hover/del:hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <svg className="w-5 h-5 hidden group-hover/del:block" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18m-2 0v14c0 1 1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2m-6 5 4 4m0-4-4 4"/>
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDownload?.(opt.value);
+                    }}
+                    className="p-2 text-sepia-dark/30 hover:text-gold transition-colors"
+                    title="Download for offline"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ))
@@ -141,6 +196,8 @@ function BottomSheet({
   onSelect,
   onToggleFavorite,
   showFavorites,
+  onDownload,
+  onDelete,
   searchInputRef,
   listRef,
 }) {
@@ -280,6 +337,8 @@ function BottomSheet({
           }}
           onToggleFavorite={onToggleFavorite}
           showFavorites={showFavorites}
+          onDownload={onDownload}
+          onDelete={onDelete}
           listRef={listRef}
           isBottomSheet={true}
         />
@@ -304,6 +363,8 @@ export default function Dropdown({
   menuClassName = '',
   onToggleFavorite,
   showFavorites = false,
+  onDownload,
+  onDelete,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -443,6 +504,8 @@ export default function Dropdown({
               }}
               onToggleFavorite={onToggleFavorite}
               showFavorites={showFavorites}
+              onDownload={onDownload}
+              onDelete={onDelete}
               listRef={listRef}
             />
           </div>,
@@ -466,6 +529,8 @@ export default function Dropdown({
           }}
           onToggleFavorite={onToggleFavorite}
           showFavorites={showFavorites}
+          onDownload={onDownload}
+          onDelete={onDelete}
           searchInputRef={searchInputRef}
           listRef={listRef}
         />
@@ -485,6 +550,8 @@ export default function Dropdown({
             }}
             onToggleFavorite={onToggleFavorite}
             showFavorites={showFavorites}
+            onDownload={onDownload}
+            onDelete={onDelete}
             listRef={listRef}
           />
         </div>

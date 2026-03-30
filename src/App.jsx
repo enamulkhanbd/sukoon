@@ -14,9 +14,8 @@ function AppContent() {
   return (
     <div className="fixed inset-0 bg-[#f4ecd8] flex flex-col overflow-hidden">
       {/* Top Header */}
-      <div className="bg-[#f4ecd8]/80 backdrop-blur-md border-b border-gold/10 px-6 py-5 flex items-center justify-between z-50">
-        <Header className="scale-75 origin-left" />
-        {/* Navigation moved to bottom player icon */}
+      <div className="bg-white border-b border-gold/5 px-6 py-5 flex items-center justify-center z-50 shadow-sm">
+        <Header className="scale-75" />
       </div>
 
       {/* Main Content Area */}

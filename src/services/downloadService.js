@@ -9,12 +9,14 @@ export const downloadService = {
    * @param {string} cacheKey - Unique key for this collection (e.g., 'chapter-1')
    * @param {Array} verses - Array of verse objects with audio URLs
    * @param {Function} onProgress - Callback for download progress (0 to 1)
+   * @param {boolean} skipStorage - If true, doesn't mark as downloaded in localStorage (useful for pre-fetching)
    */
-  async downloadVerses(cacheKey, verses, onProgress) {
+  async downloadVerses(cacheKey, verses, onProgress, skipStorage = false) {
     const cache = await caches.open(CACHE_NAMES.audio);
     const total = verses.length;
     let completed = 0;
 
+    // Use a small delay between requests to avoid choking the browser's connection pool
     for (const verse of verses) {
       if (!verse.audio?.url) {
         completed++;
@@ -39,10 +41,12 @@ export const downloadService = {
       if (onProgress) onProgress(completed / total);
     }
 
-    // Mark as downloaded in indexedDB or localStorage
-    const downloaded = JSON.parse(localStorage.getItem('sukoon_downloaded') || '{}');
-    downloaded[cacheKey] = true;
-    localStorage.setItem('sukoon_downloaded', JSON.stringify(downloaded));
+    if (!skipStorage) {
+        // Mark as downloaded in indexedDB or localStorage
+        const downloaded = JSON.parse(localStorage.getItem('sukoon_downloaded') || '{}');
+        downloaded[cacheKey] = true;
+        localStorage.setItem('sukoon_downloaded', JSON.stringify(downloaded));
+    }
   },
 
   /**

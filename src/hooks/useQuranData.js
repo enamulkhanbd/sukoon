@@ -41,6 +41,9 @@ export function useQuranData() {
         if (verse.audio?.segments?.length > 0) {
           const lastSegment = verse.audio.segments[verse.audio.segments.length - 1];
           verseDurationMs = lastSegment[3]; // [word_start, word_end, start_ms, end_ms]
+        } else {
+            // Fallback if no timing data: assume average 5s per verse for calculation
+            verseDurationMs = 5000;
         }
         totalDurationMs += verseDurationMs;
       });
@@ -49,6 +52,17 @@ export function useQuranData() {
         type: 'SET_VERSES',
         payload: { verses, verseCumulativeMs, totalDurationMs },
       });
+
+      // Background pre-fetch all audio files for this Surah/Juz to avoid network gaps
+      // This ensures "whole surah/juz at once" sync
+      if (verses.length > 0) {
+        const cacheKey = `prefetch-${state.mode}-${id}`;
+        // We don't await this so it happens in the background
+        import('../services/downloadService').then(({ downloadService }) => {
+            downloadService.downloadVerses(cacheKey, verses, null, true); // Added true for skipStorage
+        });
+      }
+
     } catch (err) {
       console.error('Failed to load verses:', err);
       dispatch({ type: 'SET_ERROR', payload: 'Failed to load verses.' });

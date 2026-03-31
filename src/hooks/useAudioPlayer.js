@@ -23,20 +23,33 @@ export function useAudioPlayer() {
     currentJuz,
   } = state;
 
-  // Load audio source when verse changes
+  // Track the current index in a ref to use in the event listener without closures getting stale
+  const currentIndexRef = useRef(currentVerseIndex);
   useEffect(() => {
-    if (verses.length === 0) return;
-    const verse = verses[currentVerseIndex];
+    currentIndexRef.current = currentVerseIndex;
+  }, [currentVerseIndex]);
+
+  const versesRef = useRef(verses);
+  useEffect(() => {
+    versesRef.current = verses;
+  }, [verses]);
+
+  // Function to load a specific verse index directly to the audio element
+  const loadVerseToAudio = useCallback((index, autoPlay = false) => {
+    const verse = versesRef.current[index];
     if (!verse?.audio?.url) return;
 
     const url = verse.audio.url.startsWith('http')
       ? verse.audio.url
       : `${AUDIO_BASE}${verse.audio.url}`;
 
-    audio.src = url;
-    audio.load();
+    // Only update if the source actually changed
+    if (audio.src !== url) {
+      audio.src = url;
+      audio.load();
+    }
 
-    if (isPlaying) {
+    if (autoPlay) {
       audio.play().catch((e) => {
         if (e.name !== 'AbortError') {
           console.error('Playback failed:', e);
@@ -45,6 +58,28 @@ export function useAudioPlayer() {
       });
     }
 
+    // Preload next verse
+    const nextVerse = versesRef.current[index + 1];
+    if (nextVerse?.audio?.url) {
+      const nextUrl = nextVerse.audio.url.startsWith('http')
+        ? nextVerse.audio.url
+        : `${AUDIO_BASE}${nextVerse.audio.url}`;
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = nextUrl;
+      link.as = 'audio';
+      // Use a unique ID to avoid clogging the head with too many links
+      const existing = document.getElementById('audio-prefetch');
+      if (existing) existing.remove();
+      link.id = 'audio-prefetch';
+      document.head.appendChild(link);
+    }
+  }, [audio, dispatch]);
+
+  // Sync React state and handle OS Metadata - Separate from playback trigger
+  useEffect(() => {
+    if (verses.length === 0) return;
+    
     // Update OS system media controls
     if ('mediaSession' in navigator) {
       const modeText = mode === 'chapter' ? `Surah ${currentChapter}` : `Juz ${currentJuz}`;
@@ -62,13 +97,30 @@ export function useAudioPlayer() {
     // Reset word index when verse changes
     lastWordIndexRef.current = -1;
     dispatch({ type: 'SET_ACTIVE_WORD', payload: -1 });
-  }, [currentVerseIndex, verses, isPlaying, mode, currentChapter, currentJuz, dispatch, audio]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Ensure audio element is in sync with React state (e.g. for manual seeking/init)
+    // but don't force play() here if it's already handled by handleEnded
+    const verse = verses[currentVerseIndex];
+    const url = verse?.audio?.url?.startsWith('http')
+      ? verse.audio.url
+      : `${AUDIO_BASE}${verse?.audio?.url}`;
+    
+    if (audio.src !== url && verse?.audio?.url) {
+        loadVerseToAudio(currentVerseIndex, isPlaying);
+    }
+  }, [currentVerseIndex, verses, mode, currentChapter, currentJuz, dispatch, audio, loadVerseToAudio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Audio event listeners
   useEffect(() => {
     const handleEnded = () => {
-      if (currentVerseIndex < verses.length - 1) {
-        dispatch({ type: 'SET_VERSE_INDEX', payload: currentVerseIndex + 1 });
+      const nextIndex = currentIndexRef.current + 1;
+      if (nextIndex < versesRef.current.length) {
+        // CRITICAL: Load and Play the NEXT track IMMEDIATELY in the same synchronous task
+        // to maintain the "audio session" on mobile devices while screen is off.
+        loadVerseToAudio(nextIndex, true);
+        
+        // Then update React state
+        dispatch({ type: 'SET_VERSE_INDEX', payload: nextIndex });
       } else {
         dispatch({ type: 'SET_PLAYING', payload: false });
         dispatch({ type: 'SET_VERSE_INDEX', payload: 0 });
@@ -79,7 +131,6 @@ export function useAudioPlayer() {
 
     const handleError = (e) => {
       console.error('[Audio Error]', e, audio.error);
-      // Don't auto-pause if it's just a network stall, only if it's a fatal decode/src error
       if (audio.error && audio.error.code !== 3) {
         dispatch({ type: 'SET_PLAYING', payload: false });
       }
@@ -88,10 +139,8 @@ export function useAudioPlayer() {
 
     const handleStalled = () => {
       console.warn('[Audio Stalled] Waiting for data...');
-      // Browser is waiting for data to download. Don't pause, let it buffer.
     };
 
-    audio.addEventListener('error', handleError);
     audio.addEventListener('stalled', handleStalled);
     audio.addEventListener('waiting', handleStalled);
 
@@ -101,7 +150,7 @@ export function useAudioPlayer() {
       audio.removeEventListener('stalled', handleStalled);
       audio.removeEventListener('waiting', handleStalled);
     };
-  }, [audio, currentVerseIndex, verses.length, dispatch]);
+  }, [audio, dispatch, loadVerseToAudio]);
 
   // Progress tracking via requestAnimationFrame for smooth updates
   useEffect(() => {

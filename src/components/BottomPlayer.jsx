@@ -57,7 +57,7 @@ export default function BottomPlayer({ onOpenSelection }) {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[100] pointer-events-none">
-      <div className="w-full bg-[#FCFAF5]/95 backdrop-blur-2xl border-t border-gold/10 shadow-[0_-8px_30px_rgba(195,155,86,0.05)] rounded-t-[2rem] md:rounded-t-[2.5rem] p-6 md:p-10 pb-8 md:pb-12 flex flex-col gap-6 md:gap-8 pointer-events-auto transform animate-slide-up-sm transition-all duration-500">
+      <div className="w-full bg-white/98 backdrop-blur-2xl border-t border-gold/5 shadow-[0_-12px_40px_rgba(0,0,0,0.03)] rounded-t-[2rem] md:rounded-t-[2.5rem] p-6 md:p-10 pb-8 md:pb-12 flex flex-col gap-6 md:gap-8 pointer-events-auto transform animate-slide-up-sm transition-all duration-500">
         
         {/* Info & Metadata (Swipeable area) */}
         <div 

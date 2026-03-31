@@ -195,4 +195,44 @@ rule.iqlab, tajweed.iqlab, .tajweed.iqlab {
     opacity: 0;
   }
 }
-@keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in { animation: fade-in 0.4s ease-out forwards; } @keyframes slide-up-sm { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } } .animate-slide-up-sm { animation: slide-up-sm 0.3s ease-out forwards; }
+/* Animated Waveform */
+.waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+.waveform-bar {
+  width: 3px;
+  height: 100%;
+  background-color: var(--color-gold);
+  border-radius: 4px;
+  animation: wave 1s ease-in-out infinite;
+  transform-origin: bottom;
+  opacity: 0.6;
+}
+.waveform-bar:nth-child(2) { animation-delay: 0.2s; height: 70%; }
+.waveform-bar:nth-child(3) { animation-delay: 0.4s; height: 90%; }
+.waveform-bar:nth-child(4) { animation-delay: 0.1s; height: 50%; }
+
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+/* Slide Transitions for Title */
+.title-enter-right {
+  animation: slide-in-right 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+.title-enter-left {
+  animation: slide-in-left 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slide-in-left {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}

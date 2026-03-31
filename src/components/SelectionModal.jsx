@@ -5,7 +5,7 @@ import Dropdown from './Dropdown';
 
 export default function SelectionModal({ isOpen, onClose }) {
   const { state, dispatch } = usePlayer();
-  const { mode, currentChapter, currentJuz, chapters, favoriteChapters } = state;
+  const { mode, currentChapter, currentJuz, chapters, favoriteChapters, favoriteJuz } = state;
   const { isDownloaded, isDownloadingItem, getDownloadProgress, downloadItem, deleteItem } = useDownload();
   const [activeTab, setActiveTab] = useState(mode);
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,17 +26,24 @@ export default function SelectionModal({ isOpen, onClose }) {
       value: i + 1,
       label: `Juz ${i + 1}`,
       isSelected: i + 1 === currentJuz && mode === 'juz',
-      isFavorite: false,
+      isFavorite: favoriteJuz.includes(i + 1),
       isDownloaded: isDownloaded('juz', i + 1),
       isDownloading: isDownloadingItem('juz', i + 1),
       downloadProgress: getDownloadProgress('juz', i + 1),
     }));
-  }, [activeTab, chapters, currentChapter, currentJuz, mode, favoriteChapters, isDownloaded, isDownloadingItem, getDownloadProgress]);
+  }, [activeTab, chapters, currentChapter, currentJuz, mode, favoriteChapters, favoriteJuz, isDownloaded, isDownloadingItem, getDownloadProgress]);
 
   const filteredOptions = useMemo(() => {
-    return itemOptions.filter(opt => 
+    const filtered = itemOptions.filter(opt => 
       opt.label.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Sort: Favorites first, then by value (original order)
+    return [...filtered].sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+      return a.value - b.value;
+    });
   }, [itemOptions, searchQuery]);
 
   const handleSelect = (value) => {
@@ -50,7 +57,11 @@ export default function SelectionModal({ isOpen, onClose }) {
   };
 
   const handleToggleFavorite = (id) => {
-      dispatch({ type: 'TOGGLE_FAVORITE_CHAPTER', payload: id });
+      if (activeTab === 'chapter') {
+        dispatch({ type: 'TOGGLE_FAVORITE_CHAPTER', payload: id });
+      } else {
+        dispatch({ type: 'TOGGLE_FAVORITE_JUZ', payload: id });
+      }
   };
 
   if (!isOpen) return null;
@@ -127,18 +138,16 @@ export default function SelectionModal({ isOpen, onClose }) {
                             </div>
                             
                             <div className="flex items-center gap-4">
-                                {activeTab === 'chapter' && (
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(opt.value); }}
-                                      className={`p-2.5 rounded-full transition-all duration-300 ${
-                                          opt.isFavorite 
-                                          ? 'text-pink-500 scale-110 opacity-100' 
-                                          : 'text-sepia-dark/10 group-hover:text-pink-400 group-hover:scale-110 group-hover:opacity-100'
-                                      }`}
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={opt.isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-                                    </button>
-                                )}
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleToggleFavorite(opt.value); }}
+                                  className={`p-2.5 rounded-full transition-all duration-300 ${
+                                      opt.isFavorite 
+                                      ? 'text-pink-500 scale-110 opacity-100' 
+                                      : 'text-sepia-dark/10 group-hover:text-pink-400 group-hover:scale-110 group-hover:opacity-100'
+                                  }`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={opt.isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                                </button>
                                 {opt.isDownloaded ? (
                                      <svg className="w-5 h-5 text-green-500/50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                                 ) : (

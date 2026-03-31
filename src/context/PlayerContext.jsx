@@ -17,6 +17,7 @@ const initialState = {
   error: null,
   chapters: [],
   favoriteChapters: JSON.parse(localStorage.getItem('sukoon_favorites') || '[]'),
+  favoriteJuz: JSON.parse(localStorage.getItem('sukoon_fav_juz') || '[]'),
   downloaded: JSON.parse(localStorage.getItem('sukoon_downloaded') || '{}'), // { "chapter-1": true, "juz-30": true, etc. }
 };
 
@@ -59,6 +60,15 @@ function playerReducer(state, action) {
       
       localStorage.setItem('sukoon_favorites', JSON.stringify(newFavorites));
       return { ...state, favoriteChapters: newFavorites };
+    }
+    case 'TOGGLE_FAVORITE_JUZ': {
+      const isFavorite = state.favoriteJuz.includes(action.payload);
+      const newFavorites = isFavorite
+        ? state.favoriteJuz.filter(id => id !== action.payload)
+        : [...state.favoriteJuz, action.payload];
+      
+      localStorage.setItem('sukoon_fav_juz', JSON.stringify(newFavorites));
+      return { ...state, favoriteJuz: newFavorites };
     }
     case 'UPDATE_DOWNLOADED': {
       const newDownloaded = { ...state.downloaded, ...action.payload };

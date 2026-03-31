@@ -23,7 +23,6 @@ export function useAudioPlayer() {
     currentJuz,
   } = state;
 
-  // Track the current index in a ref to use in the event listener without closures getting stale
   const currentIndexRef = useRef(currentVerseIndex);
   useEffect(() => {
     currentIndexRef.current = currentVerseIndex;
@@ -68,7 +67,6 @@ export function useAudioPlayer() {
       link.rel = 'prefetch';
       link.href = nextUrl;
       link.as = 'audio';
-      // Use a unique ID to avoid clogging the head with too many links
       const existing = document.getElementById('audio-prefetch');
       if (existing) existing.remove();
       link.id = 'audio-prefetch';
@@ -99,7 +97,6 @@ export function useAudioPlayer() {
     dispatch({ type: 'SET_ACTIVE_WORD', payload: -1 });
 
     // Ensure audio element is in sync with React state (e.g. for manual seeking/init)
-    // but don't force play() here if it's already handled by handleEnded
     const verse = verses[currentVerseIndex];
     const url = verse?.audio?.url?.startsWith('http')
       ? verse.audio.url

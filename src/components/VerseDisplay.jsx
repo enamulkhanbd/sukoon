@@ -63,9 +63,16 @@ export default function VerseDisplay() {
                   />
                 );
               })}
-              <span className="end font-amiri text-2xl md:text-3xl flex items-center justify-center min-w-[4rem] text-gold/40">
-                ({verse.verse_number.toLocaleString('ar-EG')})
-              </span>
+              <div className="flex flex-col items-center justify-center min-w-[5rem] gap-2">
+                 <span className="end font-amiri text-2xl md:text-3xl text-gold/40">
+                  ({verse.verse_number.toLocaleString('ar-EG')})
+                 </span>
+                 {isActiveVerse && state.isPlaying && (
+                   <div className="waveform h-4 mb-2 opacity-50 shrink-0">
+                      <div className="waveform-bar" /><div className="waveform-bar" /><div className="waveform-bar" /><div className="waveform-bar" />
+                   </div>
+                 )}
+              </div>
             </div>
 
             {/* Translation */}

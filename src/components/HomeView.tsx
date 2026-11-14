@@ -17,6 +17,7 @@ import {
   type Routine,
   type RoutineProgress,
 } from '../db/database';
+import { countCompleteCachedSurahs } from '../services/quranApi';
 import {
   DAY_NAMES_BN,
   DAY_SHORT_BN,
@@ -49,7 +50,7 @@ export function HomeView({
   const progressList = useLiveQuery(() => db.routineProgress.toArray(), []);
   const todayHistory = useLiveQuery(() => db.readingHistory.get(todayKey), [todayKey]);
   const allHistory = useLiveQuery(() => db.readingHistory.toArray(), []);
-  const cachedCount = useLiveQuery(() => db.cachedSurahs.count(), []);
+  const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []);
 
   const progressMap = new Map<string, RoutineProgress>(
     (progressList ?? []).map((p) => [p.routineId, p])

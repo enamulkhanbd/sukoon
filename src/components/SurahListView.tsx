@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Search, X } from 'lucide-react';
 import { SURAHS } from '../data/surahs';
 import { db } from '../db/database';
+import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 
 interface SurahListViewProps {
@@ -15,11 +16,16 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterMode>('all');
 
-  const cachedKeys = useLiveQuery(
-    () => db.cachedSurahs.toCollection().primaryKeys(),
-    []
+  const cachedRows = useLiveQuery(() => db.cachedSurahs.toArray(), []);
+  const cachedSet = useMemo(
+    () =>
+      new Set<number>(
+        (cachedRows ?? [])
+          .filter((c) => isSurahFullyCached(c, c.surahId))
+          .map((c) => c.surahId)
+      ),
+    [cachedRows]
   );
-  const cachedSet = useMemo(() => new Set<number>(cachedKeys ?? []), [cachedKeys]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

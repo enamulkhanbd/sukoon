@@ -1,7 +1,13 @@
 import { SURAH_MAP, SURAHS } from '../data/surahs';
-import { db, type CachedSurah, type CachedVerse } from '../db/database';
+import {
+  DEFAULT_SETTINGS,
+  db,
+  type CachedSurah,
+  type CachedVerse,
+} from '../db/database';
 
 const QURAN_API_BASE = 'https://api.quran.com/api/v4';
+const REQUEST_TIMEOUT_MS = 20000;
 
 interface ApiVerseResponse {
   verses: Array<{
@@ -19,6 +25,51 @@ interface ApiVerseResponse {
   };
 }
 
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException('Aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function fetchWithTimeout(
+  url: string,
+  externalSignal?: AbortSignal
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const onExternalAbort = () => controller.abort();
+  externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
+  }
+}
+
+export function isSurahFullyCached(
+  cached: CachedSurah | undefined,
+  surahId: number
+): boolean {
+  if (!cached) return false;
+  const expected = SURAH_MAP[surahId]?.versesCount ?? 1;
+  return Array.isArray(cached.verses) && cached.verses.length >= expected;
+}
+
 async function fetchSurahFromNetwork(
   surahId: number,
   signal?: AbortSignal
@@ -34,11 +85,14 @@ async function fetchSurahFromNetwork(
 
   while (hasMore) {
     const url = `${QURAN_API_BASE}/verses/by_chapter/${surahId}?fields=text_indopak,page_number,juz_number&per_page=300&page=${page}`;
-    const res = await fetch(url, { signal });
+    const res = await fetchWithTimeout(url, signal);
     if (!res.ok) {
       throw new Error(`কুরআন এপিআই ত্রুটি (${res.status})`);
     }
     const data = (await res.json()) as ApiVerseResponse;
+    if (!Array.isArray(data.verses)) {
+      throw new Error('অবৈধ এপিআই উত্তর পাওয়া গেছে।');
+    }
     for (const v of data.verses) {
       allVerses.push({
         id: v.id,
@@ -53,6 +107,10 @@ async function fetchSurahFromNetwork(
     } else {
       hasMore = false;
     }
+  }
+
+  if (allVerses.length < meta.versesCount) {
+    throw new Error(`সূরা ${meta.nameBangla}-এর সব আয়াত পাওয়া যায়নি।`);
   }
 
   const cached: CachedSurah = {
@@ -72,8 +130,8 @@ export async function getSurahOfflineFirst(
   signal?: AbortSignal
 ): Promise<CachedSurah> {
   const cached = await db.cachedSurahs.get(surahId);
-  if (cached && cached.verses.length > 0) {
-    return cached;
+  if (isSurahFullyCached(cached, surahId)) {
+    return cached!;
   }
   return fetchSurahFromNetwork(surahId, signal);
 }
@@ -85,14 +143,24 @@ export interface OfflineDownloadProgress {
   currentSurahName: string;
 }
 
+export async function countCompleteCachedSurahs(): Promise<number> {
+  const all = await db.cachedSurahs.toArray();
+  return all.filter((c) => isSurahFullyCached(c, c.surahId)).length;
+}
+
 export async function downloadAllSurahsForOffline(
   onProgress: (progress: OfflineDownloadProgress) => void,
   signal?: AbortSignal
 ): Promise<{ totalCached: number; failedIds: number[] }> {
-  const existingIds = new Set(await db.cachedSurahs.toCollection().primaryKeys());
-  const missing = SURAHS.filter((s) => !existingIds.has(s.id));
+  const existingRows = await db.cachedSurahs.toArray();
+  const completeIds = new Set(
+    existingRows
+      .filter((c) => isSurahFullyCached(c, c.surahId))
+      .map((c) => c.surahId)
+  );
+  const missing = SURAHS.filter((s) => !completeIds.has(s.id));
 
-  let completed = existingIds.size;
+  let completed = completeIds.size;
   const total = SURAHS.length;
   const failedIds: number[] = [];
 
@@ -104,11 +172,18 @@ export async function downloadAllSurahsForOffline(
   });
 
   if (missing.length === 0) {
-    await db.settings.update('app', { offlineDownloaded: true });
+    const cur = (await db.settings.get('app')) ?? DEFAULT_SETTINGS;
+    await db.settings.put({ ...cur, key: 'app', offlineDownloaded: true });
     return { totalCached: total, failedIds: [] };
   }
 
-  const CONCURRENCY = 3;
+  // Request persistent storage so mobile OS does not evict offline Quran cache
+  if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
+    navigator.storage.persist().catch(() => {});
+  }
+
+  const CONCURRENCY = 2;
+  const MAX_ATTEMPTS = 3;
   let cursor = 0;
 
   async function worker(): Promise<void> {
@@ -118,14 +193,21 @@ export async function downloadAllSurahsForOffline(
       const surah = missing[idx];
 
       let success = false;
-      for (let attempt = 0; attempt < 2 && !success; attempt++) {
+      for (let attempt = 0; attempt < MAX_ATTEMPTS && !success; attempt++) {
         if (signal?.aborted) return;
+        if (attempt > 0) {
+          try {
+            await sleep(attempt === 1 ? 600 : 1600, signal);
+          } catch {
+            return;
+          }
+        }
         try {
           await fetchSurahFromNetwork(surah.id, signal);
           success = true;
-        } catch (err) {
+        } catch {
           if (signal?.aborted) return;
-          if (attempt === 1) {
+          if (attempt === MAX_ATTEMPTS - 1) {
             failedIds.push(surah.id);
           }
         }
@@ -144,13 +226,19 @@ export async function downloadAllSurahsForOffline(
     }
   }
 
-  const workers = Array.from({ length: Math.min(CONCURRENCY, missing.length) }, () =>
-    worker()
+  const workers = Array.from(
+    { length: Math.min(CONCURRENCY, missing.length) },
+    () => worker()
   );
   await Promise.all(workers);
 
-  const totalCached = await db.cachedSurahs.count();
-  await db.settings.update('app', { offlineDownloaded: totalCached >= 114 });
+  const totalCached = await countCompleteCachedSurahs();
+  const cur = (await db.settings.get('app')) ?? DEFAULT_SETTINGS;
+  await db.settings.put({
+    ...cur,
+    key: 'app',
+    offlineDownloaded: totalCached >= 114,
+  });
 
   return { totalCached, failedIds };
 }

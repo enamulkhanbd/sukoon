@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   CheckCircle2,
@@ -20,9 +20,11 @@ import {
 } from '../db/database';
 import { usePwaInstall } from '../hooks/usePwaInstall';
 import {
-  downloadAllSurahsForOffline,
-  type OfflineDownloadProgress,
-} from '../services/quranApi';
+  cancelOfflineSync,
+  startOfflineSync,
+  useOfflineSync,
+} from '../services/offlineSyncStore';
+import { countCompleteCachedSurahs } from '../services/quranApi';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 import { useToast } from './ToastProvider';
 
@@ -63,57 +65,22 @@ const THEME_OPTIONS: Array<{
 
 export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) {
   const toast = useToast();
-  const cachedCount = useLiveQuery(() => db.cachedSurahs.count(), []) ?? 0;
+  const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []) ?? 0;
   const readingHistory = useLiveQuery(() => db.readingHistory.toArray(), []) ?? [];
   const { canInstall, isInstalled, promptInstall } = usePwaInstall();
 
-  const [downloading, setDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] =
-    useState<OfflineDownloadProgress | null>(null);
-
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const { downloading, progress: downloadProgress } = useOfflineSync();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const totalAyahsRead = readingHistory.reduce((acc, h) => acc + h.ayahsCount, 0);
   const activeDaysCount = readingHistory.filter((h) => h.ayahsCount > 0).length;
 
-  const handleDownloadAll = async () => {
-    if (downloading) return;
-    setDownloading(true);
-    toast.info('অফলাইন ডাউনলোড শুরু হয়েছে...');
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    try {
-      const result = await downloadAllSurahsForOffline(
-        (prog) => setDownloadProgress(prog),
-        controller.signal
-      );
-      if (controller.signal.aborted) {
-        toast.warning(
-          `ডাউনলোড স্থগিত করা হয়েছে (${toBanglaDigits(
-            result.totalCached
-          )}/১১৪ সংরক্ষিত)।`
-        );
-      } else if (result.failedIds.length > 0) {
-        toast.warning(
-          `${toBanglaDigits(result.totalCached)}/১১৪ সূরা ডাউনলোড হয়েছে। ${toBanglaDigits(
-            result.failedIds.length
-          )}টি সূরা ব্যর্থ হয়েছে—পুনরায় চেষ্টা করুন।`
-        );
-      } else {
-        toast.success('সম্পূর্ণ কুরআন (১১৪ সূরা) অফলাইনের জন্য সংরক্ষিত হয়েছে।');
-      }
-    } catch {
-      toast.error('ডাউনলোডের সময় ত্রুটি হয়েছে। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
-    } finally {
-      setDownloading(false);
-      abortControllerRef.current = null;
-    }
+  const handleDownloadAll = () => {
+    void startOfflineSync(toast);
   };
 
   const handleCancelDownload = () => {
-    abortControllerRef.current?.abort();
+    cancelOfflineSync();
   };
 
   const handleClearCache = async () => {

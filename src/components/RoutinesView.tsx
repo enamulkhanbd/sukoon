@@ -14,10 +14,10 @@ import {
 } from 'lucide-react';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import {
+  computeRoutineCompletedAyahs,
   computeRoutineTotalAyahs,
   db,
   getRoutineItems,
-  type NormalizedRoutineItem,
   type Routine,
   type RoutineProgress,
 } from '../db/database';
@@ -27,6 +27,52 @@ import {
   toBanglaDigits,
 } from '../utils/formatters';
 import { useToast } from './ToastProvider';
+
+interface DraftRoutineItem {
+  uid: string;
+  surahId: number;
+  startAyah: number;
+  endAyah: number;
+  startText: string;
+  endText: string;
+}
+
+const BANGLA_DIGIT_MAP: Record<string, string> = {
+  '০': '0',
+  '১': '1',
+  '২': '2',
+  '৩': '3',
+  '৪': '4',
+  '৫': '5',
+  '৬': '6',
+  '৭': '7',
+  '৮': '8',
+  '৯': '9',
+};
+
+function parseAyahNumberInput(raw: string): number | null {
+  const normalized = raw
+    .trim()
+    .replace(/[০-৯]/g, (ch) => BANGLA_DIGIT_MAP[ch] ?? ch);
+  if (!/^\d+$/.test(normalized)) return null;
+  return parseInt(normalized, 10);
+}
+
+let draftUidCounter = 1;
+function createDraftItem(
+  surahId: number,
+  startAyah: number,
+  endAyah: number
+): DraftRoutineItem {
+  return {
+    uid: `item-${draftUidCounter++}`,
+    surahId,
+    startAyah,
+    endAyah,
+    startText: String(startAyah),
+    endText: String(endAyah),
+  };
+}
 
 interface RoutinesViewProps {
   onOpenRoutine: (routine: Routine, progress?: RoutineProgress) => void;
@@ -51,7 +97,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
   // Modal form state
   const [title, setTitle] = useState('');
   const [assignedDays, setAssignedDays] = useState<number[]>([]);
-  const [items, setItems] = useState<NormalizedRoutineItem[]>([]);
+  const [items, setItems] = useState<DraftRoutineItem[]>([]);
   const [surahQuery, setSurahQuery] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -69,7 +115,11 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
     setEditingRoutine(routine);
     setTitle(routine.title);
     setAssignedDays([...routine.assignedDays]);
-    setItems(getRoutineItems(routine));
+    setItems(
+      getRoutineItems(routine).map((it) =>
+        createDraftItem(it.surahId, it.startAyah, it.endAyah)
+      )
+    );
     setSurahQuery('');
     setFormError(null);
     setIsModalOpen(true);
@@ -86,11 +136,24 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
   const addSurahItem = (id: number) => {
     const meta = SURAH_MAP[id];
     if (!meta) return;
-    setItems((prev) => [
-      ...prev,
-      { surahId: id, startAyah: 1, endAyah: meta.versesCount },
-    ]);
+    setItems((prev) => [...prev, createDraftItem(id, 1, meta.versesCount)]);
     toast.success(`${meta.nameBangla} তালিকায় যুক্ত হয়েছে`);
+  };
+
+  const toggleSurahInPicker = (id: number) => {
+    const existingIndexes = items
+      .map((it, idx) => (it.surahId === id ? idx : -1))
+      .filter((idx) => idx !== -1);
+
+    if (existingIndexes.length === 0) {
+      addSurahItem(id);
+      return;
+    }
+
+    // Toggle off cleanly when selected once; if user added multiple ranges, remove all of that surah
+    setItems((prev) => prev.filter((it) => it.surahId !== id));
+    const name = SURAH_MAP[id]?.nameBangla ?? 'সূরা';
+    toast.info(`${name} তালিকা থেকে সরানো হয়েছে`);
   };
 
   const removeItem = (index: number) => {
@@ -102,21 +165,70 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
     }
   };
 
-  const updateItemRange = (
-    index: number,
-    patch: Partial<Pick<NormalizedRoutineItem, 'startAyah' | 'endAyah'>>
-  ) => {
+  const setItemFullSurah = (index: number) => {
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== index) return item;
         const max = SURAH_MAP[item.surahId]?.versesCount ?? 1;
+        return {
+          ...item,
+          startAyah: 1,
+          endAyah: max,
+          startText: '1',
+          endText: String(max),
+        };
+      })
+    );
+  };
+
+  const handleRangeTextChange = (
+    index: number,
+    field: 'start' | 'end',
+    rawValue: string
+  ) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const parsed = parseAyahNumberInput(rawValue);
+        if (field === 'start') {
+          return {
+            ...item,
+            startText: rawValue,
+            startAyah: parsed ?? item.startAyah,
+          };
+        }
+        return {
+          ...item,
+          endText: rawValue,
+          endAyah: parsed ?? item.endAyah,
+        };
+      })
+    );
+  };
+
+  const normalizeItemRangeOnBlur = (index: number) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const max = SURAH_MAP[item.surahId]?.versesCount ?? 1;
+        const parsedStart = parseAyahNumberInput(item.startText);
+        const parsedEnd = parseAyahNumberInput(item.endText);
+
         const nextStart = Math.min(
-          Math.max(patch.startAyah ?? item.startAyah, 1),
+          Math.max(parsedStart ?? item.startAyah, 1),
           max
         );
-        const rawEnd = patch.endAyah ?? item.endAyah;
-        const nextEnd = Math.min(Math.max(rawEnd, nextStart), max);
-        return { ...item, startAyah: nextStart, endAyah: nextEnd };
+        const nextEnd = Math.min(
+          Math.max(parsedEnd ?? item.endAyah, nextStart),
+          max
+        );
+        return {
+          ...item,
+          startAyah: nextStart,
+          endAyah: nextEnd,
+          startText: String(nextStart),
+          endText: String(nextEnd),
+        };
       })
     );
   };
@@ -134,6 +246,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     const trimmed = title.trim();
     if (!trimmed) {
       const msg = 'রুটিনের একটি নাম দিন।';
@@ -148,42 +261,76 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
       return;
     }
 
+    const validatedItems: Array<{
+      surahId: number;
+      startAyah: number;
+      endAyah: number;
+    }> = [];
+
+    for (const item of items) {
+      const meta = SURAH_MAP[item.surahId];
+      if (!meta) continue;
+      const start = parseAyahNumberInput(item.startText);
+      const end = parseAyahNumberInput(item.endText);
+
+      if (
+        start === null ||
+        end === null ||
+        start < 1 ||
+        end > meta.versesCount ||
+        start > end
+      ) {
+        const msg = `${meta.nameBangla}: সঠিক আয়াত সংখ্যা দিন (১–${toBanglaDigits(
+          meta.versesCount
+        )} এবং শুরু ≤ শেষ)।`;
+        setFormError(msg);
+        toast.warning(msg);
+        return;
+      }
+      validatedItems.push({
+        surahId: item.surahId,
+        startAyah: start,
+        endAyah: end,
+      });
+    }
+
     const routine: Routine = {
       id: editingRoutine ? editingRoutine.id : `routine-${Date.now()}`,
       title: trimmed,
       assignedDays,
-      surahIds: items.map((i) => i.surahId),
-      items: items.map((i) => ({
-        surahId: i.surahId,
-        startAyah: i.startAyah,
-        endAyah: i.endAyah,
-      })),
+      surahIds: validatedItems.map((i) => i.surahId),
+      items: validatedItems,
       createdAt: editingRoutine ? editingRoutine.createdAt : Date.now(),
     };
 
     await db.routines.put(routine);
 
-    // Recalculate existing progress total if routine items changed
+    // Recalculate existing progress if routine items changed
     const existingProg = await db.routineProgress.get(routine.id);
     if (existingProg) {
       const total = computeRoutineTotalAyahs(routine);
-      const stillValid = items.some(
+      const matchedIdx = validatedItems.findIndex(
         (it) =>
           it.surahId === existingProg.lastReadSurah &&
           existingProg.lastReadAyah >= it.startAyah &&
           existingProg.lastReadAyah <= it.endAyah
       );
-      if (!stillValid) {
+      if (matchedIdx === -1) {
         await db.routineProgress.delete(routine.id);
       } else {
+        const completed = computeRoutineCompletedAyahs(
+          routine,
+          existingProg.lastReadSurah,
+          existingProg.lastReadAyah,
+          matchedIdx
+        );
         await db.routineProgress.update(routine.id, {
+          lastReadItemIndex: matchedIdx,
+          completedAyahsCount: completed,
           totalAyahsCount: total,
           percentage:
             total > 0
-              ? Math.min(
-                  100,
-                  Math.round((existingProg.completedAyahsCount / total) * 100)
-                )
+              ? Math.min(100, Math.round((completed / total) * 100))
               : 0,
         });
       }
@@ -443,7 +590,8 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 space-y-5">
+            <form onSubmit={handleSave} noValidate className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
               {/* Title */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold">রুটিনের নাম</label>
@@ -533,10 +681,10 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                       if (!s) return null;
                       const isFullSurah =
                         item.startAyah === 1 && item.endAyah === s.versesCount;
-                      const span = item.endAyah - item.startAyah + 1;
+                      const span = Math.max(1, item.endAyah - item.startAyah + 1);
                       return (
                         <div
-                          key={`${item.surahId}-${idx}`}
+                          key={item.uid}
                           className="px-3 py-2.5 rounded-xl border text-xs space-y-2"
                           style={{
                             backgroundColor: 'var(--bg-surface)',
@@ -585,12 +733,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                           <div className="flex items-center flex-wrap gap-2">
                             <button
                               type="button"
-                              onClick={() =>
-                                updateItemRange(idx, {
-                                  startAyah: 1,
-                                  endAyah: s.versesCount,
-                                })
-                              }
+                              onClick={() => setItemFullSurah(idx)}
                               className="px-2 py-1 rounded-lg border text-[11px] font-medium cursor-pointer"
                               style={{
                                 backgroundColor: isFullSurah
@@ -610,15 +753,13 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                             <div className="flex items-center gap-1.5 text-[11px]">
                               <span style={{ color: 'var(--text-muted)' }}>আয়াত:</span>
                               <input
-                                type="number"
-                                min={1}
-                                max={s.versesCount}
-                                value={item.startAyah}
+                                type="text"
+                                inputMode="numeric"
+                                value={item.startText}
                                 onChange={(e) =>
-                                  updateItemRange(idx, {
-                                    startAyah: parseInt(e.target.value, 10) || 1,
-                                  })
+                                  handleRangeTextChange(idx, 'start', e.target.value)
                                 }
+                                onBlur={() => normalizeItemRangeOnBlur(idx)}
                                 aria-label="শুরুর আয়াত"
                                 className="w-14 px-2 py-1 rounded-lg border text-center outline-none"
                                 style={{
@@ -628,16 +769,13 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                               />
                               <span>–</span>
                               <input
-                                type="number"
-                                min={item.startAyah}
-                                max={s.versesCount}
-                                value={item.endAyah}
+                                type="text"
+                                inputMode="numeric"
+                                value={item.endText}
                                 onChange={(e) =>
-                                  updateItemRange(idx, {
-                                    endAyah:
-                                      parseInt(e.target.value, 10) || item.startAyah,
-                                  })
+                                  handleRangeTextChange(idx, 'end', e.target.value)
                                 }
+                                onBlur={() => normalizeItemRangeOnBlur(idx)}
                                 aria-label="শেষ আয়াত"
                                 className="w-14 px-2 py-1 rounded-lg border text-center outline-none"
                                 style={{
@@ -686,44 +824,73 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                   {filteredSurahs.map((s) => {
                     const countInList = items.filter((it) => it.surahId === s.id).length;
                     return (
-                      <button
+                      <div
                         key={s.id}
-                        type="button"
-                        onClick={() => addSurahItem(s.id)}
-                        className="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors cursor-pointer"
+                        className="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors"
                         style={{
                           backgroundColor:
                             countInList > 0 ? 'var(--accent-soft)' : 'transparent',
                           borderColor: 'var(--border-subtle)',
                         }}
                       >
-                        <span>
-                          {toBanglaDigits(s.id)}. {s.nameBangla}{' '}
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            ({toBanglaDigits(s.versesCount)})
+                        <button
+                          type="button"
+                          onClick={() => toggleSurahInPicker(s.id)}
+                          className="flex-1 flex items-center justify-between gap-2 text-left cursor-pointer"
+                        >
+                          <span>
+                            {toBanglaDigits(s.id)}. {s.nameBangla}{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>
+                              ({toBanglaDigits(s.versesCount)})
+                            </span>
                           </span>
-                        </span>
-                        <span className="flex items-center gap-2">
-                          <span className="font-indopak text-base">{s.nameArabic}</span>
-                          {countInList > 0 ? (
-                            <span
-                              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          <span className="font-indopak text-base mr-2">
+                            {s.nameArabic}
+                          </span>
+                        </button>
+
+                        {countInList > 0 ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => addSurahItem(s.id)}
+                              title="একই সূরার আরেকটি আয়াত অংশ যোগ করুন"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border cursor-pointer"
+                              style={{
+                                backgroundColor: 'var(--bg-elevated)',
+                                borderColor: 'var(--accent)',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              অংশ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleSurahInPicker(s.id)}
+                              title="তালিকা থেকে সরান"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full cursor-pointer"
                               style={{
                                 backgroundColor: 'var(--accent)',
                                 color: 'var(--accent-text)',
                               }}
                             >
                               <Check className="w-3 h-3" />
-                              {toBanglaDigits(countInList)}
-                            </span>
-                          ) : (
-                            <Plus
-                              className="w-3.5 h-3.5"
-                              style={{ color: 'var(--text-muted)' }}
-                            />
-                          )}
-                        </span>
-                      </button>
+                              {countInList > 1 ? toBanglaDigits(countInList) : ''}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => addSurahItem(s.id)}
+                            aria-label={`${s.nameBangla} যুক্ত করুন`}
+                            className="p-1 cursor-pointer shrink-0"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -732,8 +899,16 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
               {formError && (
                 <p className="text-xs font-medium text-red-600">{formError}</p>
               )}
+              </div>
 
-              <div className="pt-1 flex gap-2">
+              {/* Sticky Footer */}
+              <div
+                className="px-5 py-3.5 border-t flex gap-2 shrink-0"
+                style={{
+                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-page)',
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

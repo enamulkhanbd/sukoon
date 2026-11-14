@@ -194,42 +194,6 @@ export function ensureDatabaseInitialized(): Promise<void> {
       if (!existingSettings) {
         await db.settings.put(DEFAULT_SETTINGS);
       }
-
-      const seededMarker = await db.settings.get('seeded');
-      if (!seededMarker) {
-        const count = await db.routines.count();
-        if (count === 0) {
-          const now = Date.now();
-          const defaultRoutines: Routine[] = [
-            {
-              id: 'routine-jumuah',
-              title: 'জুমুআ রুটিন',
-              assignedDays: [5],
-              surahIds: [18],
-              createdAt: now,
-            },
-            {
-              id: 'routine-night',
-              title: 'ঘুমের আগে সুন্নাহ তিলাওয়াত',
-              assignedDays: [0, 1, 2, 3, 4, 5, 6],
-              surahIds: [32, 67],
-              createdAt: now + 1,
-            },
-            {
-              id: 'routine-protection',
-              title: 'সকাল-সন্ধ্যা ৩ কুল ও ফাতিহা',
-              assignedDays: [],
-              surahIds: [1, 112, 113, 114],
-              createdAt: now + 2,
-            },
-          ];
-          await db.routines.bulkPut(defaultRoutines);
-        }
-        await db.settings.put({
-          ...DEFAULT_SETTINGS,
-          key: 'seeded',
-        });
-      }
     })();
   }
   return initPromise;
@@ -413,7 +377,6 @@ export async function importUserData(raw: unknown): Promise<{
           offlineDownloaded: cachedCount >= 114,
         });
       }
-      await db.settings.put({ ...DEFAULT_SETTINGS, key: 'seeded' });
     }
   );
 

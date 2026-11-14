@@ -24,6 +24,7 @@ import {
   type OfflineDownloadProgress,
 } from '../services/quranApi';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
+import { useToast } from './ToastProvider';
 
 interface SettingsViewProps {
   settings: Settings;
@@ -61,6 +62,7 @@ const THEME_OPTIONS: Array<{
 ];
 
 export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) {
+  const toast = useToast();
   const cachedCount = useLiveQuery(() => db.cachedSurahs.count(), []) ?? 0;
   const readingHistory = useLiveQuery(() => db.readingHistory.toArray(), []) ?? [];
   const { canInstall, isInstalled, promptInstall } = usePwaInstall();
@@ -68,10 +70,6 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] =
     useState<OfflineDownloadProgress | null>(null);
-  const [statusMessage, setStatusMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -81,8 +79,8 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
 
   const handleDownloadAll = async () => {
     if (downloading) return;
-    setStatusMessage(null);
     setDownloading(true);
+    toast.info('অফলাইন ডাউনলোড শুরু হয়েছে...');
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
@@ -92,30 +90,22 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
         controller.signal
       );
       if (controller.signal.aborted) {
-        setStatusMessage({
-          type: 'error',
-          text: `ডাউনলোড স্থগিত করা হয়েছে (${toBanglaDigits(
+        toast.warning(
+          `ডাউনলোড স্থগিত করা হয়েছে (${toBanglaDigits(
             result.totalCached
-          )}/১১৪ সংরক্ষিত)।`,
-        });
+          )}/১১৪ সংরক্ষিত)।`
+        );
       } else if (result.failedIds.length > 0) {
-        setStatusMessage({
-          type: 'error',
-          text: `${toBanglaDigits(result.totalCached)}/১১৪ সূরা ডাউনলোড হয়েছে। ${toBanglaDigits(
+        toast.warning(
+          `${toBanglaDigits(result.totalCached)}/১১৪ সূরা ডাউনলোড হয়েছে। ${toBanglaDigits(
             result.failedIds.length
-          )}টি সূরা ব্যর্থ হয়েছে—পুনরায় চেষ্টা করুন।`,
-        });
+          )}টি সূরা ব্যর্থ হয়েছে—পুনরায় চেষ্টা করুন।`
+        );
       } else {
-        setStatusMessage({
-          type: 'success',
-          text: 'সম্পূর্ণ কুরআন (১১৪ সূরা) অফলাইনের জন্য সংরক্ষিত হয়েছে।',
-        });
+        toast.success('সম্পূর্ণ কুরআন (১১৪ সূরা) অফলাইনের জন্য সংরক্ষিত হয়েছে।');
       }
     } catch {
-      setStatusMessage({
-        type: 'error',
-        text: 'ডাউনলোডের সময় ত্রুটি হয়েছে। ইন্টারনেট সংযোগ পরীক্ষা করুন।',
-      });
+      toast.error('ডাউনলোডের সময় ত্রুটি হয়েছে। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
     } finally {
       setDownloading(false);
       abortControllerRef.current = null;
@@ -129,10 +119,7 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
   const handleClearCache = async () => {
     await db.cachedSurahs.clear();
     await onUpdateSettings({ offlineDownloaded: false });
-    setStatusMessage({
-      type: 'success',
-      text: 'ক্যাশ করা সূরা মুছে ফেলা হয়েছে। আপনার রুটিন ও ইতিহাস সুরক্ষিত আছে।',
-    });
+    toast.warning('ক্যাশ করা সূরা মুছে ফেলা হয়েছে। আপনার রুটিন ও ইতিহাস সুরক্ষিত আছে।');
   };
 
   const handleExportJson = async () => {
@@ -150,15 +137,9 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setStatusMessage({
-        type: 'success',
-        text: 'ব্যাকআপ ফাইল সফলভাবে এক্সপোর্ট হয়েছে।',
-      });
+      toast.success('ব্যাকআপ ফাইল সফলভাবে এক্সপোর্ট হয়েছে।');
     } catch {
-      setStatusMessage({
-        type: 'error',
-        text: 'ব্যাকআপ এক্সপোর্ট করা যায়নি।',
-      });
+      toast.error('ব্যাকআপ এক্সপোর্ট করা যায়নি।');
     }
   };
 
@@ -169,17 +150,15 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
       const text = await file.text();
       const parsed: unknown = JSON.parse(text);
       const res = await importUserData(parsed);
-      setStatusMessage({
-        type: 'success',
-        text: `সফলভাবে রিস্টোর হয়েছে (${toBanglaDigits(
+      toast.success(
+        `সফলভাবে রিস্টোর হয়েছে (${toBanglaDigits(
           res.routinesCount
-        )}টি রুটিন, ${toBanglaDigits(res.historyDays)} দিনের ইতিহাস)।`,
-      });
+        )}টি রুটিন, ${toBanglaDigits(res.historyDays)} দিনের ইতিহাস)।`
+      );
     } catch (err) {
-      setStatusMessage({
-        type: 'error',
-        text: err instanceof Error ? err.message : 'ব্যাকআপ ফাইল ইমপোর্ট করা যায়নি।',
-      });
+      toast.error(
+        err instanceof Error ? err.message : 'ব্যাকআপ ফাইল ইমপোর্ট করা যায়নি।'
+      );
     } finally {
       e.target.value = '';
     }
@@ -195,30 +174,6 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
           থিম, ইন্দো-পাক ফন্ট, সম্পূর্ণ অফলাইন কুরআন ও ডেটা ব্যাকআপ
         </p>
       </header>
-
-      {statusMessage && (
-        <div
-          className="rounded-2xl border px-4 py-3 text-xs font-medium flex items-center justify-between gap-2"
-          style={{
-            backgroundColor:
-              statusMessage.type === 'success'
-                ? 'var(--accent-soft)'
-                : 'var(--gold-soft)',
-            borderColor:
-              statusMessage.type === 'success' ? 'var(--accent)' : 'var(--gold)',
-            color: 'var(--text-primary)',
-          }}
-        >
-          <span>{statusMessage.text}</span>
-          <button
-            type="button"
-            onClick={() => setStatusMessage(null)}
-            className="p-0.5 cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Theme & Typography */}
       <section
@@ -237,7 +192,10 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
               <button
                 key={t.id}
                 type="button"
-                onClick={() => onUpdateSettings({ theme: t.id })}
+                onClick={async () => {
+                  await onUpdateSettings({ theme: t.id });
+                  toast.success(`থিম পরিবর্তন হয়েছে: ${t.label}`);
+                }}
                 className="rounded-2xl border p-3 text-center space-y-1 transition-all cursor-pointer"
                 style={{
                   backgroundColor: t.bg,
@@ -296,9 +254,15 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
             type="button"
             role="switch"
             aria-checked={settings.keepScreenAwake}
-            onClick={() =>
-              onUpdateSettings({ keepScreenAwake: !settings.keepScreenAwake })
-            }
+            onClick={async () => {
+              const next = !settings.keepScreenAwake;
+              await onUpdateSettings({ keepScreenAwake: next });
+              toast.info(
+                next
+                  ? 'তিলাওয়াতের সময় স্ক্রিন চালু থাকবে'
+                  : 'স্ক্রিন চালু রাখা বন্ধ করা হয়েছে'
+              );
+            }}
             className="w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer shrink-0"
             style={{
               backgroundColor: settings.keepScreenAwake
@@ -329,7 +293,14 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
                 <button
                   key={sp.value}
                   type="button"
-                  onClick={() => onUpdateSettings({ autoScrollSpeed: sp.value })}
+                  onClick={async () => {
+                    await onUpdateSettings({ autoScrollSpeed: sp.value });
+                    toast.info(
+                      sp.value === 0
+                        ? 'অটো-স্ক্রল বন্ধ করা হয়েছে'
+                        : `অটো-স্ক্রল গতি: ${sp.label}`
+                    );
+                  }}
                   className="py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer"
                   style={{
                     backgroundColor: active ? 'var(--accent)' : 'var(--bg-page)',
@@ -535,7 +506,10 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
         {canInstall && (
           <button
             type="button"
-            onClick={() => promptInstall()}
+            onClick={async () => {
+              const ok = await promptInstall();
+              if (ok) toast.success('সুকূন অ্যাপ ইনস্টল হয়েছে।');
+            }}
             className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer"
             style={{
               backgroundColor: 'var(--accent)',

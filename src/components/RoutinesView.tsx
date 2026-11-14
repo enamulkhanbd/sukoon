@@ -26,12 +26,14 @@ import {
   formatRoutineItemLabel,
   toBanglaDigits,
 } from '../utils/formatters';
+import { useToast } from './ToastProvider';
 
 interface RoutinesViewProps {
   onOpenRoutine: (routine: Routine, progress?: RoutineProgress) => void;
 }
 
 export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
+  const toast = useToast();
   const routines = useLiveQuery(
     () => db.routines.orderBy('createdAt').toArray(),
     []
@@ -88,10 +90,16 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
       ...prev,
       { surahId: id, startAyah: 1, endAyah: meta.versesCount },
     ]);
+    toast.success(`${meta.nameBangla} তালিকায় যুক্ত হয়েছে`);
   };
 
   const removeItem = (index: number) => {
+    const removed = items[index];
     setItems((prev) => prev.filter((_, i) => i !== index));
+    if (removed) {
+      const name = SURAH_MAP[removed.surahId]?.nameBangla ?? 'সূরা';
+      toast.info(`${name} তালিকা থেকে সরানো হয়েছে`);
+    }
   };
 
   const updateItemRange = (
@@ -128,11 +136,15 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed) {
-      setFormError('রুটিনের একটি নাম দিন।');
+      const msg = 'রুটিনের একটি নাম দিন।';
+      setFormError(msg);
+      toast.warning(msg);
       return;
     }
     if (items.length === 0) {
-      setFormError('অন্তত একটি সূরা বা আয়াত অংশ নির্বাচন করুন।');
+      const msg = 'অন্তত একটি সূরা বা আয়াত অংশ নির্বাচন করুন।';
+      setFormError(msg);
+      toast.warning(msg);
       return;
     }
 
@@ -178,17 +190,24 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
     }
 
     setIsModalOpen(false);
+    toast.success(
+      editingRoutine
+        ? `“${trimmed}” রুটিন আপডেট ও সংরক্ষিত হয়েছে`
+        : `“${trimmed}” নতুন রুটিন সংরক্ষিত হয়েছে`
+    );
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (routine: Routine) => {
     await db.transaction('rw', [db.routines, db.routineProgress], async () => {
-      await db.routines.delete(id);
-      await db.routineProgress.delete(id);
+      await db.routines.delete(routine.id);
+      await db.routineProgress.delete(routine.id);
     });
+    toast.warning(`“${routine.title}” রুটিন মুছে ফেলা হয়েছে`);
   };
 
-  const handleResetProgress = async (id: string) => {
-    await db.routineProgress.delete(id);
+  const handleResetProgress = async (routine: Routine) => {
+    await db.routineProgress.delete(routine.id);
+    toast.info(`“${routine.title}”-এর অগ্রগতি রিসেট করা হয়েছে`);
   };
 
   const filteredSurahs = useMemo(() => {
@@ -290,7 +309,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     {prog && prog.completedAyahsCount > 0 && (
                       <button
                         type="button"
-                        onClick={() => handleResetProgress(routine.id)}
+                        onClick={() => handleResetProgress(routine)}
                         title="অগ্রগতি রিসেট করুন"
                         className="p-2 rounded-lg transition-colors cursor-pointer"
                         style={{ color: 'var(--text-muted)' }}
@@ -309,7 +328,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(routine.id)}
+                      onClick={() => handleDelete(routine)}
                       title="মুছে ফেলুন"
                       className="p-2 rounded-lg transition-colors cursor-pointer"
                       style={{ color: 'var(--text-muted)' }}

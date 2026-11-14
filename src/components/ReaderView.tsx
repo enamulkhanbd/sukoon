@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  BookmarkCheck,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -31,6 +30,7 @@ import {
   toArabicDigits,
   toBanglaDigits,
 } from '../utils/formatters';
+import { useToast } from './ToastProvider';
 
 interface ReaderViewProps {
   surahId: number;
@@ -82,12 +82,12 @@ export function ReaderView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const toast = useToast();
   const [chromeVisible, setChromeVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeAyah, setActiveAyah] = useState(initialAyah);
   const [activePage, setActivePage] = useState(meta?.pages[0] ?? 1);
   const [activeJuz, setActiveJuz] = useState(1);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [autoScrollPaused, setAutoScrollPaused] = useState(false);
   const [jumpAyahInput, setJumpAyahInput] = useState('');
 
@@ -98,13 +98,6 @@ export function ReaderView({
   const visitedAyahsRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);
   const hasRestoredScrollRef = useRef(false);
-  const toastTimerRef = useRef<number | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    setToastMsg(msg);
-    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setToastMsg(null), 2200);
-  }, []);
 
   // Load Surah offline-first
   const loadSurah = useCallback(async (signal?: AbortSignal) => {
@@ -190,10 +183,12 @@ export function ReaderView({
       }).catch(() => {});
 
       if (explicit) {
-        showToast(`আয়াত ${toBanglaDigits(ayahNum)} সর্বশেষ পঠিত হিসেবে সংরক্ষিত`);
+        toast.success(
+          `আয়াত ${toBanglaDigits(ayahNum)} সর্বশেষ পঠিত হিসেবে সংরক্ষিত`
+        );
       }
     },
-    [surahId, routine?.id, routineItemIndex, showToast]
+    [surahId, routine?.id, routineItemIndex, toast]
   );
 
   // Scroll tracking for Smart Last-Read Memory
@@ -371,6 +366,9 @@ export function ReaderView({
         routineId: routine?.id,
         routineItemIndex,
       });
+    }
+    if (routine) {
+      toast.success(`মাশাআল্লাহ! “${routine.title}” সম্পন্ন হয়েছে`);
     }
     onClose();
   };
@@ -737,21 +735,6 @@ export function ReaderView({
               }
             </span>
           </button>
-        </div>
-      )}
-
-      {/* Subtle Bookmark Saved Toast */}
-      {toastMsg && (
-        <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-2 px-4 py-2 rounded-full shadow-lg text-xs font-medium border"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--accent)',
-            color: 'var(--text-primary)',
-          }}
-        >
-          <BookmarkCheck className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-          <span>{toastMsg}</span>
         </div>
       )}
 

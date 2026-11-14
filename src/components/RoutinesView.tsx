@@ -559,39 +559,40 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
         )}
       </div>
 
-      {/* Create / Edit Routine Modal */}
+      {/* Create / Edit Routine Full-Screen Sheet */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs"
-          onClick={() => setIsModalOpen(false)}
+          className="fixed inset-0 z-50 flex flex-col paper-frame"
+          style={{ backgroundColor: 'var(--bg-page)' }}
         >
           <div
-            className="w-full sm:max-w-lg max-h-[90dvh] flex flex-col rounded-t-3xl sm:rounded-3xl border overflow-hidden"
-            style={{
-              backgroundColor: 'var(--bg-page)',
-              borderColor: 'var(--border-subtle)',
-            }}
-            onClick={(e) => e.stopPropagation()}
+            className="border-b safe-top shrink-0"
+            style={{ borderColor: 'var(--border-subtle)' }}
           >
-            <div
-              className="flex items-center justify-between px-5 py-4 border-b"
-              style={{ borderColor: 'var(--border-subtle)' }}
-            >
+            <div className="max-w-2xl mx-auto w-full flex items-center justify-between px-4 py-3.5">
               <h2 className="font-bold text-base">
                 {editingRoutine ? 'রুটিন সম্পাদনা' : 'নতুন রুটিন তৈরি'}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
+                aria-label="বন্ধ করুন"
                 className="p-1.5 rounded-full cursor-pointer"
                 style={{ color: 'var(--text-muted)' }}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
+          </div>
 
-            <form onSubmit={handleSave} noValidate className="flex flex-col flex-1 min-h-0">
-              <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
+          <form
+            onSubmit={handleSave}
+            noValidate
+            className="flex flex-col flex-1 min-h-0"
+          >
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="max-w-2xl mx-auto w-full min-h-full flex flex-col">
+                <div className="p-4 sm:px-6 sm:pt-6 pb-3 space-y-5">
               {/* Title */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold">রুটিনের নাম</label>
@@ -792,7 +793,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                 </div>
               )}
 
-              {/* Surah Picker */}
+              {/* Surah Picker Search Header */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold">
                   সূরা / আয়াত অংশ যুক্ত করুন
@@ -814,8 +815,12 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     }}
                   />
                 </div>
+              </div>
+            </div>
+
+                {/* Edge-to-edge Surah Picker List flush to footer */}
                 <div
-                  className="max-h-48 overflow-y-auto rounded-xl border divide-y"
+                  className="flex-1 border-t sm:border-x divide-y"
                   style={{
                     backgroundColor: 'var(--bg-elevated)',
                     borderColor: 'var(--border-subtle)',
@@ -826,7 +831,7 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     return (
                       <div
                         key={s.id}
-                        className="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors"
+                        className="w-full flex items-center justify-between px-4 sm:px-5 py-2.5 text-left text-xs transition-colors"
                         style={{
                           backgroundColor:
                             countInList > 0 ? 'var(--accent-soft)' : 'transparent',
@@ -895,20 +900,29 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                   })}
                 </div>
               </div>
+            </div>
 
-              {formError && (
-                <p className="text-xs font-medium text-red-600">{formError}</p>
-              )}
-              </div>
-
-              {/* Sticky Footer */}
+            {formError && (
               <div
-                className="px-5 py-3.5 border-t flex gap-2 shrink-0"
+                className="border-t px-4 py-2 text-xs font-medium text-red-600 shrink-0"
                 style={{
                   borderColor: 'var(--border-subtle)',
                   backgroundColor: 'var(--bg-page)',
                 }}
               >
+                <div className="max-w-2xl mx-auto w-full">{formError}</div>
+              </div>
+            )}
+
+            {/* Sticky Footer */}
+            <div
+              className="border-t shrink-0 safe-bottom"
+              style={{
+                borderColor: 'var(--border-subtle)',
+                backgroundColor: 'var(--bg-page)',
+              }}
+            >
+              <div className="max-w-2xl mx-auto w-full px-4 py-3 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -931,8 +945,8 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                   সংরক্ষণ করুন
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
       )}
     </div>

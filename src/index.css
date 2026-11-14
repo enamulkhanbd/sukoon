@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "IndoPak";
+  src: url("/fonts/indopak-nastaleeq.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root,
+[data-theme="paper"] {
+  --bg-page: #faf6ee;
+  --bg-surface: #f2ead9;
+  --bg-elevated: #fffdf8;
+  --border-subtle: #e3d8c3;
+  --text-primary: #1f241e;
+  --text-secondary: #5e5a4f;
+  --text-muted: #8a8373;
+  --accent: #1b4d3e;
+  --accent-soft: rgba(27, 77, 62, 0.1);
+  --accent-text: #ffffff;
+  --gold: #b48a3e;
+  --gold-soft: rgba(180, 138, 62, 0.14);
+  --ayah-highlight: rgba(180, 138, 62, 0.18);
+  color-scheme: light;
+}
+
+[data-theme="olive"] {
+  --bg-page: #eef2ea;
+  --bg-surface: #e2e9dc;
+  --bg-elevated: #f6f9f3;
+  --border-subtle: #cdd7c4;
+  --text-primary: #1a241b;
+  --text-secondary: #4c594d;
+  --text-muted: #768476;
+  --accent: #2c593d;
+  --accent-soft: rgba(44, 89, 61, 0.12);
+  --accent-text: #ffffff;
+  --gold: #8c7535;
+  --gold-soft: rgba(140, 117, 53, 0.14);
+  --ayah-highlight: rgba(44, 89, 61, 0.16);
+  color-scheme: light;
+}
+
+[data-theme="black"] {
+  --bg-page: #070807;
+  --bg-surface: #121412;
+  --bg-elevated: #181b18;
+  --border-subtle: #262b26;
+  --text-primary: #e8e2d5;
+  --text-secondary: #a49f92;
+  --text-muted: #736f65;
+  --accent: #4c9a74;
+  --accent-soft: rgba(76, 154, 116, 0.16);
+  --accent-text: #070807;
+  --gold: #cfa85c;
+  --gold-soft: rgba(207, 168, 92, 0.15);
+  --ayah-highlight: rgba(207, 168, 92, 0.18);
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: "Hind Siliguri", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+}
+
+.font-indopak {
+  font-family: "IndoPak", "PDMS_Saleem_QuranFont", "AlQalam Quran Majeed",
+    "Noto Naskh Arabic", serif;
+  direction: rtl;
+  unicode-bidi: isolate;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+}
+
+/* Subtle paper grain overlay in light modes without blocking taps */
+.paper-frame {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.75rem);
+}
+
+.safe-top {
+  padding-top: max(env(safe-area-inset-top, 0px), 0.5rem);
+}
+
+/* Custom thin scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 9999px;
+}

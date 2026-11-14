@@ -56,6 +56,7 @@ export interface RoutineProgress {
   lastReadDuaId?: string;
   lastReadItemIndex?: number;
   lastItemCompleted?: boolean;
+  completedItemIndexes?: number[];
   completedAyahsCount: number; // Stored progress units completed (ayahs + completed duas)
   totalAyahsCount: number; // Stored total progress units (ayahs + duas)
   percentage: number;
@@ -294,6 +295,194 @@ export function computeRoutineCompletedUnitsForDua(
   return units;
 }
 
+export function getCompletedItemIndexes(
+  routine: Pick<Routine, 'surahIds' | 'items'>,
+  progress?: RoutineProgress
+): number[] {
+  if (!progress) return [];
+  const items = getRoutineItems(routine);
+  if (items.length === 0) return [];
+
+  if (Array.isArray(progress.completedItemIndexes)) {
+    return Array.from(
+      new Set(
+        progress.completedItemIndexes.filter(
+          (idx) => Number.isInteger(idx) && idx >= 0 && idx < items.length
+        )
+      )
+    ).sort((a, b) => a - b);
+  }
+
+  let lastIdx =
+    progress.lastReadItemIndex !== undefined &&
+    progress.lastReadItemIndex >= 0 &&
+    progress.lastReadItemIndex < items.length
+      ? progress.lastReadItemIndex
+      : -1;
+
+  if (lastIdx === -1) {
+    if (progress.lastReadDuaId) {
+      lastIdx = items.findIndex(
+        (it) => it.kind === 'dua' && it.duaId === progress.lastReadDuaId
+      );
+    } else if (progress.lastReadSurah > 0) {
+      lastIdx = items.findIndex(
+        (it) =>
+          it.kind === 'surah' &&
+          it.surahId === progress.lastReadSurah &&
+          progress.lastReadAyah >= it.startAyah &&
+          progress.lastReadAyah <= it.endAyah
+      );
+      if (lastIdx === -1) {
+        lastIdx = items.findIndex(
+          (it) => it.kind === 'surah' && it.surahId === progress.lastReadSurah
+        );
+      }
+    }
+  }
+
+  if (lastIdx === -1) {
+    return (progress.percentage ?? 0) >= 100
+      ? items.map((_, idx) => idx)
+      : [];
+  }
+
+  const indexes: number[] = [];
+  for (let i = 0; i < lastIdx; i++) {
+    indexes.push(i);
+  }
+  const activeItem = items[lastIdx];
+  const isActiveDone =
+    Boolean(progress.lastItemCompleted) ||
+    (progress.percentage ?? 0) >= 100 ||
+    (activeItem.kind === 'surah' && progress.lastReadAyah >= activeItem.endAyah);
+  if (isActiveDone) {
+    indexes.push(lastIdx);
+  }
+  return indexes;
+}
+
+export function computeRoutineProgressMetrics(
+  routine: Pick<Routine, 'surahIds' | 'items'>,
+  completedIndexes: number[],
+  partialSurah?: { itemIndex: number; ayahNumber: number }
+): { completedUnits: number; totalUnits: number; percentage: number } {
+  const items = getRoutineItems(routine);
+  const completedSet = new Set(completedIndexes);
+  let totalUnits = 0;
+  let completedUnits = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const span = getRoutineItemUnits(item);
+    totalUnits += span;
+    if (completedSet.has(i)) {
+      completedUnits += span;
+    } else if (
+      partialSurah &&
+      partialSurah.itemIndex === i &&
+      item.kind === 'surah'
+    ) {
+      const within = Math.min(
+        Math.max(partialSurah.ayahNumber - item.startAyah + 1, 0),
+        span
+      );
+      completedUnits += within;
+    }
+  }
+
+  const percentage =
+    totalUnits > 0
+      ? Math.min(100, Math.round((completedUnits / totalUnits) * 100))
+      : 0;
+
+  return { completedUnits, totalUnits, percentage };
+}
+
+export async function toggleRoutineItemCompleted(params: {
+  routineId: string;
+  itemIndex: number;
+  completed: boolean;
+}): Promise<RoutineProgress | undefined> {
+  const { routineId, itemIndex, completed } = params;
+  const now = Date.now();
+  const todayKey = getTodayDateKey();
+  let updated: RoutineProgress | undefined;
+
+  await db.transaction(
+    'rw',
+    [db.routineProgress, db.routines, db.readingHistory],
+    async () => {
+      const routine = await db.routines.get(routineId);
+      if (!routine) return;
+
+      const items = getRoutineItems(routine);
+      if (itemIndex < 0 || itemIndex >= items.length) return;
+
+      const existing = await db.routineProgress.get(routineId);
+      const completedSet = new Set(getCompletedItemIndexes(routine, existing));
+      if (completed) {
+        completedSet.add(itemIndex);
+      } else {
+        completedSet.delete(itemIndex);
+      }
+      const nextCompletedIndexes = Array.from(completedSet).sort((a, b) => a - b);
+
+      const clearedActive = !completed && existing?.lastReadItemIndex === itemIndex;
+      const partialSurah =
+        !clearedActive &&
+        existing?.lastReadItemIndex !== undefined &&
+        existing.lastReadItemIndex !== itemIndex &&
+        !completedSet.has(existing.lastReadItemIndex) &&
+        items[existing.lastReadItemIndex]?.kind === 'surah' &&
+        existing.lastReadAyah > 0
+          ? { itemIndex: existing.lastReadItemIndex, ayahNumber: existing.lastReadAyah }
+          : undefined;
+
+      const { completedUnits, totalUnits, percentage } =
+        computeRoutineProgressMetrics(routine, nextCompletedIndexes, partialSurah);
+
+      updated = {
+        routineId,
+        lastReadSurah: clearedActive ? 0 : existing?.lastReadSurah ?? 0,
+        lastReadAyah: clearedActive ? 0 : existing?.lastReadAyah ?? 0,
+        lastReadDuaId: clearedActive ? undefined : existing?.lastReadDuaId,
+        lastReadItemIndex: clearedActive ? undefined : existing?.lastReadItemIndex,
+        lastItemCompleted:
+          clearedActive
+            ? false
+            : existing?.lastReadItemIndex !== undefined
+              ? completedSet.has(existing.lastReadItemIndex)
+              : completed,
+        completedItemIndexes: nextCompletedIndexes,
+        completedAyahsCount: completedUnits,
+        totalAyahsCount: totalUnits,
+        percentage,
+        lastUpdated: now,
+      };
+
+      await db.routineProgress.put(updated);
+
+      if (percentage >= 100) {
+        const todayRecord = (await db.readingHistory.get(todayKey)) ?? {
+          date: todayKey,
+          ayahsCount: 0,
+          routinesCompleted: [],
+        };
+        if (!todayRecord.routinesCompleted.includes(routineId)) {
+          await db.readingHistory.put({
+            date: todayKey,
+            ayahsCount: todayRecord.ayahsCount,
+            routinesCompleted: [...todayRecord.routinesCompleted, routineId],
+          });
+        }
+      }
+    }
+  );
+
+  return updated;
+}
+
 let initPromise: Promise<void> | null = null;
 
 export function ensureDatabaseInitialized(): Promise<void> {
@@ -315,6 +504,7 @@ export async function updateReadingProgress(params: {
   routineId?: string;
   routineItemIndex?: number;
   incrementTodayAyahs?: number;
+  markItemCompleted?: boolean;
 }): Promise<void> {
   const {
     surahId,
@@ -323,6 +513,7 @@ export async function updateReadingProgress(params: {
     routineId,
     routineItemIndex,
     incrementTodayAyahs = 0,
+    markItemCompleted = false,
   } = params;
   const surah = SURAH_MAP[surahId];
   if (!surah) return;
@@ -356,17 +547,23 @@ export async function updateReadingProgress(params: {
 
         if (routine && resolvedIdx !== -1) {
           const matchedItem = items[resolvedIdx];
-          const totalAyahsCount = computeRoutineTotalAyahs(routine);
-          const completedAyahsCount = computeRoutineCompletedAyahs(
-            routine,
-            surahId,
-            ayahNumber,
-            resolvedIdx
+          const existingProgress = await db.routineProgress.get(routineId);
+          const completedSet = new Set(
+            getCompletedItemIndexes(routine, existingProgress)
           );
-          const percentage =
-            totalAyahsCount > 0
-              ? Math.min(100, Math.round((completedAyahsCount / totalAyahsCount) * 100))
-              : 0;
+          const itemDone =
+            markItemCompleted ||
+            (!isDuaRoutineItem(matchedItem) && ayahNumber >= matchedItem.endAyah);
+          if (itemDone) {
+            completedSet.add(resolvedIdx);
+          }
+          const nextCompletedIndexes = Array.from(completedSet).sort((a, b) => a - b);
+
+          const { completedUnits, totalUnits, percentage } =
+            computeRoutineProgressMetrics(routine, nextCompletedIndexes, {
+              itemIndex: resolvedIdx,
+              ayahNumber,
+            });
 
           await db.routineProgress.put({
             routineId,
@@ -374,10 +571,10 @@ export async function updateReadingProgress(params: {
             lastReadAyah: ayahNumber,
             lastReadDuaId: undefined,
             lastReadItemIndex: resolvedIdx,
-            lastItemCompleted:
-              !isDuaRoutineItem(matchedItem) && ayahNumber >= matchedItem.endAyah,
-            completedAyahsCount,
-            totalAyahsCount,
+            lastItemCompleted: completedSet.has(resolvedIdx),
+            completedItemIndexes: nextCompletedIndexes,
+            completedAyahsCount: completedUnits,
+            totalAyahsCount: totalUnits,
             percentage,
             lastUpdated: now,
           });
@@ -441,17 +638,29 @@ export async function updateDuaRoutineProgress(params: {
 
       if (resolvedIdx === -1) return;
 
-      const totalUnits = computeRoutineTotalAyahs(routine);
-      const completedUnits = computeRoutineCompletedUnitsForDua(
-        routine,
-        duaId,
-        resolvedIdx,
-        completed
+      const existingProgress = await db.routineProgress.get(routineId);
+      const completedSet = new Set(
+        getCompletedItemIndexes(routine, existingProgress)
       );
-      const percentage =
-        totalUnits > 0
-          ? Math.min(100, Math.round((completedUnits / totalUnits) * 100))
-          : 0;
+      if (completed) {
+        completedSet.add(resolvedIdx);
+      }
+      const nextCompletedIndexes = Array.from(completedSet).sort((a, b) => a - b);
+
+      const partialSurah =
+        existingProgress?.lastReadItemIndex !== undefined &&
+        existingProgress.lastReadItemIndex !== resolvedIdx &&
+        !completedSet.has(existingProgress.lastReadItemIndex) &&
+        items[existingProgress.lastReadItemIndex]?.kind === 'surah' &&
+        existingProgress.lastReadAyah > 0
+          ? {
+              itemIndex: existingProgress.lastReadItemIndex,
+              ayahNumber: existingProgress.lastReadAyah,
+            }
+          : undefined;
+
+      const { completedUnits, totalUnits, percentage } =
+        computeRoutineProgressMetrics(routine, nextCompletedIndexes, partialSurah);
 
       await db.routineProgress.put({
         routineId,
@@ -459,7 +668,8 @@ export async function updateDuaRoutineProgress(params: {
         lastReadAyah: 0,
         lastReadDuaId: duaId,
         lastReadItemIndex: resolvedIdx,
-        lastItemCompleted: completed,
+        lastItemCompleted: completedSet.has(resolvedIdx),
+        completedItemIndexes: nextCompletedIndexes,
         completedAyahsCount: completedUnits,
         totalAyahsCount: totalUnits,
         percentage,

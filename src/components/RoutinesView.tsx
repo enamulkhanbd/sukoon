@@ -22,16 +22,15 @@ import {
 } from '../data/duas';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import {
-  computeRoutineCompletedAyahs,
-  computeRoutineCompletedUnitsForDua,
+  computeRoutineProgressMetrics,
   computeRoutineTotalAyahs,
   db,
+  getCompletedItemIndexes,
   getRoutineItems,
   getRoutineSummaryCounts,
   isDuaRoutineItem,
   type Routine,
   type RoutineItem,
-  type RoutineProgress,
 } from '../db/database';
 import {
   DAY_SHORT_BN,
@@ -110,10 +109,12 @@ function createDraftDuaItem(duaId: string, targetCount: number): DraftDuaItem {
 }
 
 interface RoutinesViewProps {
-  onOpenRoutine: (routine: Routine, progress?: RoutineProgress) => void;
+  onOpenRoutineDetails: (routine: Routine) => void;
 }
 
-export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
+export function RoutinesView({
+  onOpenRoutineDetails,
+}: RoutinesViewProps) {
   const toast = useToast();
   const routines = useLiveQuery(
     () => db.routines.orderBy('createdAt').toArray(),
@@ -444,59 +445,77 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
     // Recalculate existing progress if routine items changed
     const existingProg = await db.routineProgress.get(routine.id);
     if (existingProg) {
-      const total = computeRoutineTotalAyahs(routine);
       const normalized = getRoutineItems(routine);
+      const oldItems = editingRoutine ? getRoutineItems(editingRoutine) : [];
+      const oldCompleted = editingRoutine
+        ? getCompletedItemIndexes(editingRoutine, existingProg)
+        : [];
 
+      const remappedCompleted: number[] = [];
+      const usedNew = new Set<number>();
+      for (const oldIdx of oldCompleted) {
+        const oldIt = oldItems[oldIdx];
+        if (!oldIt) continue;
+        const matchedNewIdx = normalized.findIndex((newIt, idx) => {
+          if (usedNew.has(idx)) return false;
+          if (oldIt.kind === 'dua' && newIt.kind === 'dua') {
+            return oldIt.duaId === newIt.duaId;
+          }
+          if (oldIt.kind === 'surah' && newIt.kind === 'surah') {
+            return (
+              oldIt.surahId === newIt.surahId &&
+              oldIt.startAyah === newIt.startAyah &&
+              oldIt.endAyah === newIt.endAyah
+            );
+          }
+          return false;
+        });
+        if (matchedNewIdx !== -1) {
+          usedNew.add(matchedNewIdx);
+          remappedCompleted.push(matchedNewIdx);
+        }
+      }
+      remappedCompleted.sort((a, b) => a - b);
+
+      let matchedLastIdx = -1;
       if (existingProg.lastReadDuaId) {
-        const matchedDuaIdx = normalized.findIndex(
+        matchedLastIdx = normalized.findIndex(
           (it) => it.kind === 'dua' && it.duaId === existingProg.lastReadDuaId
         );
-        if (matchedDuaIdx === -1) {
-          await db.routineProgress.delete(routine.id);
-        } else {
-          const completed = computeRoutineCompletedUnitsForDua(
-            routine,
-            existingProg.lastReadDuaId,
-            matchedDuaIdx,
-            Boolean(existingProg.lastItemCompleted)
-          );
-          await db.routineProgress.update(routine.id, {
-            lastReadItemIndex: matchedDuaIdx,
-            completedAyahsCount: completed,
-            totalAyahsCount: total,
-            percentage:
-              total > 0
-                ? Math.min(100, Math.round((completed / total) * 100))
-                : 0,
-          });
-        }
-      } else {
-        const matchedIdx = normalized.findIndex(
+      } else if (existingProg.lastReadSurah > 0) {
+        matchedLastIdx = normalized.findIndex(
           (it) =>
             it.kind === 'surah' &&
             it.surahId === existingProg.lastReadSurah &&
             existingProg.lastReadAyah >= it.startAyah &&
             existingProg.lastReadAyah <= it.endAyah
         );
-        if (matchedIdx === -1) {
-          await db.routineProgress.delete(routine.id);
-        } else {
-          const completed = computeRoutineCompletedAyahs(
-            routine,
-            existingProg.lastReadSurah,
-            existingProg.lastReadAyah,
-            matchedIdx
-          );
-          await db.routineProgress.update(routine.id, {
-            lastReadItemIndex: matchedIdx,
-            completedAyahsCount: completed,
-            totalAyahsCount: total,
-            percentage:
-              total > 0
-                ? Math.min(100, Math.round((completed / total) * 100))
-                : 0,
-          });
-        }
+      }
+
+      if (matchedLastIdx === -1 && remappedCompleted.length === 0) {
+        await db.routineProgress.delete(routine.id);
+      } else {
+        const partialSurah =
+          matchedLastIdx !== -1 &&
+          normalized[matchedLastIdx]?.kind === 'surah' &&
+          !remappedCompleted.includes(matchedLastIdx)
+            ? { itemIndex: matchedLastIdx, ayahNumber: existingProg.lastReadAyah }
+            : undefined;
+        const { completedUnits, totalUnits, percentage } =
+          computeRoutineProgressMetrics(routine, remappedCompleted, partialSurah);
+
+        await db.routineProgress.update(routine.id, {
+          lastReadItemIndex: matchedLastIdx !== -1 ? matchedLastIdx : undefined,
+          lastReadSurah: matchedLastIdx !== -1 ? existingProg.lastReadSurah : 0,
+          lastReadAyah: matchedLastIdx !== -1 ? existingProg.lastReadAyah : 0,
+          lastReadDuaId: matchedLastIdx !== -1 ? existingProg.lastReadDuaId : undefined,
+          lastItemCompleted:
+            matchedLastIdx !== -1 && remappedCompleted.includes(matchedLastIdx),
+          completedItemIndexes: remappedCompleted,
+          completedAyahsCount: completedUnits,
+          totalAyahsCount: totalUnits,
+          percentage,
+        });
       }
     }
 
@@ -631,7 +650,16 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
             return (
               <div
                 key={routine.id}
-                className="rounded-2xl border p-4 space-y-3"
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenRoutineDetails(routine)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenRoutineDetails(routine);
+                  }
+                }}
+                className="rounded-2xl border p-4 space-y-3 cursor-pointer"
                 style={{
                   backgroundColor: 'var(--bg-elevated)',
                   borderColor: 'var(--border-subtle)',
@@ -655,7 +683,10 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     {prog && prog.completedAyahsCount > 0 && (
                       <button
                         type="button"
-                        onClick={() => handleResetProgress(routine)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleResetProgress(routine);
+                        }}
                         title="অগ্রগতি রিসেট করুন"
                         className="p-2 rounded-lg transition-colors cursor-pointer"
                         style={{ color: 'var(--text-muted)' }}
@@ -665,7 +696,10 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     )}
                     <button
                       type="button"
-                      onClick={() => openEditModal(routine)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(routine);
+                      }}
                       title="সম্পাদনা করুন"
                       className="p-2 rounded-lg transition-colors cursor-pointer"
                       style={{ color: 'var(--text-muted)' }}
@@ -674,7 +708,10 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDelete(routine)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDelete(routine);
+                      }}
                       title="মুছে ফেলুন"
                       className="p-2 rounded-lg transition-colors cursor-pointer"
                       style={{ color: 'var(--text-muted)' }}
@@ -742,7 +779,10 @@ export function RoutinesView({ onOpenRoutine }: RoutinesViewProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => onOpenRoutine(routine, prog)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenRoutineDetails(routine);
+                    }}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold shrink-0 cursor-pointer"
                     style={{
                       backgroundColor: 'var(--accent-soft)',

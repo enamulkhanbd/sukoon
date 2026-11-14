@@ -362,6 +362,7 @@ export function ReaderView({
         pageNumber: last.page_number,
         routineId: routine?.id,
         routineItemIndex,
+        markItemCompleted: true,
       });
     }
     onSelectSurah(nextId, nextStartAyah, nextItemIndex);
@@ -376,6 +377,7 @@ export function ReaderView({
         pageNumber: last.page_number,
         routineId: routine?.id,
         routineItemIndex,
+        markItemCompleted: true,
       });
     }
     if (routine) {
@@ -655,6 +657,7 @@ export function ReaderView({
                             pageNumber: last.page_number,
                             routineId: routine?.id,
                             routineItemIndex,
+                            markItemCompleted: true,
                           });
                         }
                         onAdvanceRoutineItem(routineNav.nextIndex);

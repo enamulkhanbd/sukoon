@@ -31,14 +31,14 @@ import {
 
 interface HomeViewProps {
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
-  onOpenRoutine: (routine: Routine, progress?: RoutineProgress) => void;
+  onOpenRoutineDetails: (routine: Routine) => void;
   onGoToRoutines: () => void;
   onGoToSurahs: () => void;
 }
 
 export function HomeView({
   onOpenSurah,
-  onOpenRoutine,
+  onOpenRoutineDetails,
   onGoToRoutines,
   onGoToSurahs,
 }: HomeViewProps) {
@@ -111,7 +111,16 @@ export function HomeView({
     return (
       <div
         key={routine.id}
-        className="rounded-2xl border p-4 transition-colors"
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpenRoutineDetails(routine)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenRoutineDetails(routine);
+          }
+        }}
+        className="rounded-2xl border p-4 transition-colors cursor-pointer"
         style={{
           backgroundColor: 'var(--bg-elevated)',
           borderColor: isToday ? 'color-mix(in srgb, var(--accent) 28%, var(--border-subtle))' : 'var(--border-subtle)',
@@ -148,7 +157,10 @@ export function HomeView({
           </div>
           <button
             type="button"
-            onClick={() => onOpenRoutine(routine, prog)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenRoutineDetails(routine);
+            }}
             className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
             style={{
               backgroundColor: isToday ? 'var(--accent)' : 'var(--accent-soft)',

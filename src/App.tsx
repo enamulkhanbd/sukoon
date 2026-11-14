@@ -5,6 +5,7 @@ import { DuaReaderView } from './components/DuaReaderView';
 import { DuasView } from './components/DuasView';
 import { HomeView } from './components/HomeView';
 import { ReaderView } from './components/ReaderView';
+import { RoutineDetailView } from './components/RoutineDetailView';
 import { RoutinesView } from './components/RoutinesView';
 import { SettingsView } from './components/SettingsView';
 import { SurahListView } from './components/SurahListView';
@@ -14,8 +15,8 @@ import {
   DEFAULT_SETTINGS,
   db,
   ensureDatabaseInitialized,
+  getCompletedItemIndexes,
   getRoutineItems,
-  isDuaRoutineItem,
   type Routine,
   type RoutineProgress,
   type Settings,
@@ -47,6 +48,7 @@ export function App() {
   const toast = useToast();
   const [dbReady, setDbReady] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
+  const [routineDetailId, setRoutineDetailId] = useState<string | null>(null);
   const [readerSession, setReaderSession] = useState<ReaderSession | null>(null);
 
   useEffect(() => {
@@ -65,25 +67,64 @@ export function App() {
     }
   }, [settings.theme]);
 
-  // Support mobile browser back button to close ReaderView cleanly
+  // Support mobile browser back button to close ReaderView & RoutineDetailView cleanly
   useEffect(() => {
     const handlePopState = () => {
-      setReaderSession(null);
+      const state = window.history.state as {
+        view?: 'reader' | 'detail';
+        detailId?: string;
+      } | null;
+
+      if (state?.view === 'detail' && state.detailId) {
+        setReaderSession(null);
+        setRoutineDetailId(state.detailId);
+      } else if (state?.view !== 'reader') {
+        setReaderSession(null);
+        setRoutineDetailId(null);
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const openReader = useCallback((session: ReaderSession) => {
-    if (!readerSession) {
-      window.history.pushState({ reader: true }, '');
+  const openRoutineDetails = useCallback(
+    (routine: Routine) => {
+      if (routineDetailId !== routine.id) {
+        window.history.pushState(
+          { view: 'detail', detailId: routine.id },
+          ''
+        );
+      }
+      setRoutineDetailId(routine.id);
+    },
+    [routineDetailId]
+  );
+
+  const closeRoutineDetails = useCallback(() => {
+    setRoutineDetailId(null);
+    const state = window.history.state as { view?: string } | null;
+    if (state?.view === 'detail') {
+      window.history.back();
     }
-    setReaderSession(session);
-  }, [readerSession]);
+  }, []);
+
+  const openReader = useCallback(
+    (session: ReaderSession) => {
+      if (!readerSession) {
+        window.history.pushState(
+          { view: 'reader', detailId: routineDetailId },
+          ''
+        );
+      }
+      setReaderSession(session);
+    },
+    [readerSession, routineDetailId]
+  );
 
   const closeReader = useCallback(() => {
     setReaderSession(null);
-    if (window.history.state && (window.history.state as { reader?: boolean }).reader) {
+    const state = window.history.state as { view?: string } | null;
+    if (state?.view === 'reader') {
       window.history.back();
     }
   }, []);
@@ -103,49 +144,41 @@ export function App() {
   );
 
   const handleOpenRoutine = useCallback(
-    (routine: Routine, progress?: RoutineProgress) => {
+    (routine: Routine, progress?: RoutineProgress, explicitItemIndex?: number) => {
       const items = getRoutineItems(routine);
       if (items.length === 0) return;
 
+      const completedSet = new Set(getCompletedItemIndexes(routine, progress));
       let targetIdx = 0;
       let resumedAyah: number | undefined;
 
-      if (progress && progress.percentage < 100) {
-        let idx = -1;
-        if (progress.lastReadDuaId) {
-          const indexedDua =
-            progress.lastReadItemIndex !== undefined
-              ? items[progress.lastReadItemIndex]
-              : undefined;
-          idx =
-            indexedDua?.kind === 'dua' && indexedDua.duaId === progress.lastReadDuaId
-              ? progress.lastReadItemIndex!
-              : items.findIndex(
-                  (it) => it.kind === 'dua' && it.duaId === progress.lastReadDuaId
-                );
-        } else if (progress.lastReadSurah) {
-          const indexed =
-            progress.lastReadItemIndex !== undefined
-              ? items[progress.lastReadItemIndex]
-              : undefined;
-          idx =
-            indexed &&
-            !isDuaRoutineItem(indexed) &&
-            indexed.surahId === progress.lastReadSurah
-              ? progress.lastReadItemIndex!
-              : items.findIndex(
-                  (it) => !isDuaRoutineItem(it) && it.surahId === progress.lastReadSurah
-                );
+      if (explicitItemIndex !== undefined && items[explicitItemIndex]) {
+        targetIdx = explicitItemIndex;
+        if (
+          progress &&
+          progress.lastReadItemIndex === explicitItemIndex &&
+          !completedSet.has(explicitItemIndex) &&
+          progress.lastReadAyah > 0
+        ) {
+          resumedAyah = progress.lastReadAyah;
         }
-
-        if (idx !== -1) {
-          if (progress.lastItemCompleted && idx + 1 < items.length) {
-            targetIdx = idx + 1;
-          } else {
-            targetIdx = idx;
+      } else if (progress && progress.percentage < 100) {
+        if (
+          progress.lastReadItemIndex !== undefined &&
+          items[progress.lastReadItemIndex] &&
+          !completedSet.has(progress.lastReadItemIndex)
+        ) {
+          targetIdx = progress.lastReadItemIndex;
+          if (progress.lastReadAyah > 0) {
             resumedAyah = progress.lastReadAyah;
           }
+        } else {
+          const firstIncomplete = items.findIndex((_, idx) => !completedSet.has(idx));
+          targetIdx = firstIncomplete !== -1 ? firstIncomplete : 0;
         }
+      } else if (completedSet.size > 0 && completedSet.size < items.length) {
+        const firstIncomplete = items.findIndex((_, idx) => !completedSet.has(idx));
+        targetIdx = firstIncomplete !== -1 ? firstIncomplete : 0;
       }
 
       const targetItem = items[targetIdx];
@@ -312,12 +345,24 @@ export function App() {
     }
   }
 
+  if (routineDetailId) {
+    return (
+      <RoutineDetailView
+        routineId={routineDetailId}
+        onBack={closeRoutineDetails}
+        onStartItem={(routine, itemIndex, progress) =>
+          handleOpenRoutine(routine, progress, itemIndex)
+        }
+      />
+    );
+  }
+
   return (
     <div className="min-h-dvh paper-frame">
       {activeTab === 'home' && (
         <HomeView
           onOpenSurah={handleOpenSurah}
-          onOpenRoutine={handleOpenRoutine}
+          onOpenRoutineDetails={openRoutineDetails}
           onGoToRoutines={() => setActiveTab('routines')}
           onGoToSurahs={() => setActiveTab('surahs')}
         />
@@ -333,7 +378,9 @@ export function App() {
         />
       )}
       {activeTab === 'routines' && (
-        <RoutinesView onOpenRoutine={handleOpenRoutine} />
+        <RoutinesView
+          onOpenRoutineDetails={openRoutineDetails}
+        />
       )}
       {activeTab === 'settings' && (
         <SettingsView

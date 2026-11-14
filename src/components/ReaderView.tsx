@@ -26,6 +26,7 @@ import {
 import { useWakeLock } from '../hooks/useWakeLock';
 import { getSurahOfflineFirst } from '../services/quranApi';
 import {
+  AUTO_SCROLL_SPEEDS,
   formatRoutineItemLabel,
   toArabicDigits,
   toBanglaDigits,
@@ -45,14 +46,6 @@ interface ReaderViewProps {
   ) => void;
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
 }
-
-const AUTO_SCROLL_SPEEDS = [
-  { value: 0, label: 'বন্ধ', pxPerSec: 0 },
-  { value: 1, label: '১x', pxPerSec: 22 },
-  { value: 2, label: '১.৫x', pxPerSec: 36 },
-  { value: 3, label: '২x', pxPerSec: 54 },
-  { value: 4, label: '৩x', pxPerSec: 82 },
-];
 
 const THEMES: Array<{ id: ThemeMode; label: string; swatch: string; ink: string }> = [
   { id: 'paper', label: 'কাগজ', swatch: '#FAF6EE', ink: '#1F241E' },
@@ -570,7 +563,7 @@ export function ReaderView({
                         className="block my-5 py-1.5 text-center border-y text-xs font-sans tracking-normal"
                         dir="ltr"
                         style={{
-                          fontFamily: '"Hind Siliguri", sans-serif',
+                          fontFamily: '"Noto Sans Bengali", sans-serif',
                           borderColor: 'var(--border-subtle)',
                           color: 'var(--text-muted)',
                         }}
@@ -715,12 +708,15 @@ export function ReaderView({
       </main>
 
       {/* Floating Auto-Scroll Controller Pill */}
-      {settings.autoScrollSpeed > 0 && !loading && !error && (
+      {settings.autoScrollSpeed > 0 &&
+        !loading &&
+        !error &&
+        (chromeVisible || autoScrollPaused) && (
         <div className="fixed bottom-5 right-4 z-30 flex items-center gap-2">
           <button
             type="button"
             onClick={() => setAutoScrollPaused((p) => !p)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border shadow-md text-xs font-semibold cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border shadow-md text-xs font-semibold cursor-pointer outline-none"
             style={{
               backgroundColor: 'var(--bg-elevated)',
               borderColor: 'var(--border-subtle)',

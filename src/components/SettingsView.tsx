@@ -23,7 +23,7 @@ import {
   downloadAllSurahsForOffline,
   type OfflineDownloadProgress,
 } from '../services/quranApi';
-import { toBanglaDigits } from '../utils/formatters';
+import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 
 interface SettingsViewProps {
   settings: Settings;
@@ -312,6 +312,36 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
               }`}
             />
           </button>
+        </div>
+
+        {/* Auto-Scroll Speed */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium">অটো-স্ক্রল গতি</span>
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              স্পর্শ করলে স্বয়ংক্রিয়ভাবে বিরতি নেয়
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-1.5">
+            {AUTO_SCROLL_SPEEDS.map((sp) => {
+              const active = settings.autoScrollSpeed === sp.value;
+              return (
+                <button
+                  key={sp.value}
+                  type="button"
+                  onClick={() => onUpdateSettings({ autoScrollSpeed: sp.value })}
+                  className="py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: active ? 'var(--accent)' : 'var(--bg-page)',
+                    borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
+                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {sp.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 

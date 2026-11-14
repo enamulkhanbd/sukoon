@@ -51,6 +51,14 @@ export function formatRoutineItemLabel(params: {
   return `${base} (${toBanglaDigits(startAyah)}–${toBanglaDigits(endAyah)})`;
 }
 
+export const AUTO_SCROLL_SPEEDS = [
+  { value: 0, label: 'বন্ধ', pxPerSec: 0 },
+  { value: 1, label: '১x', pxPerSec: 22 },
+  { value: 2, label: '১.৫x', pxPerSec: 36 },
+  { value: 3, label: '২x', pxPerSec: 54 },
+  { value: 4, label: '৩x', pxPerSec: 82 },
+] as const;
+
 export function formatRelativeTimeBn(timestamp: number): string {
   const diffMs = Date.now() - timestamp;
   const mins = Math.floor(diffMs / 60000);

@@ -1,34 +1,63 @@
 import Dexie, { type Table } from 'dexie';
+import { DUA_MAP } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 
-export interface RoutineItem {
+export interface SurahRoutineItem {
+  kind?: 'surah';
   surahId: number;
   startAyah?: number;
   endAyah?: number;
 }
 
-export interface NormalizedRoutineItem {
+export interface DuaRoutineItem {
+  kind: 'dua';
+  duaId: string;
+  targetCount?: number;
+}
+
+export type RoutineItem = SurahRoutineItem | DuaRoutineItem;
+
+export interface NormalizedSurahRoutineItem {
+  kind: 'surah';
   surahId: number;
   startAyah: number;
   endAyah: number;
+}
+
+export interface NormalizedDuaRoutineItem {
+  kind: 'dua';
+  duaId: string;
+  targetCount: number;
+}
+
+export type NormalizedRoutineItem =
+  | NormalizedSurahRoutineItem
+  | NormalizedDuaRoutineItem;
+
+export function isDuaRoutineItem(
+  item: RoutineItem | NormalizedRoutineItem
+): item is DuaRoutineItem | NormalizedDuaRoutineItem {
+  return item.kind === 'dua' && 'duaId' in item;
 }
 
 export interface Routine {
   id: string;
   title: string; // e.g., "জুমুআ রুটিন", "দৈনিক মাগরিব"
   assignedDays: number[]; // 0 = Sun, 5 = Fri, empty = manual
-  surahIds: number[]; // e.g., [18, 32, 67]
-  items?: RoutineItem[]; // Optional ayah-range items; falls back to full surahIds
+  surahIds: number[]; // Backwards compatibility + surah filter lookup
+  items?: RoutineItem[]; // Ordered mixed surah + dua items
   createdAt: number;
 }
 
 export interface RoutineProgress {
   routineId: string;
-  lastReadSurah: number;
+  lastReadSurah: number; // 0 when active item is a Dua
   lastReadAyah: number;
+  lastReadDuaId?: string;
   lastReadItemIndex?: number;
-  completedAyahsCount: number;
-  totalAyahsCount: number;
+  lastItemCompleted?: boolean;
+  completedAyahsCount: number; // Stored progress units completed (ayahs + completed duas)
+  totalAyahsCount: number; // Stored total progress units (ayahs + duas)
   percentage: number;
   lastUpdated: number;
 }
@@ -73,6 +102,8 @@ export interface Settings {
   keepScreenAwake: boolean; // Screen Wake Lock API
   autoScrollSpeed: number; // 0 = off, 1 = 1x, 2 = 1.5x, etc.
   offlineDownloaded: boolean;
+  showDuaTransliteration?: boolean;
+  bookmarkedDuaIds?: string[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -82,6 +113,8 @@ export const DEFAULT_SETTINGS: Settings = {
   keepScreenAwake: true,
   autoScrollSpeed: 0,
   offlineDownloaded: false,
+  showDuaTransliteration: true,
+  bookmarkedDuaIds: [],
 };
 
 export class SukoonDatabase extends Dexie {
@@ -115,24 +148,74 @@ export function getTodayDateKey(): string {
   return `${y}-${m}-${d}`;
 }
 
-export function getRoutineItems(routine: Pick<Routine, 'surahIds' | 'items'>): NormalizedRoutineItem[] {
+export function getRoutineItems(
+  routine: Pick<Routine, 'surahIds' | 'items'>
+): NormalizedRoutineItem[] {
   const source: RoutineItem[] =
     routine.items && routine.items.length > 0
       ? routine.items
-      : routine.surahIds.map((id) => ({ surahId: id }));
+      : routine.surahIds.map((id) => ({ kind: 'surah', surahId: id }));
 
-  return source
-    .map((item) => {
-      const total = SURAH_MAP[item.surahId]?.versesCount ?? 1;
+  const normalized: NormalizedRoutineItem[] = [];
+  for (const item of source) {
+    if (isDuaRoutineItem(item)) {
+      const dua = DUA_MAP[item.duaId];
+      if (!dua) continue;
+      normalized.push({
+        kind: 'dua',
+        duaId: item.duaId,
+        targetCount: Math.max(1, item.targetCount ?? dua.repeatCount ?? 1),
+      });
+    } else {
+      const meta = SURAH_MAP[item.surahId];
+      if (!meta) continue;
+      const total = meta.versesCount;
       const start = Math.min(Math.max(item.startAyah ?? 1, 1), total);
       const end = Math.min(Math.max(item.endAyah ?? total, start), total);
-      return {
+      normalized.push({
+        kind: 'surah',
         surahId: item.surahId,
         startAyah: start,
         endAyah: end,
-      };
-    })
-    .filter((item) => Boolean(SURAH_MAP[item.surahId]));
+      });
+    }
+  }
+  return normalized;
+}
+
+export function getRoutineItemUnits(item: NormalizedRoutineItem): number {
+  return item.kind === 'dua' ? 1 : item.endAyah - item.startAyah + 1;
+}
+
+export function getRoutineSummaryCounts(
+  input: Pick<Routine, 'surahIds' | 'items'> | RoutineItem[]
+): {
+  totalUnits: number;
+  totalAyahs: number;
+  duaCount: number;
+  surahCount: number;
+} {
+  const items = Array.isArray(input)
+    ? getRoutineItems({ surahIds: [], items: input })
+    : getRoutineItems(input);
+
+  let totalAyahs = 0;
+  let duaCount = 0;
+  let surahCount = 0;
+  for (const item of items) {
+    if (item.kind === 'dua') {
+      duaCount += 1;
+    } else {
+      surahCount += 1;
+      totalAyahs += item.endAyah - item.startAyah + 1;
+    }
+  }
+  return {
+    totalUnits: totalAyahs + duaCount,
+    totalAyahs,
+    duaCount,
+    surahCount,
+  };
 }
 
 export function computeRoutineTotalAyahs(
@@ -147,12 +230,12 @@ export function computeRoutineTotalAyahs(
       );
     }
     return getRoutineItems({ surahIds: [], items: input as RoutineItem[] }).reduce(
-      (sum, item) => sum + (item.endAyah - item.startAyah + 1),
+      (sum, item) => sum + getRoutineItemUnits(item),
       0
     );
   }
   return getRoutineItems(input).reduce(
-    (sum, item) => sum + (item.endAyah - item.startAyah + 1),
+    (sum, item) => sum + getRoutineItemUnits(item),
     0
   );
 }
@@ -167,6 +250,10 @@ export function computeRoutineCompletedAyahs(
   let completed = 0;
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
+    if (item.kind === 'dua') {
+      completed += 1;
+      continue;
+    }
     const span = item.endAyah - item.startAyah + 1;
     const matchesItem =
       itemIndex !== undefined
@@ -183,6 +270,28 @@ export function computeRoutineCompletedAyahs(
     completed += span;
   }
   return completed;
+}
+
+export function computeRoutineCompletedUnitsForDua(
+  routine: Pick<Routine, 'surahIds' | 'items'>,
+  duaId: string,
+  itemIndex: number | undefined,
+  completed: boolean
+): number {
+  const items = getRoutineItems(routine);
+  let units = 0;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const isMatch =
+      item.kind === 'dua' &&
+      (itemIndex !== undefined ? i === itemIndex && item.duaId === duaId : item.duaId === duaId);
+    if (isMatch) {
+      if (completed) units += 1;
+      break;
+    }
+    units += getRoutineItemUnits(item);
+  }
+  return units;
 }
 
 let initPromise: Promise<void> | null = null;
@@ -238,13 +347,15 @@ export async function updateReadingProgress(params: {
       if (routineId) {
         const routine = await db.routines.get(routineId);
         const items = routine ? getRoutineItems(routine) : [];
+        const indexedItem =
+          routineItemIndex !== undefined ? items[routineItemIndex] : undefined;
         const resolvedIdx =
-          routineItemIndex !== undefined &&
-          items[routineItemIndex]?.surahId === surahId
-            ? routineItemIndex
-            : items.findIndex((it) => it.surahId === surahId);
+          indexedItem && !isDuaRoutineItem(indexedItem) && indexedItem.surahId === surahId
+            ? routineItemIndex!
+            : items.findIndex((it) => !isDuaRoutineItem(it) && it.surahId === surahId);
 
         if (routine && resolvedIdx !== -1) {
+          const matchedItem = items[resolvedIdx];
           const totalAyahsCount = computeRoutineTotalAyahs(routine);
           const completedAyahsCount = computeRoutineCompletedAyahs(
             routine,
@@ -261,7 +372,10 @@ export async function updateReadingProgress(params: {
             routineId,
             lastReadSurah: surahId,
             lastReadAyah: ayahNumber,
+            lastReadDuaId: undefined,
             lastReadItemIndex: resolvedIdx,
+            lastItemCompleted:
+              !isDuaRoutineItem(matchedItem) && ayahNumber >= matchedItem.endAyah,
             completedAyahsCount,
             totalAyahsCount,
             percentage,
@@ -293,6 +407,78 @@ export async function updateReadingProgress(params: {
           ayahsCount: todayRecord.ayahsCount + incrementTodayAyahs,
           routinesCompleted: updatedRoutines,
         });
+      }
+    }
+  );
+}
+
+export async function updateDuaRoutineProgress(params: {
+  routineId: string;
+  routineItemIndex?: number;
+  duaId: string;
+  completed: boolean;
+}): Promise<void> {
+  const { routineId, routineItemIndex, duaId, completed } = params;
+  if (!DUA_MAP[duaId]) return;
+
+  const now = Date.now();
+  const todayKey = getTodayDateKey();
+
+  await db.transaction(
+    'rw',
+    [db.routineProgress, db.routines, db.readingHistory],
+    async () => {
+      const routine = await db.routines.get(routineId);
+      if (!routine) return;
+
+      const items = getRoutineItems(routine);
+      const indexedItem =
+        routineItemIndex !== undefined ? items[routineItemIndex] : undefined;
+      const resolvedIdx =
+        indexedItem && isDuaRoutineItem(indexedItem) && indexedItem.duaId === duaId
+          ? routineItemIndex!
+          : items.findIndex((it) => isDuaRoutineItem(it) && it.duaId === duaId);
+
+      if (resolvedIdx === -1) return;
+
+      const totalUnits = computeRoutineTotalAyahs(routine);
+      const completedUnits = computeRoutineCompletedUnitsForDua(
+        routine,
+        duaId,
+        resolvedIdx,
+        completed
+      );
+      const percentage =
+        totalUnits > 0
+          ? Math.min(100, Math.round((completedUnits / totalUnits) * 100))
+          : 0;
+
+      await db.routineProgress.put({
+        routineId,
+        lastReadSurah: 0,
+        lastReadAyah: 0,
+        lastReadDuaId: duaId,
+        lastReadItemIndex: resolvedIdx,
+        lastItemCompleted: completed,
+        completedAyahsCount: completedUnits,
+        totalAyahsCount: totalUnits,
+        percentage,
+        lastUpdated: now,
+      });
+
+      if (percentage >= 100) {
+        const todayRecord = (await db.readingHistory.get(todayKey)) ?? {
+          date: todayKey,
+          ayahsCount: 0,
+          routinesCompleted: [],
+        };
+        if (!todayRecord.routinesCompleted.includes(routineId)) {
+          await db.readingHistory.put({
+            date: todayKey,
+            ayahsCount: todayRecord.ayahsCount,
+            routinesCompleted: [...todayRecord.routinesCompleted, routineId],
+          });
+        }
       }
     }
   );

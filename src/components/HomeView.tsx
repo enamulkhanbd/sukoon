@@ -8,11 +8,13 @@ import {
   Plus,
   Sparkles,
 } from 'lucide-react';
+import { DUA_MAP } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 import {
   computeRoutineTotalAyahs,
   db,
   getRoutineItems,
+  getRoutineSummaryCounts,
   getTodayDateKey,
   type Routine,
   type RoutineProgress,
@@ -21,8 +23,9 @@ import { countCompleteCachedSurahs } from '../services/quranApi';
 import {
   DAY_NAMES_BN,
   DAY_SHORT_BN,
+  formatNormalizedRoutineItemLabel,
   formatRelativeTimeBn,
-  formatRoutineItemLabel,
+  formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
 
@@ -98,6 +101,7 @@ export function HomeView({
   const renderRoutineCard = (routine: Routine, isToday: boolean) => {
     const prog = progressMap.get(routine.id);
     const items = getRoutineItems(routine);
+    const summary = getRoutineSummaryCounts(routine);
     const totalAyahs =
       prog?.totalAyahsCount ?? computeRoutineTotalAyahs(routine);
     const completedAyahs = prog?.completedAyahsCount ?? 0;
@@ -139,7 +143,7 @@ export function HomeView({
                   ? 'ম্যানুয়াল রুটিন'
                   : routine.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
               {' • '}
-              {toBanglaDigits(items.length)}টি অংশ ({toBanglaDigits(totalAyahs)} আয়াত)
+              {toBanglaDigits(items.length)}টি অংশ ({formatRoutineSummaryBn(summary)})
             </p>
           </div>
           <button
@@ -158,28 +162,31 @@ export function HomeView({
           </button>
         </div>
 
-        {/* Surah / Ayah-range chips */}
+        {/* Surah / Dua chips */}
         <div className="flex flex-wrap gap-1.5 mt-3">
           {items.map((item, idx) => {
-            const s = SURAH_MAP[item.surahId];
-            if (!s) return null;
+            const label = formatNormalizedRoutineItemLabel(item);
+            if (!label) return null;
             return (
               <span
-                key={`${item.surahId}-${idx}`}
-                className="text-[11px] px-2 py-0.5 rounded-md border"
+                key={`${item.kind === 'dua' ? item.duaId : item.surahId}-${idx}`}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border"
                 style={{
-                  backgroundColor: 'var(--bg-page)',
+                  backgroundColor:
+                    item.kind === 'dua'
+                      ? 'var(--bg-surface)'
+                      : 'var(--bg-page)',
                   borderColor: 'var(--border-subtle)',
                   color: 'var(--text-secondary)',
                 }}
               >
-                {formatRoutineItemLabel({
-                  surahId: s.id,
-                  nameBangla: s.nameBangla,
-                  versesCount: s.versesCount,
-                  startAyah: item.startAyah,
-                  endAyah: item.endAyah,
-                })}
+                {item.kind === 'dua' && (
+                  <Sparkles
+                    className="w-3 h-3 shrink-0"
+                    style={{ color: 'var(--accent)' }}
+                  />
+                )}
+                {label}
               </span>
             );
           })}
@@ -192,11 +199,13 @@ export function HomeView({
             style={{ color: 'var(--text-muted)' }}
           >
             <span>
-              {prog?.lastReadSurah
-                ? `সর্বশেষ: ${SURAH_MAP[prog.lastReadSurah]?.nameBangla ?? ''} (${toBanglaDigits(
-                    prog.lastReadAyah
-                  )} নং আয়াত)`
-                : 'এখনো শুরু হয়নি'}
+              {prog?.lastReadDuaId && DUA_MAP[prog.lastReadDuaId]
+                ? `সর্বশেষ: ${DUA_MAP[prog.lastReadDuaId].titleBangla}`
+                : prog?.lastReadSurah
+                  ? `সর্বশেষ: ${SURAH_MAP[prog.lastReadSurah]?.nameBangla ?? ''} (${toBanglaDigits(
+                      prog.lastReadAyah
+                    )} নং আয়াত)`
+                  : 'এখনো শুরু হয়নি'}
             </span>
             <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>
               {toBanglaDigits(completedAyahs)}/{toBanglaDigits(totalAyahs)} (

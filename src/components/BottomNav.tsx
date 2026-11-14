@@ -1,6 +1,12 @@
-import { BookOpen, CalendarCheck2, Home, Settings as SettingsIcon } from 'lucide-react';
+import {
+  BookOpen,
+  CalendarCheck2,
+  HeartHandshake,
+  Home,
+  Settings as SettingsIcon,
+} from 'lucide-react';
 
-export type AppTab = 'home' | 'surahs' | 'routines' | 'settings';
+export type AppTab = 'home' | 'surahs' | 'duas' | 'routines' | 'settings';
 
 interface BottomNavProps {
   activeTab: AppTab;
@@ -14,6 +20,7 @@ const NAV_ITEMS: Array<{
 }> = [
   { id: 'home', label: 'আজ', icon: Home },
   { id: 'surahs', label: 'সূরা', icon: BookOpen },
+  { id: 'duas', label: 'দুআ', icon: HeartHandshake },
   { id: 'routines', label: 'রুটিন', icon: CalendarCheck2 },
   { id: 'settings', label: 'সেটিংস', icon: SettingsIcon },
 ];
@@ -28,7 +35,7 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
         borderColor: 'var(--border-subtle)',
       }}
     >
-      <div className="max-w-2xl mx-auto grid grid-cols-4 px-2 pt-1.5">
+      <div className="max-w-2xl mx-auto grid grid-cols-5 px-1.5 pt-1.5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;

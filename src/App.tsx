@@ -1,27 +1,41 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BottomNav, type AppTab } from './components/BottomNav';
+import { DuaReaderView } from './components/DuaReaderView';
+import { DuasView } from './components/DuasView';
 import { HomeView } from './components/HomeView';
 import { ReaderView } from './components/ReaderView';
 import { RoutinesView } from './components/RoutinesView';
 import { SettingsView } from './components/SettingsView';
 import { SurahListView } from './components/SurahListView';
+import { useToast } from './components/ToastProvider';
+import { DUA_MAP, type DuaItem } from './data/duas';
 import {
   DEFAULT_SETTINGS,
   db,
   ensureDatabaseInitialized,
   getRoutineItems,
+  isDuaRoutineItem,
   type Routine,
   type RoutineProgress,
   type Settings,
 } from './db/database';
 
-interface ReaderSession {
-  surahId: number;
-  initialAyah?: number;
-  routine?: Routine;
-  routineItemIndex?: number;
-}
+type ReaderSession =
+  | {
+      kind: 'surah';
+      surahId: number;
+      initialAyah?: number;
+      routine?: Routine;
+      routineItemIndex?: number;
+    }
+  | {
+      kind: 'dua';
+      duaId: string;
+      routine?: Routine;
+      routineItemIndex?: number;
+      targetCount?: number;
+    };
 
 const THEME_META_COLORS: Record<Settings['theme'], string> = {
   paper: '#FAF6EE',
@@ -30,6 +44,7 @@ const THEME_META_COLORS: Record<Settings['theme'], string> = {
 };
 
 export function App() {
+  const toast = useToast();
   const [dbReady, setDbReady] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [readerSession, setReaderSession] = useState<ReaderSession | null>(null);
@@ -75,7 +90,14 @@ export function App() {
 
   const handleOpenSurah = useCallback(
     (surahId: number, initialAyah = 1) => {
-      openReader({ surahId, initialAyah });
+      openReader({ kind: 'surah', surahId, initialAyah });
+    },
+    [openReader]
+  );
+
+  const handleOpenDua = useCallback(
+    (dua: DuaItem) => {
+      openReader({ kind: 'dua', duaId: dua.id });
     },
     [openReader]
   );
@@ -86,32 +108,99 @@ export function App() {
       if (items.length === 0) return;
 
       let targetIdx = 0;
-      let initialAyah = items[0].startAyah;
+      let resumedAyah: number | undefined;
 
       if (progress && progress.percentage < 100) {
-        const idx =
-          progress.lastReadItemIndex !== undefined &&
-          items[progress.lastReadItemIndex]?.surahId === progress.lastReadSurah
-            ? progress.lastReadItemIndex
-            : items.findIndex((it) => it.surahId === progress.lastReadSurah);
+        let idx = -1;
+        if (progress.lastReadDuaId) {
+          const indexedDua =
+            progress.lastReadItemIndex !== undefined
+              ? items[progress.lastReadItemIndex]
+              : undefined;
+          idx =
+            indexedDua?.kind === 'dua' && indexedDua.duaId === progress.lastReadDuaId
+              ? progress.lastReadItemIndex!
+              : items.findIndex(
+                  (it) => it.kind === 'dua' && it.duaId === progress.lastReadDuaId
+                );
+        } else if (progress.lastReadSurah) {
+          const indexed =
+            progress.lastReadItemIndex !== undefined
+              ? items[progress.lastReadItemIndex]
+              : undefined;
+          idx =
+            indexed &&
+            !isDuaRoutineItem(indexed) &&
+            indexed.surahId === progress.lastReadSurah
+              ? progress.lastReadItemIndex!
+              : items.findIndex(
+                  (it) => !isDuaRoutineItem(it) && it.surahId === progress.lastReadSurah
+                );
+        }
 
         if (idx !== -1) {
-          targetIdx = idx;
-          initialAyah = Math.min(
-            Math.max(progress.lastReadAyah, items[idx].startAyah),
-            items[idx].endAyah
-          );
+          if (progress.lastItemCompleted && idx + 1 < items.length) {
+            targetIdx = idx + 1;
+          } else {
+            targetIdx = idx;
+            resumedAyah = progress.lastReadAyah;
+          }
         }
       }
 
-      openReader({
-        surahId: items[targetIdx].surahId,
-        initialAyah,
-        routine,
-        routineItemIndex: targetIdx,
-      });
+      const targetItem = items[targetIdx];
+      if (targetItem.kind === 'dua') {
+        openReader({
+          kind: 'dua',
+          duaId: targetItem.duaId,
+          routine,
+          routineItemIndex: targetIdx,
+          targetCount: targetItem.targetCount,
+        });
+      } else {
+        const initialAyah =
+          resumedAyah !== undefined
+            ? Math.min(Math.max(resumedAyah, targetItem.startAyah), targetItem.endAyah)
+            : targetItem.startAyah;
+        openReader({
+          kind: 'surah',
+          surahId: targetItem.surahId,
+          initialAyah,
+          routine,
+          routineItemIndex: targetIdx,
+        });
+      }
     },
     [openReader]
+  );
+
+  const handleAdvanceRoutineItem = useCallback(
+    (routine: Routine, nextIndex: number) => {
+      const items = getRoutineItems(routine);
+      const nextItem = items[nextIndex];
+      if (!nextItem) {
+        closeReader();
+        return;
+      }
+      if (nextItem.kind === 'dua') {
+        setReaderSession({
+          kind: 'dua',
+          duaId: nextItem.duaId,
+          routine,
+          routineItemIndex: nextIndex,
+          targetCount: nextItem.targetCount,
+        });
+      } else {
+        setReaderSession({
+          kind: 'surah',
+          surahId: nextItem.surahId,
+          initialAyah: nextItem.startAyah,
+          routine,
+          routineItemIndex: nextIndex,
+        });
+      }
+    },
+    [closeReader]
   );
 
   const handleUpdateSettings = useCallback(
@@ -124,6 +213,21 @@ export function App() {
       });
     },
     []
+  );
+
+  const handleToggleDuaBookmark = useCallback(
+    async (duaId: string) => {
+      const current = settings.bookmarkedDuaIds ?? [];
+      const exists = current.includes(duaId);
+      const next = exists
+        ? current.filter((id) => id !== duaId)
+        : [...current, duaId];
+      await handleUpdateSettings({ bookmarkedDuaIds: next });
+      toast.success(
+        exists ? 'সংরক্ষিত দুআ থেকে সরানো হয়েছে' : 'দুআ সংরক্ষণ করা হয়েছে'
+      );
+    },
+    [settings.bookmarkedDuaIds, handleUpdateSettings, toast]
   );
 
   if (!dbReady) {
@@ -145,26 +249,67 @@ export function App() {
   }
 
   if (readerSession) {
-    return (
-      <ReaderView
-        key={`${readerSession.surahId}-${readerSession.routine?.id ?? 'free'}-${readerSession.routineItemIndex ?? 0}`}
-        surahId={readerSession.surahId}
-        initialAyah={readerSession.initialAyah}
-        routine={readerSession.routine}
-        routineItemIndex={readerSession.routineItemIndex}
-        settings={settings}
-        onClose={closeReader}
-        onSelectSurah={(surahId, initialAyah = 1, routineItemIndex) =>
-          setReaderSession({
-            surahId,
-            initialAyah,
-            routine: readerSession.routine,
-            routineItemIndex,
-          })
-        }
-        onUpdateSettings={handleUpdateSettings}
-      />
-    );
+    if (readerSession.kind === 'dua') {
+      const dua = DUA_MAP[readerSession.duaId];
+      if (dua) {
+        return (
+          <DuaReaderView
+            key={`dua-${dua.id}-${readerSession.routine?.id ?? 'free'}-${
+              readerSession.routineItemIndex ?? 0
+            }`}
+            dua={dua}
+            settings={settings}
+            routine={readerSession.routine}
+            routineItemIndex={readerSession.routineItemIndex}
+            routineTargetCount={readerSession.targetCount}
+            onClose={closeReader}
+            onUpdateSettings={handleUpdateSettings}
+            onSelectDuaInChapter={(nextDua) =>
+              setReaderSession({ kind: 'dua', duaId: nextDua.id })
+            }
+            onAdvanceRoutineItem={(nextIdx) =>
+              readerSession.routine &&
+              handleAdvanceRoutineItem(readerSession.routine, nextIdx)
+            }
+            onOpenQuranRef={(surahId, startAyah) =>
+              setReaderSession({
+                kind: 'surah',
+                surahId,
+                initialAyah: startAyah,
+              })
+            }
+          />
+        );
+      }
+    } else {
+      return (
+        <ReaderView
+          key={`${readerSession.surahId}-${readerSession.routine?.id ?? 'free'}-${
+            readerSession.routineItemIndex ?? 0
+          }`}
+          surahId={readerSession.surahId}
+          initialAyah={readerSession.initialAyah}
+          routine={readerSession.routine}
+          routineItemIndex={readerSession.routineItemIndex}
+          settings={settings}
+          onClose={closeReader}
+          onSelectSurah={(surahId, initialAyah = 1, routineItemIndex) =>
+            setReaderSession({
+              kind: 'surah',
+              surahId,
+              initialAyah,
+              routine: readerSession.routine,
+              routineItemIndex,
+            })
+          }
+          onAdvanceRoutineItem={(nextIdx) =>
+            readerSession.routine &&
+            handleAdvanceRoutineItem(readerSession.routine, nextIdx)
+          }
+          onUpdateSettings={handleUpdateSettings}
+        />
+      );
+    }
   }
 
   return (
@@ -179,6 +324,13 @@ export function App() {
       )}
       {activeTab === 'surahs' && (
         <SurahListView onOpenSurah={(id) => handleOpenSurah(id, 1)} />
+      )}
+      {activeTab === 'duas' && (
+        <DuasView
+          settings={settings}
+          onOpenDua={handleOpenDua}
+          onToggleBookmark={handleToggleDuaBookmark}
+        />
       )}
       {activeTab === 'routines' && (
         <RoutinesView onOpenRoutine={handleOpenRoutine} />

@@ -16,8 +16,10 @@ import {
 import { SURAH_MAP } from '../data/surahs';
 import {
   getRoutineItems,
+  isDuaRoutineItem,
   updateReadingProgress,
   type CachedSurah,
+  type NormalizedSurahRoutineItem,
   type Routine,
   type Settings,
   type ThemeMode,
@@ -26,7 +28,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { getSurahOfflineFirst } from '../services/quranApi';
 import {
   AUTO_SCROLL_SPEEDS,
-  formatRoutineItemLabel,
+  formatNormalizedRoutineItemLabel,
   toArabicDigits,
   toBanglaDigits,
 } from '../utils/formatters';
@@ -44,6 +46,7 @@ interface ReaderViewProps {
     initialAyah?: number,
     routineItemIndex?: number
   ) => void;
+  onAdvanceRoutineItem?: (nextIndex: number) => void;
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
 }
 
@@ -61,6 +64,7 @@ export function ReaderView({
   settings,
   onClose,
   onSelectSurah,
+  onAdvanceRoutineItem,
   onUpdateSettings,
 }: ReaderViewProps) {
   const meta = SURAH_MAP[surahId];
@@ -68,15 +72,19 @@ export function ReaderView({
     () => (routine ? getRoutineItems(routine) : []),
     [routine]
   );
-  const activeRoutineItem = useMemo(() => {
+  const activeRoutineItem = useMemo<NormalizedSurahRoutineItem | null>(() => {
     if (!routine || routineItems.length === 0) return null;
-    if (
-      routineItemIndex !== undefined &&
-      routineItems[routineItemIndex]?.surahId === surahId
-    ) {
-      return routineItems[routineItemIndex];
+    const indexed =
+      routineItemIndex !== undefined ? routineItems[routineItemIndex] : undefined;
+    if (indexed && !isDuaRoutineItem(indexed) && indexed.surahId === surahId) {
+      return indexed;
     }
-    return routineItems.find((it) => it.surahId === surahId) ?? null;
+    return (
+      routineItems.find(
+        (it): it is NormalizedSurahRoutineItem =>
+          !isDuaRoutineItem(it) && it.surahId === surahId
+      ) ?? null
+    );
   }, [routine, routineItems, routineItemIndex, surahId]);
   const [surahData, setSurahData] = useState<CachedSurah | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,11 +307,14 @@ export function ReaderView({
   // Routine navigation context
   const routineNav = useMemo(() => {
     if (!routine || routineItems.length === 0) return null;
+    const indexed =
+      routineItemIndex !== undefined ? routineItems[routineItemIndex] : undefined;
     const idx =
-      routineItemIndex !== undefined &&
-      routineItems[routineItemIndex]?.surahId === surahId
-        ? routineItemIndex
-        : routineItems.findIndex((it) => it.surahId === surahId);
+      indexed && !isDuaRoutineItem(indexed) && indexed.surahId === surahId
+        ? routineItemIndex!
+        : routineItems.findIndex(
+            (it) => !isDuaRoutineItem(it) && it.surahId === surahId
+          );
     if (idx === -1) return null;
     const nextItem =
       idx + 1 < routineItems.length ? routineItems[idx + 1] : null;
@@ -633,31 +644,35 @@ export function ReaderView({
                 routineNav.nextItem ? (
                   <button
                     type="button"
-                    onClick={() =>
-                      handleFinishSurahAndNext(
-                        routineNav.nextItem!.surahId,
-                        routineNav.nextItem!.startAyah,
-                        routineNav.nextIndex
-                      )
-                    }
+                    onClick={async () => {
+                      const next = routineNav.nextItem!;
+                      if (onAdvanceRoutineItem) {
+                        if (displayedVerses.length > 0) {
+                          const last = displayedVerses[displayedVerses.length - 1];
+                          await updateReadingProgress({
+                            surahId,
+                            ayahNumber: last.verse_number,
+                            pageNumber: last.page_number,
+                            routineId: routine?.id,
+                            routineItemIndex,
+                          });
+                        }
+                        onAdvanceRoutineItem(routineNav.nextIndex);
+                      } else if (next.kind === 'surah') {
+                        await handleFinishSurahAndNext(
+                          next.surahId,
+                          next.startAyah,
+                          routineNav.nextIndex
+                        );
+                      }
+                    }}
                     className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold shadow-sm cursor-pointer"
                     style={{
                       backgroundColor: 'var(--accent)',
                       color: 'var(--accent-text)',
                     }}
                   >
-                    পরবর্তী অংশ:{' '}
-                    {(() => {
-                      const nextMeta = SURAH_MAP[routineNav.nextItem.surahId];
-                      if (!nextMeta) return '';
-                      return formatRoutineItemLabel({
-                        surahId: nextMeta.id,
-                        nameBangla: nextMeta.nameBangla,
-                        versesCount: nextMeta.versesCount,
-                        startAyah: routineNav.nextItem.startAyah,
-                        endAyah: routineNav.nextItem.endAyah,
-                      });
-                    })()}
+                    পরবর্তী অংশ: {formatNormalizedRoutineItemLabel(routineNav.nextItem)}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 ) : (

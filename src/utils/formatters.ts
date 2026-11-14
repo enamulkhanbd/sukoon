@@ -1,3 +1,7 @@
+import { DUA_MAP } from '../data/duas';
+import { SURAH_MAP } from '../data/surahs';
+import type { NormalizedRoutineItem } from '../db/database';
+
 const ARABIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
 const BANGLA_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
 
@@ -49,6 +53,39 @@ export function formatRoutineItemLabel(params: {
     return `${base} (${toBanglaDigits(startAyah)})`;
   }
   return `${base} (${toBanglaDigits(startAyah)}–${toBanglaDigits(endAyah)})`;
+}
+
+export function formatNormalizedRoutineItemLabel(item: NormalizedRoutineItem): string {
+  if (item.kind === 'dua') {
+    const dua = DUA_MAP[item.duaId];
+    if (!dua) return '';
+    return item.targetCount > 1
+      ? `${dua.titleBangla} (${toBanglaDigits(item.targetCount)} বার)`
+      : dua.titleBangla;
+  }
+  const s = SURAH_MAP[item.surahId];
+  if (!s) return '';
+  return formatRoutineItemLabel({
+    surahId: s.id,
+    nameBangla: s.nameBangla,
+    versesCount: s.versesCount,
+    startAyah: item.startAyah,
+    endAyah: item.endAyah,
+  });
+}
+
+export function formatRoutineSummaryBn(counts: {
+  totalAyahs: number;
+  duaCount: number;
+}): string {
+  const parts: string[] = [];
+  if (counts.totalAyahs > 0) {
+    parts.push(`${toBanglaDigits(counts.totalAyahs)} আয়াত`);
+  }
+  if (counts.duaCount > 0) {
+    parts.push(`${toBanglaDigits(counts.duaCount)}টি দুআ`);
+  }
+  return parts.join(' • ') || '০টি অংশ';
 }
 
 export const AUTO_SCROLL_SPEEDS = [

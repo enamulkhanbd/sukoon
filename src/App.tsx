@@ -50,6 +50,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [routineDetailId, setRoutineDetailId] = useState<string | null>(null);
   const [readerSession, setReaderSession] = useState<ReaderSession | null>(null);
+  const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
 
   useEffect(() => {
     ensureDatabaseInitialized().then(() => setDbReady(true));
@@ -363,7 +364,10 @@ export function App() {
         <HomeView
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
-          onGoToRoutines={() => setActiveTab('routines')}
+          onGoToRoutines={() => {
+            setOpenCreateRoutine(true);
+            setActiveTab('routines');
+          }}
           onGoToSurahs={() => setActiveTab('surahs')}
         />
       )}
@@ -380,6 +384,8 @@ export function App() {
       {activeTab === 'routines' && (
         <RoutinesView
           onOpenRoutineDetails={openRoutineDetails}
+          shouldOpenCreate={openCreateRoutine}
+          onHandledCreate={() => setOpenCreateRoutine(false)}
         />
       )}
       {activeTab === 'settings' && (

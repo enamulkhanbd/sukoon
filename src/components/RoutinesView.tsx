@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
   Check,
+  ChevronDown,
   Edit3,
   Plus,
   RotateCcw,
@@ -110,10 +111,14 @@ function createDraftDuaItem(duaId: string, targetCount: number): DraftDuaItem {
 
 interface RoutinesViewProps {
   onOpenRoutineDetails: (routine: Routine) => void;
+  shouldOpenCreate?: boolean;
+  onHandledCreate?: () => void;
 }
 
 export function RoutinesView({
   onOpenRoutineDetails,
+  shouldOpenCreate = false,
+  onHandledCreate,
 }: RoutinesViewProps) {
   const toast = useToast();
   const routines = useLiveQuery(
@@ -136,7 +141,9 @@ export function RoutinesView({
   const [items, setItems] = useState<DraftRoutineItem[]>([]);
   const [pickerTab, setPickerTab] = useState<'surah' | 'dua'>('surah');
   const [pickerQuery, setPickerQuery] = useState('');
-  const [duaChapterFilter, setDuaChapterFilter] = useState<number | 'all'>('all');
+  const [expandedDuaCategoryId, setExpandedDuaCategoryId] = useState<
+    number | null
+  >(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const openCreateModal = () => {
@@ -146,10 +153,17 @@ export function RoutinesView({
     setItems([]);
     setPickerTab('surah');
     setPickerQuery('');
-    setDuaChapterFilter('all');
+    setExpandedDuaCategoryId(null);
     setFormError(null);
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    if (shouldOpenCreate) {
+      openCreateModal();
+      onHandledCreate?.();
+    }
+  }, [shouldOpenCreate, onHandledCreate]);
 
   const openEditModal = (routine: Routine) => {
     setEditingRoutine(routine);
@@ -164,7 +178,7 @@ export function RoutinesView({
     );
     setPickerTab('surah');
     setPickerQuery('');
-    setDuaChapterFilter('all');
+    setExpandedDuaCategoryId(null);
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -555,11 +569,8 @@ export function RoutinesView({
 
   const filteredDuas = useMemo(() => {
     const q = pickerQuery.trim().toLowerCase();
+    if (!q) return DUAS;
     return DUAS.filter((d) => {
-      if (duaChapterFilter !== 'all' && d.chapterId !== duaChapterFilter) {
-        return false;
-      }
-      if (!q) return true;
       const ch = DUA_CHAPTER_MAP[d.chapterId];
       return (
         d.titleBangla.toLowerCase().includes(q) ||
@@ -568,7 +579,23 @@ export function RoutinesView({
         d.arabic.includes(pickerQuery.trim())
       );
     });
-  }, [pickerQuery, duaChapterFilter]);
+  }, [pickerQuery]);
+
+  const groupedDuaCategories = useMemo(() => {
+    const byChapter = new Map<number, typeof DUAS>();
+    for (const dua of filteredDuas) {
+      const list = byChapter.get(dua.chapterId);
+      if (list) {
+        list.push(dua);
+      } else {
+        byChapter.set(dua.chapterId, [dua]);
+      }
+    }
+    return DUA_CHAPTERS.map((ch) => ({
+      chapter: ch,
+      duas: byChapter.get(ch.id) ?? [],
+    })).filter((group) => group.duas.length > 0);
+  }, [filteredDuas]);
 
   const draftSummary = useMemo(
     () =>
@@ -1184,80 +1211,12 @@ export function RoutinesView({
                     }}
                   />
                 </div>
-
-                {pickerTab === 'dua' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                      <button
-                        type="button"
-                        onClick={() => setDuaChapterFilter('all')}
-                        className="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer"
-                        style={{
-                          backgroundColor:
-                            duaChapterFilter === 'all'
-                              ? 'var(--accent)'
-                              : 'var(--bg-elevated)',
-                          borderColor:
-                            duaChapterFilter === 'all'
-                              ? 'var(--accent)'
-                              : 'var(--border-subtle)',
-                          color:
-                            duaChapterFilter === 'all'
-                              ? 'var(--accent-text)'
-                              : 'var(--text-secondary)',
-                        }}
-                      >
-                        সব অধ্যায়
-                      </button>
-                      {DUA_CHAPTERS.map((ch) => {
-                        const active = duaChapterFilter === ch.id;
-                        return (
-                          <button
-                            key={ch.id}
-                            type="button"
-                            onClick={() => setDuaChapterFilter(ch.id)}
-                            className="shrink-0 px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-pointer"
-                            style={{
-                              backgroundColor: active
-                                ? 'var(--accent)'
-                                : 'var(--bg-elevated)',
-                              borderColor: active
-                                ? 'var(--accent)'
-                                : 'var(--border-subtle)',
-                              color: active
-                                ? 'var(--accent-text)'
-                                : 'var(--text-secondary)',
-                            }}
-                          >
-                            অধ্যায় {toBanglaDigits(ch.id)}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {duaChapterFilter === 10 && (
-                      <button
-                        type="button"
-                        onClick={handleAddAllRuqyah}
-                        className="w-full py-2 px-3 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
-                        style={{
-                          backgroundColor: 'var(--accent-soft)',
-                          borderColor: 'var(--accent)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        সব রুকইয়া আয়াত একসাথে যুক্ত করুন (২০টি)
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
                 {/* Edge-to-edge Surah / Dua Picker List flush to footer */}
                 <div
-                  className="flex-1 border-t sm:border-x divide-y"
+                  className="flex-1 border-t sm:border-x divide-y divide-[var(--border-subtle)]"
                   style={{
                     backgroundColor: 'var(--bg-elevated)',
                     borderColor: 'var(--border-subtle)',
@@ -1338,7 +1297,7 @@ export function RoutinesView({
                         </div>
                       );
                     })
-                  ) : filteredDuas.length === 0 ? (
+                  ) : groupedDuaCategories.length === 0 ? (
                     <div
                       className="px-4 py-8 text-center text-xs"
                       style={{ color: 'var(--text-muted)' }}
@@ -1346,63 +1305,154 @@ export function RoutinesView({
                       কোনো দুআ পাওয়া যায়নি।
                     </div>
                   ) : (
-                    filteredDuas.map((dua) => {
-                      const countInList = items.filter(
-                        (it) => it.kind === 'dua' && it.duaId === dua.id
+                    groupedDuaCategories.map(({ chapter, duas }) => {
+                      const isSearching = pickerQuery.trim().length > 0;
+                      const isExpanded =
+                        isSearching || expandedDuaCategoryId === chapter.id;
+                      const chapterDuaIds = new Set(duas.map((d) => d.id));
+                      const selectedInChapter = items.filter(
+                        (it) => it.kind === 'dua' && chapterDuaIds.has(it.duaId)
                       ).length;
-                      const ch = DUA_CHAPTER_MAP[dua.chapterId];
+
                       return (
                         <div
-                          key={dua.id}
-                          className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 text-left text-xs transition-colors"
-                          style={{
-                            backgroundColor:
-                              countInList > 0 ? 'var(--accent-soft)' : 'transparent',
-                            borderColor: 'var(--border-subtle)',
-                          }}
+                          key={chapter.id}
+                          style={{ borderColor: 'var(--border-subtle)' }}
                         >
                           <button
                             type="button"
-                            onClick={() => toggleDuaInPicker(dua.id)}
-                            className="flex-1 min-w-0 text-left cursor-pointer space-y-0.5"
+                            onClick={() =>
+                              setExpandedDuaCategoryId((prev) =>
+                                prev === chapter.id ? null : chapter.id
+                              )
+                            }
+                            aria-expanded={isExpanded}
+                            className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3 text-left cursor-pointer transition-colors"
+                            style={{
+                              backgroundColor: isExpanded
+                                ? 'color-mix(in srgb, var(--bg-surface) 75%, var(--bg-elevated))'
+                                : 'var(--bg-elevated)',
+                            }}
                           >
-                            <div className="font-medium leading-snug">
-                              {dua.titleBangla}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-semibold leading-snug">
+                                {chapter.titleBangla}
+                              </div>
+                              <div
+                                className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                <span>{toBanglaDigits(duas.length)}টি দুআ</span>
+                                {selectedInChapter > 0 && (
+                                  <span
+                                    className="font-semibold"
+                                    style={{ color: 'var(--accent)' }}
+                                  >
+                                    • {toBanglaDigits(selectedInChapter)}টি নির্বাচিত
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div
-                              className="text-[11px] truncate"
+
+                            <ChevronDown
+                              className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                                isExpanded ? 'rotate-180' : ''
+                              }`}
                               style={{ color: 'var(--text-muted)' }}
-                            >
-                              {ch?.titleBangla}
-                              {dua.repeatCount && dua.repeatCount > 1
-                                ? ` • ${toBanglaDigits(dua.repeatCount)} বার`
-                                : ''}
-                            </div>
+                            />
                           </button>
 
-                          {countInList > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleDuaInPicker(dua.id)}
-                              title="তালিকা থেকে সরান"
-                              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
-                              style={{
-                                backgroundColor: 'var(--accent)',
-                                color: 'var(--accent-text)',
-                              }}
+                          {isExpanded && (
+                            <div
+                              className="divide-y divide-[var(--border-subtle)] border-t"
+                              style={{ borderColor: 'var(--border-subtle)' }}
                             >
-                              <Check className="w-3 h-3" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => addDuaItem(dua.id)}
-                              aria-label={`${dua.titleBangla} যুক্ত করুন`}
-                              className="p-1 cursor-pointer shrink-0"
-                              style={{ color: 'var(--text-muted)' }}
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
+                              {chapter.id === 10 && !isSearching && (
+                                <div
+                                  className="px-4 sm:px-5 py-2"
+                                  style={{
+                                    backgroundColor: 'var(--bg-page)',
+                                    borderColor: 'var(--border-subtle)',
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={handleAddAllRuqyah}
+                                    className="w-full py-2 px-3 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                                    style={{
+                                      backgroundColor: 'var(--accent-soft)',
+                                      borderColor: 'var(--accent)',
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    সব রুকইয়া আয়াত একসাথে যুক্ত করুন (২০টি)
+                                  </button>
+                                </div>
+                              )}
+
+                              {duas.map((dua) => {
+                                const countInList = items.filter(
+                                  (it) => it.kind === 'dua' && it.duaId === dua.id
+                                ).length;
+                                return (
+                                  <div
+                                    key={dua.id}
+                                    className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 text-left text-xs transition-colors"
+                                    style={{
+                                      backgroundColor:
+                                        countInList > 0
+                                          ? 'var(--accent-soft)'
+                                          : 'var(--bg-page)',
+                                      borderColor: 'var(--border-subtle)',
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleDuaInPicker(dua.id)}
+                                      className="flex-1 min-w-0 text-left cursor-pointer space-y-0.5"
+                                    >
+                                      <div className="font-medium leading-snug">
+                                        {dua.titleBangla}
+                                      </div>
+                                      {dua.repeatCount && dua.repeatCount > 1 && (
+                                        <div
+                                          className="text-[11px]"
+                                          style={{ color: 'var(--text-muted)' }}
+                                        >
+                                          {toBanglaDigits(dua.repeatCount)} বার
+                                        </div>
+                                      )}
+                                    </button>
+
+                                    {countInList > 0 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleDuaInPicker(dua.id)}
+                                        title="তালিকা থেকে সরান"
+                                        className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
+                                        style={{
+                                          backgroundColor: 'var(--accent)',
+                                          color: 'var(--accent-text)',
+                                        }}
+                                      >
+                                        <Check className="w-3 h-3" />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => addDuaItem(dua.id)}
+                                        aria-label={`${dua.titleBangla} যুক্ত করুন`}
+                                        className="p-1 cursor-pointer shrink-0"
+                                        style={{ color: 'var(--text-muted)' }}
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       );

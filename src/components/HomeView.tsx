@@ -15,7 +15,6 @@ import {
   db,
   getRoutineItems,
   getRoutineSummaryCounts,
-  getTodayDateKey,
   type Routine,
   type RoutineProgress,
 } from '../db/database';
@@ -43,7 +42,6 @@ export function HomeView({
   onGoToSurahs,
 }: HomeViewProps) {
   const todayIndex = new Date().getDay();
-  const todayKey = getTodayDateKey();
 
   const lastRead = useLiveQuery(() => db.globalLastRead.get('current'), []);
   const routines = useLiveQuery(
@@ -51,8 +49,6 @@ export function HomeView({
     []
   );
   const progressList = useLiveQuery(() => db.routineProgress.toArray(), []);
-  const todayHistory = useLiveQuery(() => db.readingHistory.get(todayKey), [todayKey]);
-  const allHistory = useLiveQuery(() => db.readingHistory.toArray(), []);
   const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []);
 
   const progressMap = new Map<string, RoutineProgress>(
@@ -65,32 +61,6 @@ export function HomeView({
   const otherRoutines = (routines ?? []).filter(
     (r) => !r.assignedDays.includes(todayIndex)
   );
-
-  // Calculate active streak ending today or yesterday
-  const streakDays = (() => {
-    if (!allHistory || allHistory.length === 0) return 0;
-    const activeDates = new Set(
-      allHistory.filter((h) => h.ayahsCount > 0).map((h) => h.date)
-    );
-    let streak = 0;
-    const cursor = new Date();
-    if (!activeDates.has(todayKey)) {
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    while (true) {
-      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(
-        2,
-        '0'
-      )}-${String(cursor.getDate()).padStart(2, '0')}`;
-      if (activeDates.has(key)) {
-        streak++;
-        cursor.setDate(cursor.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    return streak;
-  })();
 
   const todayFormatted = new Intl.DateTimeFormat('bn-BD', {
     day: 'numeric',
@@ -264,27 +234,6 @@ export function HomeView({
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             প্রশান্ত, কোলাহলমুক্ত ইন্দো-পাক কুরআন তিলাওয়াত
           </p>
-        </div>
-
-        {/* Minimal stats badge */}
-        <div
-          className="text-right px-3 py-2 rounded-2xl border shrink-0"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-          }}
-        >
-          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            আজকের আয়াত
-          </div>
-          <div className="text-lg font-bold leading-tight" style={{ color: 'var(--accent)' }}>
-            {toBanglaDigits(todayHistory?.ayahsCount ?? 0)}
-          </div>
-          {streakDays > 0 && (
-            <div className="text-[10px]" style={{ color: 'var(--gold)' }}>
-              {toBanglaDigits(streakDays)} দিন ধারাবাহিক
-            </div>
-          )}
         </div>
       </header>
 

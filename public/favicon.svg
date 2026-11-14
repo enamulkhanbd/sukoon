@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1B4D3E"/>
+  <rect x="28" y="28" width="456" height="456" rx="90" fill="none" stroke="#C6A253" stroke-opacity="0.35" stroke-width="4"/>
+  <!-- 8-pointed Rub el Hizb subtle geometric star -->
+  <g transform="translate(256 256)" fill="none" stroke="#C6A253" stroke-width="10" stroke-linejoin="round">
+    <rect x="-110" y="-110" width="220" height="220" rx="18"/>
+    <rect x="-110" y="-110" width="220" height="220" rx="18" transform="rotate(45)"/>
+  </g>
+  <!-- Open Mushaf pages -->
+  <path d="M256 188 C222 174, 178 176, 152 190 L152 326 C180 312, 222 312, 256 326 C290 312, 332 312, 360 326 L360 190 C334 176, 290 174, 256 188 Z" fill="#FAF6EE" stroke="#C6A253" stroke-width="8" stroke-linejoin="round"/>
+  <line x1="256" y1="188" x2="256" y2="326" stroke="#C6A253" stroke-width="6"/>
+  <line x1="176" y1="220" x2="232" y2="216" stroke="#1B4D3E" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+  <line x1="176" y1="248" x2="232" y2="244" stroke="#1B4D3E" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+  <line x1="176" y1="276" x2="220" y2="273" stroke="#1B4D3E" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+  <line x1="280" y1="216" x2="336" y2="220" stroke="#1B4D3E" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+  <line x1="280" y1="244" x2="336" y2="248" stroke="#1B4D3E" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+  <line x1="292" y1="273" x2="336" y2="276" stroke="#1B4D3E" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+</svg>

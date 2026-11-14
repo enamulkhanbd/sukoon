@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CheckCircle2, Download, Loader2, Search, X } from 'lucide-react';
-import { SURAHS, type SurahMeta } from '../data/surahs';
+import { Search, X } from 'lucide-react';
+import { SURAHS } from '../data/surahs';
 import { db } from '../db/database';
-import { getSurahOfflineFirst } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 
 interface SurahListViewProps {
@@ -15,8 +14,6 @@ type FilterMode = 'all' | 'offline' | 'makkah' | 'madinah';
 export function SurahListView({ onOpenSurah }: SurahListViewProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterMode>('all');
-  const [downloadingId, setDownloadingId] = useState<number | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const cachedKeys = useLiveQuery(
     () => db.cachedSurahs.toCollection().primaryKeys(),
@@ -42,20 +39,6 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
       );
     });
   }, [query, filter, cachedSet]);
-
-  const handleCacheSingle = async (e: React.MouseEvent, surah: SurahMeta) => {
-    e.stopPropagation();
-    if (downloadingId !== null) return;
-    setDownloadError(null);
-    setDownloadingId(surah.id);
-    try {
-      await getSurahOfflineFirst(surah.id);
-    } catch {
-      setDownloadError(`${surah.nameBangla} ডাউনলোড করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।`);
-    } finally {
-      setDownloadingId(null);
-    }
-  };
 
   return (
     <div className="max-w-2xl mx-auto px-4 pt-6 pb-28 space-y-4">
@@ -128,19 +111,6 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
         })}
       </div>
 
-      {downloadError && (
-        <div
-          className="text-xs px-3.5 py-2.5 rounded-xl border"
-          style={{
-            backgroundColor: 'var(--gold-soft)',
-            borderColor: 'var(--gold)',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {downloadError}
-        </div>
-      )}
-
       {/* Surah List */}
       <div className="space-y-2">
         {filtered.length === 0 ? (
@@ -155,102 +125,70 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
             কোনো সূরা পাওয়া যায়নি।
           </div>
         ) : (
-          filtered.map((surah) => {
-            const isCached = cachedSet.has(surah.id);
-            const isDownloading = downloadingId === surah.id;
-            return (
-              <div
-                key={surah.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onOpenSurah(surah.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onOpenSurah(surah.id);
-                  }
-                }}
-                className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.995]"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 border"
-                    style={{
-                      backgroundColor: 'var(--bg-surface)',
-                      borderColor: 'var(--border-subtle)',
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    {toBanglaDigits(surah.id)}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-sm truncate">
-                        {surah.nameBangla}
-                      </span>
-                      <span
-                        className="text-[11px] truncate"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        ({surah.meaningBangla})
-                      </span>
-                    </div>
-                    <div
-                      className="text-[11px] flex items-center gap-1.5 mt-0.5"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
-                      <span>•</span>
-                      <span>
-                        {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
-                      </span>
-                      <span>•</span>
-                      <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
-                    </div>
-                  </div>
+          filtered.map((surah) => (
+            <div
+              key={surah.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpenSurah(surah.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenSurah(surah.id);
+                }
+              }}
+              className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.995]"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-subtle)',
+              }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 border"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--accent)',
+                  }}
+                >
+                  {toBanglaDigits(surah.id)}
                 </div>
-
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <span
-                    className="font-indopak text-xl leading-normal"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    {surah.nameArabic}
-                  </span>
-                  {isCached ? (
-                    <span
-                      title="অফলাইনে সংরক্ষিত"
-                      className="p-1"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-sm truncate">
+                      {surah.nameBangla}
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => handleCacheSingle(e, surah)}
-                      title="অফলাইনের জন্য ডাউনলোড করুন"
-                      className="p-1.5 rounded-lg border transition-colors cursor-pointer"
-                      style={{
-                        borderColor: 'var(--border-subtle)',
-                        color: 'var(--text-muted)',
-                      }}
+                    <span
+                      className="text-[11px] truncate"
+                      style={{ color: 'var(--text-muted)' }}
                     >
-                      {isDownloading ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Download className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  )}
+                      ({surah.meaningBangla})
+                    </span>
+                  </div>
+                  <div
+                    className="text-[11px] flex items-center gap-1.5 mt-0.5"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
+                    <span>•</span>
+                    <span>
+                      {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
+                    </span>
+                    <span>•</span>
+                    <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
+                  </div>
                 </div>
               </div>
-            );
-          })
+
+              <span
+                className="font-indopak text-xl leading-normal shrink-0"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {surah.nameArabic}
+              </span>
+            </div>
+          ))
         )}
       </div>
     </div>

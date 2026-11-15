@@ -42,7 +42,7 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
-import { TabHeader } from './NavigationChrome';
+import { TabHeader, useBottomSheet } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface DraftSurahItem {
@@ -138,6 +138,15 @@ export function RoutinesView({
 
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const {
+    mounted: sheetMounted,
+    visible: sheetVisible,
+    dragging: sheetDragging,
+    panelRef: sheetPanelRef,
+    backdropStyle: sheetBackdropStyle,
+    panelTransform: sheetTransform,
+    dragHandleProps: sheetDragProps,
+  } = useBottomSheet(isModalOpen, () => setIsModalOpen(false));
 
   // Modal form state
   const [title, setTitle] = useState('');
@@ -851,52 +860,69 @@ export function RoutinesView({
       </div>
 
       {/* Create / Edit Routine Bottom Sheet (-72px from top over dimmed overlay) */}
-      {isModalOpen && (
+      {sheetMounted && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-xs pt-[72px] sm:px-4"
+          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 pt-[72px] sm:px-4 sukoon-sheet-backdrop ${
+            sheetVisible ? '' : 'pointer-events-none'
+          }`}
+          style={sheetBackdropStyle}
           onClick={() => setIsModalOpen(false)}
         >
           <div
+            ref={sheetPanelRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="routine-sheet-title"
-            className="w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] border-t border-x shadow-2xl flex flex-col overflow-hidden"
+            className={`w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] border-t border-x shadow-2xl flex flex-col overflow-hidden sukoon-sheet-panel ${
+              sheetDragging ? 'sukoon-sheet-panel--dragging' : ''
+            }`}
             style={{
               backgroundColor: 'var(--bg-page)',
               borderColor: 'var(--border-subtle)',
+              transform: sheetTransform,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Sheet Header */}
-            <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 shrink-0">
-              <div className="min-w-0">
-                <h2
-                  id="routine-sheet-title"
-                  className="font-bold text-lg tracking-tight"
+            {/* Sheet Grabber & Header */}
+            <div
+              {...sheetDragProps}
+              className="px-5 pt-2.5 pb-3 shrink-0 select-none"
+              style={{ touchAction: 'none' }}
+            >
+              <div
+                className="w-9 h-1 rounded-full mx-auto mb-3 opacity-45"
+                style={{ backgroundColor: 'var(--text-muted)' }}
+              />
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2
+                    id="routine-sheet-title"
+                    className="font-bold text-lg tracking-tight"
+                  >
+                    {editingRoutine ? 'রুটিন সম্পাদনা' : 'নতুন রুটিন তৈরি'}
+                  </h2>
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    {editingRoutine
+                      ? 'রুটিনের সূরা, দুআ ও সাপ্তাহিক সময়সূচি আপডেট করুন।'
+                      : 'দৈনিক বা সাপ্তাহিক তিলাওয়াত ও দুআর তালিকা সাজান।'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  aria-label="বন্ধ করুন"
+                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors active:scale-95 cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-secondary)',
+                  }}
                 >
-                  {editingRoutine ? 'রুটিন সম্পাদনা' : 'নতুন রুটিন তৈরি'}
-                </h2>
-                <p
-                  className="text-xs mt-0.5"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {editingRoutine
-                    ? 'রুটিনের সূরা, দুআ ও সাপ্তাহিক সময়সূচি আপডেট করুন।'
-                    : 'দৈনিক বা সাপ্তাহিক তিলাওয়াত ও দুআর তালিকা সাজান।'}
-                </p>
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                aria-label="বন্ধ করুন"
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors active:scale-95 cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
             <form

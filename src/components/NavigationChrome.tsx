@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +10,115 @@ import {
 } from 'lucide-react';
 import type { Settings, ThemeMode } from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
+
+/**
+ * Native-style bottom sheet controller: deterministic mount->paint slide up/down
+ * plus interactive drag-to-dismiss on the grabber/header.
+ */
+export function useBottomSheet(open: boolean, onClose: () => void) {
+  const [mounted, setMounted] = useState(open);
+  const [visible, setVisible] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const dragStartYRef = useRef<number | null>(null);
+  const dragStartTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setDragOffset(0);
+      setDragging(false);
+      return;
+    }
+
+    setVisible(false);
+    setDragging(false);
+    const timer = window.setTimeout(() => {
+      setMounted(false);
+      setDragOffset(0);
+    }, 390);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !mounted) return;
+    let cancelled = false;
+    let innerRaf = 0;
+    const outerRaf = requestAnimationFrame(() => {
+      if (cancelled) return;
+      // Flush initial off-screen transform so browser always runs the entry transition
+      void panelRef.current?.offsetHeight;
+      innerRaf = requestAnimationFrame(() => {
+        if (!cancelled) setVisible(true);
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outerRaf);
+      cancelAnimationFrame(innerRaf);
+    };
+  }, [open, mounted]);
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    if ((e.target as HTMLElement).closest('button, input, textarea, select, a')) {
+      return;
+    }
+    dragStartYRef.current = e.clientY;
+    dragStartTimeRef.current = performance.now();
+    setDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: ReactPointerEvent<HTMLElement>) => {
+    if (dragStartYRef.current === null) return;
+    const delta = Math.max(0, e.clientY - dragStartYRef.current);
+    setDragOffset(delta);
+  };
+
+  const finishDrag = (e: ReactPointerEvent<HTMLElement>) => {
+    if (dragStartYRef.current === null) return;
+    const delta = Math.max(0, e.clientY - dragStartYRef.current);
+    const elapsed = Math.max(1, performance.now() - dragStartTimeRef.current);
+    const velocity = delta / elapsed;
+
+    dragStartYRef.current = null;
+    setDragging(false);
+
+    if (delta > 96 || (delta > 32 && velocity > 0.45)) {
+      setVisible(false);
+      onClose();
+    } else {
+      setDragOffset(0);
+    }
+  };
+
+  const backdropStyle = {
+    opacity: visible ? Math.max(0, 1 - dragOffset / 340) : 0,
+  };
+
+  const panelTransform = dragging
+    ? `translate3d(0, ${dragOffset}px, 0)`
+    : visible
+      ? 'translate3d(0, 0, 0)'
+      : 'translate3d(0, 100%, 0)';
+
+  return {
+    mounted,
+    visible,
+    dragging,
+    panelRef,
+    backdropStyle,
+    panelTransform,
+    dragHandleProps: {
+      onPointerDown: handlePointerDown,
+      onPointerMove: handlePointerMove,
+      onPointerUp: finishDrag,
+      onPointerCancel: finishDrag,
+    },
+  };
+}
 
 interface TabHeaderProps {
   title: string;
@@ -198,36 +307,69 @@ export function ReaderQuickSettingsSheet({
   wakeLockSubtitle = 'পড়ার সময় স্ক্রিন জাগ্রত রাখবে',
   children,
 }: ReaderQuickSettingsSheetProps) {
-  if (!open) return null;
+  const {
+    mounted,
+    visible,
+    dragging,
+    panelRef,
+    backdropStyle,
+    panelTransform,
+    dragHandleProps,
+  } = useBottomSheet(open, onClose);
+
+  if (!mounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-xs"
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:px-4 sukoon-sheet-backdrop ${
+        visible ? '' : 'pointer-events-none'
+      }`}
+      style={backdropStyle}
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border p-5 space-y-5 max-h-[88dvh] overflow-y-auto"
+        ref={panelRef}
+        className={`w-full sm:max-w-md rounded-t-[28px] border-t border-x space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
+          dragging ? 'sukoon-sheet-panel--dragging' : ''
+        }`}
         style={{
           backgroundColor: 'var(--bg-page)',
           borderColor: 'var(--border-subtle)',
+          transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-            <h2 className="font-bold text-base">পাঠ সেটিংস</h2>
+        {/* Native top grabber + header */}
+        <div
+          {...dragHandleProps}
+          className="px-5 pt-2.5 pb-1 select-none"
+          style={{ touchAction: 'none' }}
+        >
+          <div
+            className="w-9 h-1 rounded-full mx-auto mb-3 opacity-45"
+            style={{ backgroundColor: 'var(--text-muted)' }}
+          />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <h2 className="font-bold text-base">পাঠ সেটিংস</h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="বন্ধ করুন"
+              className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="বন্ধ করুন"
-            className="p-1.5 rounded-full cursor-pointer"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
+
+        <div className="px-5 pb-5 space-y-5">
 
         {/* Theme Selection */}
         <div className="space-y-2">
@@ -321,6 +463,7 @@ export function ReaderQuickSettingsSheet({
         </div>
 
         {children}
+        </div>
       </div>
     </div>
   );

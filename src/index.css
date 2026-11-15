@@ -105,3 +105,24 @@ body {
   background: var(--border-subtle);
   border-radius: 9999px;
 }
+
+.sukoon-sheet-backdrop {
+  transition: opacity 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: opacity;
+}
+
+.sukoon-sheet-panel {
+  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+.sukoon-sheet-panel--dragging {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sukoon-sheet-backdrop,
+  .sukoon-sheet-panel {
+    transition: none !important;
+  }
+}

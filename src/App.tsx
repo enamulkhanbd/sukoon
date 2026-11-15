@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BottomNav, type AppTab } from './components/BottomNav';
 import { DuaReaderView } from './components/DuaReaderView';
@@ -21,22 +21,12 @@ import {
   type RoutineProgress,
   type Settings,
 } from './db/database';
-
-type ReaderSession =
-  | {
-      kind: 'surah';
-      surahId: number;
-      initialAyah?: number;
-      routine?: Routine;
-      routineItemIndex?: number;
-    }
-  | {
-      kind: 'dua';
-      duaId: string;
-      routine?: Routine;
-      routineItemIndex?: number;
-      targetCount?: number;
-    };
+import {
+  buildPath,
+  isReaderRoute,
+  parseRoute,
+  type AppRoute,
+} from './router';
 
 const THEME_META_COLORS: Record<Settings['theme'], string> = {
   paper: '#FAF6EE',
@@ -47,17 +37,85 @@ const THEME_META_COLORS: Record<Settings['theme'], string> = {
 export function App() {
   const toast = useToast();
   const [dbReady, setDbReady] = useState(false);
-  const [activeTab, setActiveTab] = useState<AppTab>('home');
-  const [routineDetailId, setRoutineDetailId] = useState<string | null>(null);
-  const [readerSession, setReaderSession] = useState<ReaderSession | null>(null);
+  const [route, setRoute] = useState<AppRoute>(() => parseRoute());
   const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
+  const lastBaseRouteRef = useRef<AppRoute>({ type: 'tab', tab: 'home' });
 
   useEffect(() => {
     ensureDatabaseInitialized().then(() => setDbReady(true));
   }, []);
 
+  // Normalize unknown/malformed initial URL to canonical clean path
+  useEffect(() => {
+    const canonical = buildPath(route);
+    const current = window.location.pathname + window.location.search;
+    if (current !== canonical) {
+      window.history.replaceState(null, '', canonical);
+    }
+    // Run once on initial mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep non-reader return destination up to date
+  useEffect(() => {
+    if (!isReaderRoute(route)) {
+      lastBaseRouteRef.current = route;
+    }
+  }, [route]);
+
+  // Sync browser Back / Forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      setRoute(parseRoute());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigate = useCallback(
+    (nextRoute: AppRoute, options?: { replace?: boolean }) => {
+      const nextPath = buildPath(nextRoute);
+      const currentPath = window.location.pathname + window.location.search;
+      if (currentPath !== nextPath) {
+        if (options?.replace) {
+          window.history.replaceState(null, '', nextPath);
+        } else {
+          window.history.pushState(null, '', nextPath);
+        }
+      }
+      setRoute(nextRoute);
+    },
+    []
+  );
+
   const settings =
     useLiveQuery(() => db.settings.get('app'), []) ?? DEFAULT_SETTINGS;
+
+  const routineReadId = route.type === 'routineRead' ? route.routineId : '';
+  const activeRouteRoutine = useLiveQuery(
+    async () =>
+      routineReadId && dbReady
+        ? (await db.routines.get(routineReadId)) ?? null
+        : null,
+    [routineReadId, dbReady]
+  );
+
+  // Redirect cleanly if direct /routines/:id/read/:idx points to missing routine or index
+  useEffect(() => {
+    if (!dbReady || route.type !== 'routineRead') return;
+    if (activeRouteRoutine === undefined) return;
+    if (activeRouteRoutine === null) {
+      navigate({ type: 'tab', tab: 'routines' }, { replace: true });
+      return;
+    }
+    const items = getRoutineItems(activeRouteRoutine);
+    if (!items[route.itemIndex]) {
+      navigate(
+        { type: 'routineDetail', routineId: activeRouteRoutine.id },
+        { replace: true }
+      );
+    }
+  }, [dbReady, route, activeRouteRoutine, navigate]);
 
   // Apply theme attribute & PWA status bar color
   useEffect(() => {
@@ -68,173 +126,118 @@ export function App() {
     }
   }, [settings.theme]);
 
-  // Support mobile browser back button to close ReaderView & RoutineDetailView cleanly
-  useEffect(() => {
-    const handlePopState = () => {
-      const state = window.history.state as {
-        view?: 'reader' | 'detail';
-        detailId?: string;
-      } | null;
-
-      if (state?.view === 'detail' && state.detailId) {
-        setReaderSession(null);
-        setRoutineDetailId(state.detailId);
-      } else if (state?.view !== 'reader') {
-        setReaderSession(null);
-        setRoutineDetailId(null);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  const handleTabChange = useCallback(
+    (tab: AppTab) => {
+      navigate({ type: 'tab', tab, duaChapterId: null });
+    },
+    [navigate]
+  );
 
   const openRoutineDetails = useCallback(
     (routine: Routine) => {
-      if (routineDetailId !== routine.id) {
-        window.history.pushState(
-          { view: 'detail', detailId: routine.id },
-          ''
-        );
-      }
-      setRoutineDetailId(routine.id);
+      navigate({ type: 'routineDetail', routineId: routine.id });
     },
-    [routineDetailId]
+    [navigate]
   );
 
   const closeRoutineDetails = useCallback(() => {
-    setRoutineDetailId(null);
-    const state = window.history.state as { view?: string } | null;
-    if (state?.view === 'detail') {
-      window.history.back();
+    const base = lastBaseRouteRef.current;
+    if (base.type === 'tab' && (base.tab === 'home' || base.tab === 'routines')) {
+      navigate(base);
+    } else {
+      navigate({ type: 'tab', tab: 'routines' });
     }
-  }, []);
-
-  const openReader = useCallback(
-    (session: ReaderSession) => {
-      if (!readerSession) {
-        window.history.pushState(
-          { view: 'reader', detailId: routineDetailId },
-          ''
-        );
-      }
-      setReaderSession(session);
-    },
-    [readerSession, routineDetailId]
-  );
+  }, [navigate]);
 
   const closeReader = useCallback(() => {
-    setReaderSession(null);
-    const state = window.history.state as { view?: string } | null;
-    if (state?.view === 'reader') {
-      window.history.back();
+    if (route.type === 'routineRead') {
+      navigate({ type: 'routineDetail', routineId: route.routineId });
+      return;
     }
-  }, []);
+    const prev = lastBaseRouteRef.current;
+    if (!isReaderRoute(prev)) {
+      if (route.type === 'dua' && prev.type === 'tab' && prev.tab === 'home') {
+        navigate(prev);
+        return;
+      }
+      if (
+        prev.type === 'tab' &&
+        (prev.tab === 'home' || prev.tab === 'surahs' || prev.tab === 'duas')
+      ) {
+        navigate(prev);
+        return;
+      }
+    }
+    if (route.type === 'dua') {
+      const dua = DUA_MAP[route.duaId];
+      navigate({
+        type: 'tab',
+        tab: 'duas',
+        duaChapterId: dua?.chapterId ?? null,
+      });
+    } else {
+      navigate({ type: 'tab', tab: 'surahs' });
+    }
+  }, [route, navigate]);
 
   const handleOpenSurah = useCallback(
     (surahId: number, initialAyah = 1) => {
-      openReader({ kind: 'surah', surahId, initialAyah });
+      navigate({ type: 'surah', surahId, initialAyah });
     },
-    [openReader]
+    [navigate]
   );
 
   const handleOpenDua = useCallback(
     (dua: DuaItem) => {
-      openReader({ kind: 'dua', duaId: dua.id });
+      navigate({ type: 'dua', duaId: dua.id });
     },
-    [openReader]
+    [navigate]
   );
 
-  const handleOpenRoutine = useCallback(
-    (routine: Routine, progress?: RoutineProgress, explicitItemIndex?: number) => {
+  const handleStartRoutineItem = useCallback(
+    (routine: Routine, itemIndex: number, progress?: RoutineProgress) => {
       const items = getRoutineItems(routine);
-      if (items.length === 0) return;
+      const item = items[itemIndex];
+      if (!item) return;
 
       const completedSet = new Set(getCompletedItemIndexes(routine, progress));
-      let targetIdx = 0;
-      let resumedAyah: number | undefined;
-
-      if (explicitItemIndex !== undefined && items[explicitItemIndex]) {
-        targetIdx = explicitItemIndex;
-        if (
-          progress &&
-          progress.lastReadItemIndex === explicitItemIndex &&
-          !completedSet.has(explicitItemIndex) &&
-          progress.lastReadAyah > 0
-        ) {
-          resumedAyah = progress.lastReadAyah;
-        }
-      } else if (progress && progress.percentage < 100) {
-        if (
-          progress.lastReadItemIndex !== undefined &&
-          items[progress.lastReadItemIndex] &&
-          !completedSet.has(progress.lastReadItemIndex)
-        ) {
-          targetIdx = progress.lastReadItemIndex;
-          if (progress.lastReadAyah > 0) {
-            resumedAyah = progress.lastReadAyah;
-          }
-        } else {
-          const firstIncomplete = items.findIndex((_, idx) => !completedSet.has(idx));
-          targetIdx = firstIncomplete !== -1 ? firstIncomplete : 0;
-        }
-      } else if (completedSet.size > 0 && completedSet.size < items.length) {
-        const firstIncomplete = items.findIndex((_, idx) => !completedSet.has(idx));
-        targetIdx = firstIncomplete !== -1 ? firstIncomplete : 0;
+      let ayah: number | undefined;
+      if (
+        item.kind === 'surah' &&
+        progress &&
+        progress.lastReadItemIndex === itemIndex &&
+        !completedSet.has(itemIndex) &&
+        progress.lastReadAyah > 0
+      ) {
+        ayah = Math.min(Math.max(progress.lastReadAyah, item.startAyah), item.endAyah);
       }
 
-      const targetItem = items[targetIdx];
-      if (targetItem.kind === 'dua') {
-        openReader({
-          kind: 'dua',
-          duaId: targetItem.duaId,
-          routine,
-          routineItemIndex: targetIdx,
-          targetCount: targetItem.targetCount,
-        });
-      } else {
-        const initialAyah =
-          resumedAyah !== undefined
-            ? Math.min(Math.max(resumedAyah, targetItem.startAyah), targetItem.endAyah)
-            : targetItem.startAyah;
-        openReader({
-          kind: 'surah',
-          surahId: targetItem.surahId,
-          initialAyah,
-          routine,
-          routineItemIndex: targetIdx,
-        });
-      }
+      navigate({
+        type: 'routineRead',
+        routineId: routine.id,
+        itemIndex,
+        ayah,
+      });
     },
-    [openReader]
+    [navigate]
   );
 
   const handleAdvanceRoutineItem = useCallback(
     (routine: Routine, nextIndex: number) => {
       const items = getRoutineItems(routine);
-      const nextItem = items[nextIndex];
-      if (!nextItem) {
-        closeReader();
+      if (!items[nextIndex]) {
+        navigate(
+          { type: 'routineDetail', routineId: routine.id },
+          { replace: true }
+        );
         return;
       }
-      if (nextItem.kind === 'dua') {
-        setReaderSession({
-          kind: 'dua',
-          duaId: nextItem.duaId,
-          routine,
-          routineItemIndex: nextIndex,
-          targetCount: nextItem.targetCount,
-        });
-      } else {
-        setReaderSession({
-          kind: 'surah',
-          surahId: nextItem.surahId,
-          initialAyah: nextItem.startAyah,
-          routine,
-          routineItemIndex: nextIndex,
-        });
-      }
+      navigate(
+        { type: 'routineRead', routineId: routine.id, itemIndex: nextIndex },
+        { replace: true }
+      );
     },
-    [closeReader]
+    [navigate]
   );
 
   const handleUpdateSettings = useCallback(
@@ -264,7 +267,7 @@ export function App() {
     [settings.bookmarkedDuaIds, handleUpdateSettings, toast]
   );
 
-  if (!dbReady) {
+  if (!dbReady || (route.type === 'routineRead' && activeRouteRoutine === undefined)) {
     return (
       <div className="min-h-dvh flex items-center justify-center paper-frame">
         <div className="text-center space-y-2">
@@ -282,81 +285,133 @@ export function App() {
     );
   }
 
-  if (readerSession) {
-    if (readerSession.kind === 'dua') {
-      const dua = DUA_MAP[readerSession.duaId];
-      if (dua) {
-        return (
-          <DuaReaderView
-            key={`dua-${dua.id}-${readerSession.routine?.id ?? 'free'}-${
-              readerSession.routineItemIndex ?? 0
-            }`}
-            dua={dua}
-            settings={settings}
-            routine={readerSession.routine}
-            routineItemIndex={readerSession.routineItemIndex}
-            routineTargetCount={readerSession.targetCount}
-            onClose={closeReader}
-            onUpdateSettings={handleUpdateSettings}
-            onSelectDuaInChapter={(nextDua) =>
-              setReaderSession({ kind: 'dua', duaId: nextDua.id })
-            }
-            onAdvanceRoutineItem={(nextIdx) =>
-              readerSession.routine &&
-              handleAdvanceRoutineItem(readerSession.routine, nextIdx)
-            }
-            onOpenQuranRef={(surahId, startAyah) =>
-              setReaderSession({
-                kind: 'surah',
-                surahId,
-                initialAyah: startAyah,
-              })
-            }
-          />
-        );
-      }
-    } else {
+  if (route.type === 'dua') {
+    const dua = DUA_MAP[route.duaId];
+    if (dua) {
       return (
-        <ReaderView
-          key={`${readerSession.surahId}-${readerSession.routine?.id ?? 'free'}-${
-            readerSession.routineItemIndex ?? 0
-          }`}
-          surahId={readerSession.surahId}
-          initialAyah={readerSession.initialAyah}
-          routine={readerSession.routine}
-          routineItemIndex={readerSession.routineItemIndex}
+        <DuaReaderView
+          key={`dua-${dua.id}-free`}
+          dua={dua}
           settings={settings}
           onClose={closeReader}
-          onSelectSurah={(surahId, initialAyah = 1, routineItemIndex) =>
-            setReaderSession({
-              kind: 'surah',
-              surahId,
-              initialAyah,
-              routine: readerSession.routine,
-              routineItemIndex,
-            })
-          }
-          onAdvanceRoutineItem={(nextIdx) =>
-            readerSession.routine &&
-            handleAdvanceRoutineItem(readerSession.routine, nextIdx)
-          }
           onUpdateSettings={handleUpdateSettings}
+          onSelectDuaInChapter={(nextDua) =>
+            navigate({ type: 'dua', duaId: nextDua.id }, { replace: true })
+          }
+          onOpenQuranRef={(surahId, startAyah) =>
+            navigate({ type: 'surah', surahId, initialAyah: startAyah })
+          }
         />
       );
     }
   }
 
-  if (routineDetailId) {
+  if (route.type === 'surah') {
     return (
-      <RoutineDetailView
-        routineId={routineDetailId}
-        onBack={closeRoutineDetails}
-        onStartItem={(routine, itemIndex, progress) =>
-          handleOpenRoutine(routine, progress, itemIndex)
+      <ReaderView
+        key={`${route.surahId}-free`}
+        surahId={route.surahId}
+        initialAyah={route.initialAyah}
+        settings={settings}
+        onClose={closeReader}
+        onSelectSurah={(surahId, initialAyah = 1) =>
+          navigate({ type: 'surah', surahId, initialAyah }, { replace: true })
         }
+        onUpdateSettings={handleUpdateSettings}
       />
     );
   }
+
+  if (route.type === 'routineRead' && activeRouteRoutine) {
+    const items = getRoutineItems(activeRouteRoutine);
+    const activeItem = items[route.itemIndex];
+    if (activeItem) {
+      if (activeItem.kind === 'dua') {
+        const dua = DUA_MAP[activeItem.duaId];
+        if (dua) {
+          return (
+            <DuaReaderView
+              key={`dua-${dua.id}-${activeRouteRoutine.id}-${route.itemIndex}`}
+              dua={dua}
+              settings={settings}
+              routine={activeRouteRoutine}
+              routineItemIndex={route.itemIndex}
+              routineTargetCount={activeItem.targetCount}
+              onClose={closeReader}
+              onUpdateSettings={handleUpdateSettings}
+              onSelectDuaInChapter={(nextDua) =>
+                navigate({ type: 'dua', duaId: nextDua.id })
+              }
+              onAdvanceRoutineItem={(nextIdx) =>
+                handleAdvanceRoutineItem(activeRouteRoutine, nextIdx)
+              }
+              onOpenQuranRef={(surahId, startAyah) =>
+                navigate({ type: 'surah', surahId, initialAyah: startAyah })
+              }
+            />
+          );
+        }
+      } else {
+        const initialAyah =
+          route.ayah !== undefined
+            ? Math.min(
+                Math.max(route.ayah, activeItem.startAyah),
+                activeItem.endAyah
+              )
+            : activeItem.startAyah;
+        return (
+          <ReaderView
+            key={`${activeItem.surahId}-${activeRouteRoutine.id}-${route.itemIndex}`}
+            surahId={activeItem.surahId}
+            initialAyah={initialAyah}
+            routine={activeRouteRoutine}
+            routineItemIndex={route.itemIndex}
+            settings={settings}
+            onClose={closeReader}
+            onSelectSurah={(surahId, nextStartAyah = 1, nextItemIndex) => {
+              if (nextItemIndex !== undefined) {
+                navigate(
+                  {
+                    type: 'routineRead',
+                    routineId: activeRouteRoutine.id,
+                    itemIndex: nextItemIndex,
+                    ayah: nextStartAyah > 1 ? nextStartAyah : undefined,
+                  },
+                  { replace: true }
+                );
+              } else {
+                navigate({
+                  type: 'surah',
+                  surahId,
+                  initialAyah: nextStartAyah,
+                });
+              }
+            }}
+            onAdvanceRoutineItem={(nextIdx) =>
+              handleAdvanceRoutineItem(activeRouteRoutine, nextIdx)
+            }
+            onUpdateSettings={handleUpdateSettings}
+          />
+        );
+      }
+    }
+  }
+
+  if (route.type === 'routineDetail') {
+    return (
+      <RoutineDetailView
+        routineId={route.routineId}
+        onBack={closeRoutineDetails}
+        onStartItem={handleStartRoutineItem}
+      />
+    );
+  }
+
+  const activeTab: AppTab = route.type === 'tab' ? route.tab : 'home';
+  const activeDuaChapterId =
+    route.type === 'tab' && route.tab === 'duas'
+      ? route.duaChapterId ?? null
+      : null;
 
   return (
     <div className="min-h-dvh paper-frame">
@@ -366,9 +421,9 @@ export function App() {
           onOpenRoutineDetails={openRoutineDetails}
           onGoToRoutines={() => {
             setOpenCreateRoutine(true);
-            setActiveTab('routines');
+            navigate({ type: 'tab', tab: 'routines' });
           }}
-          onGoToSurahs={() => setActiveTab('surahs')}
+          onGoToSurahs={() => navigate({ type: 'tab', tab: 'surahs' })}
         />
       )}
       {activeTab === 'surahs' && (
@@ -377,6 +432,10 @@ export function App() {
       {activeTab === 'duas' && (
         <DuasView
           settings={settings}
+          selectedChapterId={activeDuaChapterId}
+          onSelectChapter={(chapterId) =>
+            navigate({ type: 'tab', tab: 'duas', duaChapterId: chapterId })
+          }
           onOpenDua={handleOpenDua}
           onToggleBookmark={handleToggleDuaBookmark}
         />
@@ -395,7 +454,7 @@ export function App() {
         />
       )}
 
-      <BottomNav activeTab={activeTab} onChange={setActiveTab} />
+      <BottomNav activeTab={activeTab} onChange={handleTabChange} />
     </div>
   );
 }

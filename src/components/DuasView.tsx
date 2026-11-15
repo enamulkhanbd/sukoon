@@ -19,6 +19,8 @@ import { toBanglaDigits } from '../utils/formatters';
 
 interface DuasViewProps {
   settings: Settings;
+  selectedChapterId?: number | null;
+  onSelectChapter?: (chapterId: number | null) => void;
   onOpenDua: (dua: DuaItem) => void;
   onToggleBookmark: (duaId: string) => void;
 }
@@ -27,12 +29,29 @@ type ViewFilter = 'chapters' | 'all' | 'saved';
 
 export function DuasView({
   settings,
+  selectedChapterId: controlledChapterId,
+  onSelectChapter,
   onOpenDua,
   onToggleBookmark,
 }: DuasViewProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<ViewFilter>('chapters');
-  const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null);
+  const [uncontrolledChapterId, setUncontrolledChapterId] = useState<
+    number | null
+  >(null);
+
+  const selectedChapterId =
+    controlledChapterId !== undefined
+      ? controlledChapterId
+      : uncontrolledChapterId;
+
+  const setSelectedChapterId = (chapterId: number | null) => {
+    if (onSelectChapter) {
+      onSelectChapter(chapterId);
+    } else {
+      setUncontrolledChapterId(chapterId);
+    }
+  };
 
   const bookmarkedSet = useMemo(
     () => new Set(settings.bookmarkedDuaIds ?? []),
@@ -176,7 +195,8 @@ export function DuasView({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">দুআ ও জিকির</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            ১২টি অধ্যায় • মোট {toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া
+            {toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট{' '}
+            {toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া
           </p>
         </div>
       </header>
@@ -217,7 +237,7 @@ export function DuasView({
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           {(
             [
-              ['chapters', 'অধ্যায় সমূহ (১২)'],
+              ['chapters', `অধ্যায় সমূহ (${toBanglaDigits(DUA_CHAPTERS.length)})`],
               ['all', `সব দুআ (${toBanglaDigits(DUAS.length)})`],
               ['saved', `সংরক্ষিত (${toBanglaDigits(bookmarkedSet.size)})`],
             ] as const

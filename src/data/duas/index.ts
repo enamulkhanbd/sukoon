@@ -3,6 +3,7 @@ import { DUAS_CHAPTER_9 } from './chapter9';
 import { DUAS_CHAPTER_10, RUQYAH_QURAN_ITEM_IDS } from './chapter10';
 import { DUAS_CHAPTER_11 } from './chapter11';
 import { DUAS_CHAPTER_12 } from './chapter12';
+import { DUAS_CHAPTER_13 } from './chapter13';
 import { DUAS_CHAPTERS_1_TO_3 } from './chapters1to3';
 import { DUAS_CHAPTERS_4_TO_5 } from './chapters4to5';
 import { DUAS_CHAPTERS_7_TO_8 } from './chapters7to8';
@@ -72,6 +73,11 @@ export const DUA_CHAPTERS: DuaChapter[] = [
     titleBangla: 'নির্বাচিত ৩৩টি গুরুত্বপূর্ণ দুআ',
     subtitleBangla: 'দ্বাদশ অধ্যায় • কুরআন ও সুন্নাহর জামে দুআ',
   },
+  {
+    id: 13,
+    titleBangla: 'প্রতি ওয়াক্ত নামাজের পরের দুআ ও আমল',
+    subtitleBangla: 'ত্রয়োদশ অধ্যায় • ৫ ওয়াক্ত ফরজ সালাত, ফজর ও মাগরিবের আমল',
+  },
 ];
 
 export const DUAS: DuaItem[] = [
@@ -83,6 +89,7 @@ export const DUAS: DuaItem[] = [
   ...DUAS_CHAPTER_10,
   ...DUAS_CHAPTER_11,
   ...DUAS_CHAPTER_12,
+  ...DUAS_CHAPTER_13,
 ];
 
 export const DUA_CHAPTER_MAP: Record<number, DuaChapter> = Object.fromEntries(

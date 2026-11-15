@@ -298,8 +298,7 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
               অফলাইন কুরআন সংরক্ষণ
             </h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-              IndexedDB-তে সংরক্ষিত: {toBanglaDigits(cachedCount)} / ১১৪ সূরা (
-              {toBanglaDigits(offlinePercent)}%)
+              {toBanglaDigits(cachedCount)} / ১১৪ সূরা ({toBanglaDigits(offlinePercent)}%)
             </p>
           </div>
           {cachedCount >= 114 && (

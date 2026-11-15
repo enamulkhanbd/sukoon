@@ -335,7 +335,7 @@ export function DuaReaderView({
           <p
             dir="rtl"
             lang="ar"
-            className="font-indopak text-right leading-[2.25] select-text"
+            className="font-indopak text-right leading-[2.25] select-text whitespace-pre-line"
             style={{
               fontSize: `${arabicFontSize}px`,
               color: 'var(--text-primary)',
@@ -415,7 +415,7 @@ export function DuaReaderView({
                 বাংলা উচ্চারণ
               </div>
               <p
-                className="text-sm leading-relaxed"
+                className="text-sm leading-relaxed whitespace-pre-line"
                 style={{ color: 'var(--text-secondary)' }}
               >
                 {dua.transliteration}
@@ -435,7 +435,9 @@ export function DuaReaderView({
             >
               বাংলা অর্থ ও ফজিলত
             </div>
-            <p className="text-sm leading-relaxed">{dua.translationBangla}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-line">
+              {dua.translationBangla}
+            </p>
           </div>
 
           {(dua.reference || dua.quranRef) && (

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  ArrowLeft,
   ArrowRight,
   BookOpen,
   Check,
@@ -27,6 +26,7 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
+import { TopBar } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface RoutineDetailViewProps {
@@ -120,35 +120,13 @@ export function RoutineDetailView({
 
   return (
     <div className="min-h-dvh paper-frame pb-24">
-      {/* Sticky Top App Bar */}
-      <header
-        className="sticky top-0 z-20 border-b backdrop-blur-md safe-top"
-        style={{
-          backgroundColor: 'color-mix(in srgb, var(--bg-page) 92%, transparent)',
-          borderColor: 'var(--border-subtle)',
-        }}
-      >
-        <div className="max-w-2xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-2 rounded-xl transition-colors cursor-pointer shrink-0"
-            style={{ color: 'var(--text-secondary)' }}
-            aria-label="ফিরে যান"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-sm sm:text-base truncate">
-              {routine.title}
-            </h1>
-            <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-              {scheduleText} • {toBanglaDigits(items.length)}টি অংশ
-            </p>
-          </div>
-        </div>
-      </header>
+      <TopBar
+        mode="sticky"
+        onBack={onBack}
+        backLabel="ফিরে যান"
+        title={routine.title}
+        subtitle={`${scheduleText} • ${toBanglaDigits(items.length)}টি অংশ`}
+      />
 
       <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4">
         {/* Progress Summary Card */}

@@ -42,6 +42,7 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
+import { TabHeader } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface DraftSurahItem {
@@ -622,27 +623,25 @@ export function RoutinesView({
   );
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-6 pb-28 space-y-5">
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">তিলাওয়াত রুটিন</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold shadow-sm cursor-pointer shrink-0"
-          style={{
-            backgroundColor: 'var(--accent)',
-            color: 'var(--accent-text)',
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          নতুন রুটিন
-        </button>
-      </header>
+    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-5">
+      <TabHeader
+        title="তিলাওয়াত রুটিন"
+        subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
+        rightAction={
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold shadow-sm cursor-pointer shrink-0"
+            style={{
+              backgroundColor: 'var(--accent)',
+              color: 'var(--accent-text)',
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            নতুন রুটিন
+          </button>
+        }
+      />
 
       {/* Routine List */}
       <div className="space-y-3">

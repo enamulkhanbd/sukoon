@@ -27,6 +27,7 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
+import { TabHeader } from './NavigationChrome';
 
 interface HomeViewProps {
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
@@ -214,12 +215,13 @@ export function HomeView({
   const lastReadMeta = lastRead ? SURAH_MAP[lastRead.surahId] : undefined;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-6 pb-28 space-y-6">
-      {/* Header */}
-      <header className="flex items-start justify-between gap-4">
-        <div>
+    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-6">
+      <TabHeader
+        title="সুকূন"
+        subtitle="প্রশান্ত, কোলাহলমুক্ত ইন্দো-পাক কুরআন তিলাওয়াত"
+        badge={
           <div
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full mb-2"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
             style={{
               backgroundColor: 'var(--bg-surface)',
               color: 'var(--text-secondary)',
@@ -230,12 +232,8 @@ export function HomeView({
               {DAY_NAMES_BN[todayIndex]} • {todayFormatted}
             </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">সুকূন</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            প্রশান্ত, কোলাহলমুক্ত ইন্দো-পাক কুরআন তিলাওয়াত
-          </p>
-        </div>
-      </header>
+        }
+      />
 
       {/* Smart Last-Read Hero Card */}
       <section

@@ -26,6 +26,7 @@ import {
 } from '../services/offlineSyncStore';
 import { countCompleteCachedSurahs } from '../services/quranApi';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
+import { TabHeader } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface SettingsViewProps {
@@ -134,13 +135,11 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
   const offlinePercent = Math.round((cachedCount / 114) * 100);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-6 pb-28 space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">সেটিংস ও অফলাইন</h1>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-          থিম, ইন্দো-পাক ফন্ট, সম্পূর্ণ অফলাইন কুরআন ও ডেটা ব্যাকআপ
-        </p>
-      </header>
+    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-6">
+      <TabHeader
+        title="সেটিংস ও অফলাইন"
+        subtitle="থিম, ইন্দো-পাক ফন্ট, সম্পূর্ণ অফলাইন কুরআন ও ডেটা ব্যাকআপ"
+      />
 
       {/* Theme & Typography */}
       <section

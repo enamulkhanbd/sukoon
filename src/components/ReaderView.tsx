@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Eye,
-  EyeOff,
   Loader2,
   Pause,
   Play,
   RefreshCw,
   SlidersHorizontal,
   WifiOff,
-  X,
 } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
 import {
@@ -22,7 +16,6 @@ import {
   type NormalizedSurahRoutineItem,
   type Routine,
   type Settings,
-  type ThemeMode,
 } from '../db/database';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { getSurahOfflineFirst } from '../services/quranApi';
@@ -32,6 +25,13 @@ import {
   toArabicDigits,
   toBanglaDigits,
 } from '../utils/formatters';
+import {
+  ReaderFreePager,
+  ReaderQuickSettingsSheet,
+  ReaderRoutinePager,
+  TopBar,
+  TopBarIconButton,
+} from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface ReaderViewProps {
@@ -49,12 +49,6 @@ interface ReaderViewProps {
   onAdvanceRoutineItem?: (nextIndex: number) => void;
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
 }
-
-const THEMES: Array<{ id: ThemeMode; label: string; swatch: string; ink: string }> = [
-  { id: 'paper', label: 'কাগজ', swatch: '#FAF6EE', ink: '#1F241E' },
-  { id: 'olive', label: 'জলপাই', swatch: '#EEF2EA', ink: '#1A241B' },
-  { id: 'black', label: 'রাত', swatch: '#070807', ink: '#E8E2D5' },
-];
 
 export function ReaderView({
   surahId,
@@ -388,64 +382,46 @@ export function ReaderView({
 
   if (!meta) return null;
 
+  const prevSurah = surahId > 1 ? SURAH_MAP[surahId - 1] : null;
+  const nextSurah = surahId < 114 ? SURAH_MAP[surahId + 1] : null;
+  const wakeLockSubtitle = !wakeLockSupported
+    ? 'এই ব্রাউজারে ওয়েক-লক সমর্থিত নয়'
+    : wakeLockActive
+      ? 'সক্রিয় রয়েছে (স্ক্রিন বন্ধ হবে না)'
+      : 'তিলাওয়াতের সময় স্ক্রিন জাগ্রত রাখবে';
+
   return (
     <div className="min-h-dvh paper-frame relative">
-      {/* Top Distraction-Free App Bar */}
-      <header
-        className={`fixed top-0 inset-x-0 z-30 border-b backdrop-blur-md transition-all duration-300 safe-top ${
-          chromeVisible
-            ? 'translate-y-0 opacity-100'
-            : '-translate-y-full opacity-0 pointer-events-none'
-        }`}
-        style={{
-          backgroundColor: 'color-mix(in srgb, var(--bg-page) 92%, transparent)',
-          borderColor: 'var(--border-subtle)',
-        }}
-      >
-        <div className="max-w-2xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium cursor-pointer"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>ফিরুন</span>
-          </button>
-
-          <div className="text-center min-w-0">
-            <div className="text-sm font-bold truncate">
-              {meta.nameBangla}
-              {routine && routineNav && (
-                <span
-                  className="text-[11px] font-normal ml-1.5"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  ({toBanglaDigits(routineNav.index + 1)}/{toBanglaDigits(routineNav.total)})
-                </span>
-              )}
-            </div>
-            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              আয়াত {toBanglaDigits(activeAyah)}/{toBanglaDigits(meta.versesCount)} • পৃষ্ঠা{' '}
-              {toBanglaDigits(activePage)} • পারা {toBanglaDigits(activeJuz)}
-            </div>
-          </div>
-
-          <button
-            type="button"
+      <TopBar
+        mode="fixed"
+        visible={chromeVisible}
+        onBack={onClose}
+        backLabel="ফিরুন"
+        title={meta.nameBangla}
+        titleBadge={
+          routine && routineNav ? (
+            <span
+              className="text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0"
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                color: 'var(--accent)',
+              }}
+            >
+              {toBanglaDigits(routineNav.index + 1)}/{toBanglaDigits(routineNav.total)}
+            </span>
+          ) : undefined
+        }
+        subtitle={`আয়াত ${toBanglaDigits(activeAyah)}/${toBanglaDigits(meta.versesCount)} • পৃষ্ঠা ${toBanglaDigits(activePage)} • পারা ${toBanglaDigits(activeJuz)}`}
+        rightActions={
+          <TopBarIconButton
             onClick={() => setSettingsOpen(true)}
-            aria-label="পাঠ সেটিংস"
-            className="p-2 rounded-xl border cursor-pointer"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-              color: 'var(--text-primary)',
-            }}
+            label="পাঠ সেটিংস"
+            active={settingsOpen}
           >
             <SlidersHorizontal className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
+          </TopBarIconButton>
+        }
+      />
 
       {/* Main Recitation Canvas */}
       <main
@@ -643,80 +619,57 @@ export function ReaderView({
               </p>
 
               {routineNav ? (
-                routineNav.nextItem ? (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const next = routineNav.nextItem!;
-                      if (onAdvanceRoutineItem) {
-                        if (displayedVerses.length > 0) {
-                          const last = displayedVerses[displayedVerses.length - 1];
-                          await updateReadingProgress({
-                            surahId,
-                            ayahNumber: last.verse_number,
-                            pageNumber: last.page_number,
-                            routineId: routine?.id,
-                            routineItemIndex,
-                            markItemCompleted: true,
-                          });
+                <ReaderRoutinePager
+                  routineTitle={routine?.title}
+                  hasPrev={routineNav.index > 0 && Boolean(onAdvanceRoutineItem)}
+                  onPrev={() => onAdvanceRoutineItem?.(routineNav.index - 1)}
+                  nextLabel={
+                    routineNav.nextItem
+                      ? formatNormalizedRoutineItemLabel(routineNav.nextItem)
+                      : null
+                  }
+                  onNext={
+                    routineNav.nextItem
+                      ? async () => {
+                          const next = routineNav.nextItem!;
+                          if (onAdvanceRoutineItem) {
+                            if (displayedVerses.length > 0) {
+                              const last = displayedVerses[displayedVerses.length - 1];
+                              await updateReadingProgress({
+                                surahId,
+                                ayahNumber: last.verse_number,
+                                pageNumber: last.page_number,
+                                routineId: routine?.id,
+                                routineItemIndex,
+                                markItemCompleted: true,
+                              });
+                            }
+                            onAdvanceRoutineItem(routineNav.nextIndex);
+                          } else if (next.kind === 'surah') {
+                            await handleFinishSurahAndNext(
+                              next.surahId,
+                              next.startAyah,
+                              routineNav.nextIndex
+                            );
+                          }
                         }
-                        onAdvanceRoutineItem(routineNav.nextIndex);
-                      } else if (next.kind === 'surah') {
-                        await handleFinishSurahAndNext(
-                          next.surahId,
-                          next.startAyah,
-                          routineNav.nextIndex
-                        );
-                      }
-                    }}
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold shadow-sm cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--accent)',
-                      color: 'var(--accent-text)',
-                    }}
-                  >
-                    পরবর্তী অংশ: {formatNormalizedRoutineItemLabel(routineNav.nextItem)}
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    <div
-                      className="inline-flex items-center gap-1.5 text-sm font-semibold"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      <CheckCircle2 className="w-5 h-5" />
-                      <span>মাশাআল্লাহ! “{routine?.title}” সম্পন্ন হয়েছে</span>
-                    </div>
-                    <div>
-                      <button
-                        type="button"
-                        onClick={handleCompleteRoutine}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold cursor-pointer"
-                        style={{
-                          backgroundColor: 'var(--accent)',
-                          color: 'var(--accent-text)',
-                        }}
-                      >
-                        রুটিন সমাপ্ত করে ফিরুন
-                      </button>
-                    </div>
-                  </div>
-                )
+                      : undefined
+                  }
+                  onComplete={handleCompleteRoutine}
+                />
               ) : (
-                surahId < 114 && (
-                  <button
-                    type="button"
-                    onClick={() => handleFinishSurahAndNext(surahId + 1)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--accent)',
-                      color: 'var(--accent-text)',
-                    }}
-                  >
-                    পরবর্তী সূরা: {SURAH_MAP[surahId + 1]?.nameBangla}
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )
+                <ReaderFreePager
+                  prevLabel="পূর্ববর্তী সূরা"
+                  prevTitle={prevSurah?.nameBangla ?? null}
+                  onPrev={prevSurah ? () => onSelectSurah(prevSurah.id, 1) : undefined}
+                  nextLabel="পরবর্তী সূরা"
+                  nextTitle={nextSurah?.nameBangla ?? null}
+                  onNext={
+                    nextSurah
+                      ? () => handleFinishSurahAndNext(nextSurah.id)
+                      : undefined
+                  }
+                />
               )}
             </div>
           </>
@@ -756,196 +709,80 @@ export function ReaderView({
         </div>
       )}
 
-      {/* Reader Quick-Settings Bottom Sheet */}
-      {settingsOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 backdrop-blur-xs"
-          onClick={() => setSettingsOpen(false)}
-        >
-          <div
-            className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border p-5 space-y-5 max-h-[88dvh] overflow-y-auto"
-            style={{
-              backgroundColor: 'var(--bg-page)',
-              borderColor: 'var(--border-subtle)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-base">পাঠ সেটিংস</h2>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(false)}
-                className="p-1.5 rounded-full cursor-pointer"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Theme Selection */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold">পড়ার থিম</label>
-              <div className="grid grid-cols-3 gap-2">
-                {THEMES.map((t) => {
-                  const active = settings.theme === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => onUpdateSettings({ theme: t.id })}
-                      className="flex flex-col items-center gap-1.5 py-2.5 px-2 rounded-2xl border text-xs font-medium cursor-pointer"
-                      style={{
-                        backgroundColor: t.swatch,
-                        color: t.ink,
-                        borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
-                        boxShadow: active ? '0 0 0 2px var(--accent)' : 'none',
-                      }}
-                    >
-                      <span className="font-indopak text-lg leading-none">ق</span>
-                      <span>{t.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Font Size Slider */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold">আরবি অক্ষরের আকার</span>
-                <span style={{ color: 'var(--accent)' }}>
-                  {toBanglaDigits(settings.fontSize)}px
-                </span>
-              </div>
-              <input
-                type="range"
-                min={24}
-                max={44}
-                step={2}
-                value={settings.fontSize}
-                onChange={(e) =>
-                  onUpdateSettings({ fontSize: Number(e.target.value) })
-                }
-                className="w-full accent-emerald-700 cursor-pointer"
-              />
-            </div>
-
-            {/* Auto-Scroll Speed */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold">অটো-স্ক্রল গতি</label>
-              <div className="grid grid-cols-5 gap-1.5">
-                {AUTO_SCROLL_SPEEDS.map((sp) => {
-                  const active = settings.autoScrollSpeed === sp.value;
-                  return (
-                    <button
-                      key={sp.value}
-                      type="button"
-                      onClick={() => {
-                        setAutoScrollPaused(false);
-                        onUpdateSettings({ autoScrollSpeed: sp.value });
-                      }}
-                      className="py-2 rounded-xl text-xs font-medium border cursor-pointer"
-                      style={{
-                        backgroundColor: active
-                          ? 'var(--accent)'
-                          : 'var(--bg-elevated)',
-                        borderColor: active
-                          ? 'var(--accent)'
-                          : 'var(--border-subtle)',
-                        color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
-                      }}
-                    >
-                      {sp.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Keep Screen Awake */}
-            <div
-              className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <div className="flex items-center gap-2.5">
-                {settings.keepScreenAwake ? (
-                  <Eye className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-                ) : (
-                  <EyeOff className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                )}
-                <div>
-                  <div className="text-xs font-semibold">স্ক্রিন চালু রাখুন</div>
-                  <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                    {!wakeLockSupported
-                      ? 'এই ব্রাউজারে ওয়েক-লক সমর্থিত নয়'
-                      : wakeLockActive
-                        ? 'সক্রিয় রয়েছে (স্ক্রিন বন্ধ হবে না)'
-                        : 'তিলাওয়াতের সময় স্ক্রিন জাগ্রত রাখবে'}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={settings.keepScreenAwake}
-                onClick={() =>
-                  onUpdateSettings({ keepScreenAwake: !settings.keepScreenAwake })
-                }
-                className="w-11 h-6 rounded-full p-0.5 transition-colors cursor-pointer shrink-0"
-                style={{
-                  backgroundColor: settings.keepScreenAwake
-                    ? 'var(--accent)'
-                    : 'var(--border-subtle)',
-                }}
-              >
-                <span
-                  className={`block w-5 h-5 rounded-full bg-white transition-transform ${
-                    settings.keepScreenAwake ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Jump to Ayah */}
-            {surahData && (
-              <form onSubmit={handleJumpToAyah} className="space-y-2">
-                <label className="block text-xs font-semibold">
-                  নির্দিষ্ট আয়াতে যান ({toBanglaDigits(activeRoutineItem?.startAyah ?? 1)} –{' '}
-                  {toBanglaDigits(activeRoutineItem?.endAyah ?? surahData.totalVerses)})
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min={activeRoutineItem?.startAyah ?? 1}
-                    max={activeRoutineItem?.endAyah ?? surahData.totalVerses}
-                    value={jumpAyahInput}
-                    onChange={(e) => setJumpAyahInput(e.target.value)}
-                    placeholder={`আয়াত নম্বর (বর্তমান: ${activeAyah})`}
-                    className="flex-1 px-3 py-2 rounded-xl border text-xs outline-none"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--accent)',
-                      color: 'var(--accent-text)',
-                    }}
-                  >
-                    যান
-                  </button>
-                </div>
-              </form>
-            )}
+      <ReaderQuickSettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onUpdateSettings={onUpdateSettings}
+        wakeLockSubtitle={wakeLockSubtitle}
+      >
+        {/* Auto-Scroll Speed */}
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold">অটো-স্ক্রল গতি</label>
+          <div className="grid grid-cols-5 gap-1.5">
+            {AUTO_SCROLL_SPEEDS.map((sp) => {
+              const active = settings.autoScrollSpeed === sp.value;
+              return (
+                <button
+                  key={sp.value}
+                  type="button"
+                  onClick={() => {
+                    setAutoScrollPaused(false);
+                    onUpdateSettings({ autoScrollSpeed: sp.value });
+                  }}
+                  className="py-2 rounded-xl text-xs font-medium border cursor-pointer"
+                  style={{
+                    backgroundColor: active
+                      ? 'var(--accent)'
+                      : 'var(--bg-elevated)',
+                    borderColor: active
+                      ? 'var(--accent)'
+                      : 'var(--border-subtle)',
+                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {sp.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+
+        {/* Jump to Ayah */}
+        {surahData && (
+          <form onSubmit={handleJumpToAyah} className="space-y-2">
+            <label className="block text-xs font-semibold">
+              নির্দিষ্ট আয়াতে যান ({toBanglaDigits(activeRoutineItem?.startAyah ?? 1)} –{' '}
+              {toBanglaDigits(activeRoutineItem?.endAyah ?? surahData.totalVerses)})
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                min={activeRoutineItem?.startAyah ?? 1}
+                max={activeRoutineItem?.endAyah ?? surahData.totalVerses}
+                value={jumpAyahInput}
+                onChange={(e) => setJumpAyahInput(e.target.value)}
+                placeholder={`আয়াত নম্বর (বর্তমান: ${activeAyah})`}
+                className="flex-1 px-3 py-2 rounded-xl border text-xs outline-none"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+              />
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  color: 'var(--accent-text)',
+                }}
+              >
+                যান
+              </button>
+            </div>
+          </form>
+        )}
+      </ReaderQuickSettingsSheet>
     </div>
   );
 }

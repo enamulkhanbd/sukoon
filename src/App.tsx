@@ -23,6 +23,7 @@ import {
 } from './db/database';
 import {
   buildPath,
+  hidesBottomNav,
   isReaderRoute,
   parseRoute,
   type AppRoute,
@@ -40,6 +41,8 @@ export function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseRoute());
   const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
   const lastBaseRouteRef = useRef<AppRoute>({ type: 'tab', tab: 'home' });
+  const scrollPositionsRef = useRef<Record<string, number>>({});
+  const restoreScrollRef = useRef(false);
 
   useEffect(() => {
     ensureDatabaseInitialized().then(() => setDbReady(true));
@@ -66,17 +69,46 @@ export function App() {
   // Sync browser Back / Forward navigation
   useEffect(() => {
     const handlePopState = () => {
+      restoreScrollRef.current = true;
       setRoute(parseRoute());
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const currentRoutePath = buildPath(route);
+
+  // Scroll to top on new route/reader, or restore prior list scroll on Back
+  useEffect(() => {
+    const shouldRestore = restoreScrollRef.current;
+    restoreScrollRef.current = false;
+
+    if (shouldRestore && !isReaderRoute(route)) {
+      const saved = scrollPositionsRef.current[currentRoutePath];
+      if (saved !== undefined) {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: saved, behavior: 'auto' });
+        });
+        return;
+      }
+    }
+
+    if (route.type === 'surah' && route.initialAyah > 1) return;
+    if (route.type === 'routineRead' && route.ayah && route.ayah > 1) return;
+
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [currentRoutePath, route]);
+
   const navigate = useCallback(
-    (nextRoute: AppRoute, options?: { replace?: boolean }) => {
+    (
+      nextRoute: AppRoute,
+      options?: { replace?: boolean; restoreScroll?: boolean }
+    ) => {
       const nextPath = buildPath(nextRoute);
       const currentPath = window.location.pathname + window.location.search;
       if (currentPath !== nextPath) {
+        scrollPositionsRef.current[currentPath] = window.scrollY;
+        restoreScrollRef.current = Boolean(options?.restoreScroll);
         if (options?.replace) {
           window.history.replaceState(null, '', nextPath);
         } else {
@@ -143,40 +175,46 @@ export function App() {
   const closeRoutineDetails = useCallback(() => {
     const base = lastBaseRouteRef.current;
     if (base.type === 'tab' && (base.tab === 'home' || base.tab === 'routines')) {
-      navigate(base);
+      navigate(base, { restoreScroll: true });
     } else {
-      navigate({ type: 'tab', tab: 'routines' });
+      navigate({ type: 'tab', tab: 'routines' }, { restoreScroll: true });
     }
   }, [navigate]);
 
   const closeReader = useCallback(() => {
     if (route.type === 'routineRead') {
-      navigate({ type: 'routineDetail', routineId: route.routineId });
+      navigate(
+        { type: 'routineDetail', routineId: route.routineId },
+        { restoreScroll: true }
+      );
       return;
     }
     const prev = lastBaseRouteRef.current;
     if (!isReaderRoute(prev)) {
       if (route.type === 'dua' && prev.type === 'tab' && prev.tab === 'home') {
-        navigate(prev);
+        navigate(prev, { restoreScroll: true });
         return;
       }
       if (
         prev.type === 'tab' &&
         (prev.tab === 'home' || prev.tab === 'surahs' || prev.tab === 'duas')
       ) {
-        navigate(prev);
+        navigate(prev, { restoreScroll: true });
         return;
       }
     }
     if (route.type === 'dua') {
       const dua = DUA_MAP[route.duaId];
-      navigate({
-        type: 'tab',
-        tab: 'duas',
-        duaChapterId: dua?.chapterId ?? null,
-      });
+      navigate(
+        {
+          type: 'tab',
+          tab: 'duas',
+          duaChapterId: dua?.chapterId ?? null,
+        },
+        { restoreScroll: true }
+      );
     } else {
-      navigate({ type: 'tab', tab: 'surahs' });
+      navigate({ type: 'tab', tab: 'surahs' }, { restoreScroll: true });
     }
   }, [route, navigate]);
 
@@ -434,7 +472,10 @@ export function App() {
           settings={settings}
           selectedChapterId={activeDuaChapterId}
           onSelectChapter={(chapterId) =>
-            navigate({ type: 'tab', tab: 'duas', duaChapterId: chapterId })
+            navigate(
+              { type: 'tab', tab: 'duas', duaChapterId: chapterId },
+              { restoreScroll: chapterId === null }
+            )
           }
           onOpenDua={handleOpenDua}
           onToggleBookmark={handleToggleDuaBookmark}
@@ -454,7 +495,9 @@ export function App() {
         />
       )}
 
-      <BottomNav activeTab={activeTab} onChange={handleTabChange} />
+      {!hidesBottomNav(route) && (
+        <BottomNav activeTab={activeTab} onChange={handleTabChange} />
+      )}
     </div>
   );
 }

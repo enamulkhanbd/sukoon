@@ -5,6 +5,7 @@ import { SURAHS } from '../data/surahs';
 import { db } from '../db/database';
 import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
+import { TabHeader } from './NavigationChrome';
 
 interface SurahListViewProps {
   onOpenSurah: (surahId: number) => void;
@@ -47,15 +48,11 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
   }, [query, filter, cachedSet]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-6 pb-28 space-y-4">
-      <header className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">সূরা সমূহ</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            মোট ১১৪টি সূরা • {toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত
-          </p>
-        </div>
-      </header>
+    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-4">
+      <TabHeader
+        title="সূরা সমূহ"
+        subtitle={`মোট ১১৪টি সূরা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত`}
+      />
 
       {/* Search bar */}
       <div className="relative">

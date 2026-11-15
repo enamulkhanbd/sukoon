@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Bookmark,
   ChevronRight,
   Search,
@@ -16,6 +15,7 @@ import {
 } from '../data/duas';
 import type { Settings } from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
+import { TabHeader, TopBar, TopBarIconButton } from './NavigationChrome';
 
 interface DuasViewProps {
   settings: Settings;
@@ -35,6 +35,8 @@ export function DuasView({
   onToggleBookmark,
 }: DuasViewProps) {
   const [query, setQuery] = useState('');
+  const [chapterSearchOpen, setChapterSearchOpen] = useState(false);
+  const [chapterQuery, setChapterQuery] = useState('');
   const [filter, setFilter] = useState<ViewFilter>('chapters');
   const [uncontrolledChapterId, setUncontrolledChapterId] = useState<
     number | null
@@ -44,6 +46,11 @@ export function DuasView({
     controlledChapterId !== undefined
       ? controlledChapterId
       : uncontrolledChapterId;
+
+  useEffect(() => {
+    setChapterSearchOpen(false);
+    setChapterQuery('');
+  }, [selectedChapterId]);
 
   const setSelectedChapterId = (chapterId: number | null) => {
     if (onSelectChapter) {
@@ -59,14 +66,26 @@ export function DuasView({
   );
 
   const normalizedQuery = query.trim().toLowerCase();
+  const normalizedChapterQuery = chapterQuery.trim().toLowerCase();
 
   const matchingDuas = useMemo(() => {
-    let base: DuaItem[] = DUAS;
-    if (selectedChapterId !== null && !normalizedQuery) {
-      base = DUAS_BY_CHAPTER[selectedChapterId] ?? [];
-    } else if (filter === 'saved' && !normalizedQuery) {
-      base = DUAS.filter((d) => bookmarkedSet.has(d.id));
+    if (selectedChapterId !== null) {
+      const chapterList = DUAS_BY_CHAPTER[selectedChapterId] ?? [];
+      if (!normalizedChapterQuery) return chapterList;
+      return chapterList.filter(
+        (d) =>
+          d.titleBangla.toLowerCase().includes(normalizedChapterQuery) ||
+          d.translationBangla.toLowerCase().includes(normalizedChapterQuery) ||
+          (d.occasionNote ?? '').toLowerCase().includes(normalizedChapterQuery) ||
+          (d.reference ?? '').toLowerCase().includes(normalizedChapterQuery) ||
+          d.arabic.includes(chapterQuery.trim())
+      );
     }
+
+    const base: DuaItem[] =
+      filter === 'saved' && !normalizedQuery
+        ? DUAS.filter((d) => bookmarkedSet.has(d.id))
+        : DUAS;
 
     if (!normalizedQuery) return base;
     return DUAS.filter((d) => {
@@ -80,7 +99,15 @@ export function DuasView({
         (ch?.titleBangla.toLowerCase().includes(normalizedQuery) ?? false)
       );
     });
-  }, [normalizedQuery, selectedChapterId, filter, bookmarkedSet, query]);
+  }, [
+    normalizedQuery,
+    normalizedChapterQuery,
+    selectedChapterId,
+    filter,
+    bookmarkedSet,
+    query,
+    chapterQuery,
+  ]);
 
   const activeChapter =
     selectedChapterId !== null ? DUA_CHAPTER_MAP[selectedChapterId] : null;
@@ -189,17 +216,95 @@ export function DuasView({
     );
   };
 
-  return (
-    <div className="max-w-2xl mx-auto px-4 pt-6 pb-28 space-y-4">
-      <header className="flex items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">দুআ ও জিকির</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            {toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট{' '}
-            {toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া
-          </p>
+  if (activeChapter) {
+    return (
+      <div className="min-h-dvh paper-frame pb-16">
+        <TopBar
+          mode="sticky"
+          onBack={() => setSelectedChapterId(null)}
+          backLabel="অধ্যায় সমূহে ফিরুন"
+          title={activeChapter.titleBangla}
+          subtitle={`অধ্যায় ${toBanglaDigits(activeChapter.id)} • ${toBanglaDigits(matchingDuas.length)}টি দুআ ও জিকির`}
+          rightActions={
+            <TopBarIconButton
+              onClick={() => {
+                setChapterSearchOpen((prev) => {
+                  if (prev) setChapterQuery('');
+                  return !prev;
+                });
+              }}
+              label="অধ্যায়ে খুঁজুন"
+              active={chapterSearchOpen}
+            >
+              {chapterSearchOpen ? (
+                <X className="w-4 h-4" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+            </TopBarIconButton>
+          }
+          subRow={
+            chapterSearchOpen ? (
+              <div className="relative">
+                <Search
+                  className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ color: 'var(--text-muted)' }}
+                />
+                <input
+                  type="text"
+                  autoFocus
+                  value={chapterQuery}
+                  onChange={(e) => setChapterQuery(e.target.value)}
+                  placeholder="এই অধ্যায়ে খুঁজুন..."
+                  className="w-full pl-10 pr-9 py-2 rounded-xl border text-xs outline-none transition-colors"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                {chapterQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setChapterQuery('')}
+                    aria-label="অনুসন্ধান মুছুন"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : undefined
+          }
+        />
+
+        <div className="max-w-2xl mx-auto px-4 pt-4 space-y-2.5">
+          {matchingDuas.length === 0 ? (
+            <div
+              className="rounded-2xl border p-8 text-center text-sm"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              এই অধ্যায়ে কোনো দুআ পাওয়া যায়নি।
+            </div>
+          ) : (
+            matchingDuas.map((dua) => renderDuaRow(dua, false))
+          )}
         </div>
-      </header>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-4">
+      <TabHeader
+        title="দুআ ও জিকির"
+        subtitle={`${toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট ${toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া`}
+      />
 
       {/* Search bar */}
       <div className="relative">
@@ -266,44 +371,6 @@ export function DuasView({
               </button>
             );
           })}
-        </div>
-      )}
-
-      {/* Selected Chapter Breadcrumb Header */}
-      {!normalizedQuery && activeChapter && (
-        <div
-          className="rounded-2xl border p-3.5 flex items-center justify-between gap-3"
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: 'var(--border-subtle)',
-          }}
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={() => setSelectedChapterId(null)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-medium shrink-0 cursor-pointer"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-primary)',
-              }}
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              অধ্যায়
-            </button>
-            <div className="min-w-0">
-              <h2 className="font-bold text-sm truncate">
-                {activeChapter.titleBangla}
-              </h2>
-              <p
-                className="text-[11px] truncate"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {toBanglaDigits(matchingDuas.length)}টি দুআ ও জিকির
-              </p>
-            </div>
-          </div>
         </div>
       )}
 

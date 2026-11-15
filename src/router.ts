@@ -163,3 +163,13 @@ export function isReaderRoute(route: AppRoute): boolean {
     route.type === 'routineRead'
   );
 }
+
+export function hidesBottomNav(route: AppRoute): boolean {
+  return (
+    isReaderRoute(route) ||
+    route.type === 'routineDetail' ||
+    (route.type === 'tab' &&
+      route.tab === 'duas' &&
+      Boolean(route.duaChapterId))
+  );
+}

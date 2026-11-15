@@ -465,7 +465,9 @@ export function App() {
         />
       )}
       {activeTab === 'surahs' && (
-        <SurahListView onOpenSurah={(id) => handleOpenSurah(id, 1)} />
+        <SurahListView
+          onOpenSurah={(id, initialAyah = 1) => handleOpenSurah(id, initialAyah)}
+        />
       )}
       {activeTab === 'duas' && (
         <DuasView

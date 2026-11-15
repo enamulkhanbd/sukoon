@@ -22,7 +22,6 @@ import { getSurahOfflineFirst } from '../services/quranApi';
 import {
   AUTO_SCROLL_SPEEDS,
   formatNormalizedRoutineItemLabel,
-  toArabicDigits,
   toBanglaDigits,
 } from '../utils/formatters';
 import {
@@ -574,17 +573,26 @@ export function ReaderView({
                       <button
                         type="button"
                         data-ayah-marker
+                        dir="ltr"
                         onClick={() =>
                           persistAyah(verse.verse_number, verse.page_number, true)
                         }
-                        title={`আয়াত ${verse.verse_number} চিহ্নিত করুন`}
-                        className="inline-flex items-center justify-center mx-1 align-middle cursor-pointer transition-transform active:scale-90"
+                        title={`আয়াত ${toBanglaDigits(verse.verse_number)} চিহ্নিত করুন`}
+                        aria-label={`আয়াত ${toBanglaDigits(verse.verse_number)}`}
+                        className="inline-flex items-center justify-center min-w-[1.65em] h-[1.65em] px-[0.38em] mx-1.5 rounded-full border align-middle font-semibold leading-none tracking-normal cursor-pointer transition-transform active:scale-90"
                         style={{
+                          fontFamily: '"Noto Sans Bengali", sans-serif',
+                          fontSize: '0.42em',
+                          backgroundColor: isActive
+                            ? 'var(--accent-soft)'
+                            : 'var(--gold-soft)',
+                          borderColor: isActive
+                            ? 'var(--accent)'
+                            : 'color-mix(in srgb, var(--gold) 45%, transparent)',
                           color: isActive ? 'var(--accent)' : 'var(--gold)',
-                          fontSize: '0.82em',
                         }}
                       >
-                        ﴿{toArabicDigits(verse.verse_number)}﴾
+                        {toBanglaDigits(verse.verse_number)}
                       </button>{' '}
                     </span>
                   </span>

@@ -533,6 +533,18 @@ export async function updateReadingProgress(params: {
         pageNumber,
         timestamp: now,
       });
+      if (ayahNumber >= surah.versesCount) {
+        await db.globalLastRead.delete(`surah-${surahId}`);
+      } else {
+        await db.globalLastRead.put({
+          id: `surah-${surahId}`,
+          surahId,
+          surahNameBangla: surah.nameBangla,
+          ayahNumber,
+          pageNumber,
+          timestamp: now,
+        });
+      }
 
       let completedRoutineNow = false;
       if (routineId) {

@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Search, X } from 'lucide-react';
 import { SURAHS } from '../data/surahs';
-import { db } from '../db/database';
+import { db, type GlobalLastRead } from '../db/database';
 import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 import { TabHeader } from './NavigationChrome';
 
 interface SurahListViewProps {
-  onOpenSurah: (surahId: number) => void;
+  onOpenSurah: (surahId: number, initialAyah?: number) => void;
 }
 
 type FilterMode = 'all' | 'offline' | 'makkah' | 'madinah';
@@ -18,6 +18,8 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
   const [filter, setFilter] = useState<FilterMode>('all');
 
   const cachedRows = useLiveQuery(() => db.cachedSurahs.toArray(), []);
+  const lastReadRows = useLiveQuery(() => db.globalLastRead.toArray(), []);
+
   const cachedSet = useMemo(
     () =>
       new Set<number>(
@@ -27,6 +29,18 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
       ),
     [cachedRows]
   );
+
+  const surahLastReadMap = useMemo(() => {
+    const map = new Map<number, GlobalLastRead>();
+    for (const row of lastReadRows ?? []) {
+      if (row.id !== 'current' && !row.id.startsWith('surah-')) continue;
+      const existing = map.get(row.surahId);
+      if (!existing || row.timestamp >= existing.timestamp) {
+        map.set(row.surahId, row);
+      }
+    }
+    return map;
+  }, [lastReadRows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -128,70 +142,115 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
             কোনো সূরা পাওয়া যায়নি।
           </div>
         ) : (
-          filtered.map((surah) => (
-            <div
-              key={surah.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpenSurah(surah.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onOpenSurah(surah.id);
-                }
-              }}
-              className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.995]"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 border"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--accent)',
-                  }}
-                >
-                  {toBanglaDigits(surah.id)}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-sm truncate">
-                      {surah.nameBangla}
-                    </span>
-                    <span
-                      className="text-[11px] truncate"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      ({surah.meaningBangla})
-                    </span>
-                  </div>
-                  <div
-                    className="text-[11px] flex items-center gap-1.5 mt-0.5"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
-                    <span>•</span>
-                    <span>
-                      {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
-                    </span>
-                    <span>•</span>
-                    <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
-                  </div>
-                </div>
-              </div>
+          filtered.map((surah) => {
+            const lastRead = surahLastReadMap.get(surah.id);
+            const lastAyah = lastRead
+              ? Math.min(Math.max(lastRead.ayahNumber, 1), surah.versesCount)
+              : 0;
+            const showProgress = lastAyah > 0 && lastAyah < surah.versesCount;
+            const percent = showProgress
+              ? Math.min(99, Math.round((lastAyah / surah.versesCount) * 100))
+              : 0;
+            const resumeAyah = showProgress ? lastAyah : 1;
 
-              <span
-                className="font-indopak text-xl leading-normal shrink-0"
-                style={{ color: 'var(--text-primary)' }}
+            return (
+              <div
+                key={surah.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenSurah(surah.id, resumeAyah)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenSurah(surah.id, resumeAyah);
+                  }
+                }}
+                className="w-full px-3.5 py-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.995]"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--border-subtle)',
+                }}
               >
-                {surah.nameArabic}
-              </span>
-            </div>
-          ))
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 border"
+                      style={{
+                        backgroundColor: 'var(--bg-surface)',
+                        borderColor: 'var(--border-subtle)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      {toBanglaDigits(surah.id)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-sm truncate">
+                          {surah.nameBangla}
+                        </span>
+                        <span
+                          className="text-[11px] truncate"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          ({surah.meaningBangla})
+                        </span>
+                      </div>
+                      <div
+                        className="text-[11px] flex items-center gap-1.5 mt-0.5"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
+                        <span>•</span>
+                        <span>
+                          {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
+                        </span>
+                        <span>•</span>
+                        <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span
+                    className="font-indopak text-xl leading-normal shrink-0"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    {surah.nameArabic}
+                  </span>
+                </div>
+
+                {showProgress && (
+                  <div className="mt-2.5 pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span
+                        className="font-medium"
+                        style={{ color: 'var(--accent)' }}
+                      >
+                        সর্বশেষ: আয়াত {toBanglaDigits(lastAyah)}/{toBanglaDigits(surah.versesCount)}
+                      </span>
+                      <span
+                        className="font-semibold"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {toBanglaDigits(percent)}%
+                      </span>
+                    </div>
+                    <div
+                      className="h-1 w-full rounded-full overflow-hidden"
+                      style={{ backgroundColor: 'var(--bg-surface)' }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${percent}%`,
+                          backgroundColor: 'var(--accent)',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>

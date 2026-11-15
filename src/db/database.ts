@@ -621,6 +621,31 @@ export async function updateReadingProgress(params: {
   );
 }
 
+export async function getSurahResumeAyah(surahId: number): Promise<number> {
+  const surah = SURAH_MAP[surahId];
+  if (!surah) return 1;
+
+  const [perSurah, current] = await Promise.all([
+    db.globalLastRead.get(`surah-${surahId}`),
+    db.globalLastRead.get('current'),
+  ]);
+
+  let latest: GlobalLastRead | undefined = perSurah;
+  if (
+    current &&
+    current.surahId === surahId &&
+    (!latest || current.timestamp >= latest.timestamp)
+  ) {
+    latest = current;
+  }
+
+  if (!latest) return 1;
+  if (latest.ayahNumber <= 1 || latest.ayahNumber >= surah.versesCount) {
+    return 1;
+  }
+  return latest.ayahNumber;
+}
+
 export async function updateDuaRoutineProgress(params: {
   routineId: string;
   routineItemIndex?: number;

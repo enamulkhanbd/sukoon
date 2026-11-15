@@ -10,6 +10,7 @@ import {
 import { SURAH_MAP } from '../data/surahs';
 import {
   getRoutineItems,
+  getSurahResumeAyah,
   isDuaRoutineItem,
   updateReadingProgress,
   type CachedSurah,
@@ -344,7 +345,7 @@ export function ReaderView({
 
   const handleFinishSurahAndNext = async (
     nextId: number,
-    nextStartAyah = 1,
+    nextStartAyah?: number,
     nextItemIndex?: number
   ) => {
     if (displayedVerses.length > 0) {
@@ -358,7 +359,14 @@ export function ReaderView({
         markItemCompleted: true,
       });
     }
-    onSelectSurah(nextId, nextStartAyah, nextItemIndex);
+    const targetAyah =
+      nextStartAyah ?? (await getSurahResumeAyah(nextId));
+    onSelectSurah(nextId, targetAyah, nextItemIndex);
+  };
+
+  const handleGoToPrevFreeSurah = async (prevId: number) => {
+    const targetAyah = await getSurahResumeAyah(prevId);
+    onSelectSurah(prevId, targetAyah);
   };
 
   const handleCompleteRoutine = async () => {
@@ -669,7 +677,11 @@ export function ReaderView({
                 <ReaderFreePager
                   prevLabel="পূর্ববর্তী সূরা"
                   prevTitle={prevSurah?.nameBangla ?? null}
-                  onPrev={prevSurah ? () => onSelectSurah(prevSurah.id, 1) : undefined}
+                  onPrev={
+                    prevSurah
+                      ? () => handleGoToPrevFreeSurah(prevSurah.id)
+                      : undefined
+                  }
                   nextLabel="পরবর্তী সূরা"
                   nextTitle={nextSurah?.nameBangla ?? null}
                   onNext={

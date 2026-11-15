@@ -3,14 +3,24 @@ import { DUAS_CHAPTER_9 } from './chapter9';
 import { DUAS_CHAPTER_10, RUQYAH_QURAN_ITEM_IDS } from './chapter10';
 import { DUAS_CHAPTER_11 } from './chapter11';
 import { DUAS_CHAPTER_12 } from './chapter12';
-import { DUAS_CHAPTER_13 } from './chapter13';
+import {
+  DUAS_CHAPTER_13,
+  SALAH_COMMON_DUA_IDS,
+  SALAH_FAJR_SPECIAL_IDS,
+  SALAH_MAGHRIB_SPECIAL_IDS,
+} from './chapter13';
 import { DUAS_CHAPTERS_1_TO_3 } from './chapters1to3';
 import { DUAS_CHAPTERS_4_TO_5 } from './chapters4to5';
 import { DUAS_CHAPTERS_7_TO_8 } from './chapters7to8';
 import type { DuaChapter, DuaItem } from './types';
 
 export type { DuaChapter, DuaItem, QuranRef } from './types';
-export { RUQYAH_QURAN_ITEM_IDS };
+export {
+  RUQYAH_QURAN_ITEM_IDS,
+  SALAH_COMMON_DUA_IDS,
+  SALAH_FAJR_SPECIAL_IDS,
+  SALAH_MAGHRIB_SPECIAL_IDS,
+};
 
 export const DUA_CHAPTERS: DuaChapter[] = [
   {

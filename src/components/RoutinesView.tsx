@@ -20,6 +20,9 @@ import {
   DUA_MAP,
   DUAS,
   RUQYAH_QURAN_ITEM_IDS,
+  SALAH_COMMON_DUA_IDS,
+  SALAH_FAJR_SPECIAL_IDS,
+  SALAH_MAGHRIB_SPECIAL_IDS,
 } from '../data/duas';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import {
@@ -241,13 +244,17 @@ export function RoutinesView({
     toast.info(`“${name}” তালিকা থেকে সরানো হয়েছে`);
   };
 
-  const handleAddAllRuqyah = () => {
+  const addBulkDuas = (
+    ids: readonly string[],
+    groupLabel: string,
+    alreadyPresentMsg: string
+  ) => {
     const existingDuaIds = new Set(
       items.filter((it): it is DraftDuaItem => it.kind === 'dua').map((i) => i.duaId)
     );
-    const toAdd = RUQYAH_QURAN_ITEM_IDS.filter((id) => !existingDuaIds.has(id));
+    const toAdd = ids.filter((id) => !existingDuaIds.has(id));
     if (toAdd.length === 0) {
-      toast.info('সব রুকইয়া আয়াত ইতিমধ্যে তালিকায় রয়েছে');
+      toast.info(alreadyPresentMsg);
       return;
     }
     setItems((prev) => [
@@ -256,7 +263,7 @@ export function RoutinesView({
         createDraftDuaItem(id, Math.max(1, DUA_MAP[id]?.repeatCount ?? 1))
       ),
     ]);
-    toast.success(`${toBanglaDigits(toAdd.length)}টি রুকইয়া অংশ যুক্ত হয়েছে`);
+    toast.success(`${toBanglaDigits(toAdd.length)}টি ${groupLabel} যুক্ত হয়েছে`);
   };
 
   const removeItem = (index: number) => {
@@ -1377,7 +1384,13 @@ export function RoutinesView({
                                 >
                                   <button
                                     type="button"
-                                    onClick={handleAddAllRuqyah}
+                                    onClick={() =>
+                                      addBulkDuas(
+                                        RUQYAH_QURAN_ITEM_IDS,
+                                        'রুকইয়া অংশ',
+                                        'সব রুকইয়া আয়াত ইতিমধ্যে তালিকায় রয়েছে'
+                                      )
+                                    }
                                     className="w-full py-2 px-3 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--accent-soft)',
@@ -1387,6 +1400,74 @@ export function RoutinesView({
                                   >
                                     <Plus className="w-3.5 h-3.5" />
                                     সব রুকইয়া আয়াত একসাথে যুক্ত করুন (২০টি)
+                                  </button>
+                                </div>
+                              )}
+
+                              {chapter.id === 13 && !isSearching && (
+                                <div
+                                  className="px-4 sm:px-5 py-2 flex flex-wrap gap-1.5"
+                                  style={{
+                                    backgroundColor: 'var(--bg-page)',
+                                    borderColor: 'var(--border-subtle)',
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      addBulkDuas(
+                                        SALAH_COMMON_DUA_IDS,
+                                        'নামাজ পরবর্তী সাধারণ আমল',
+                                        'সব সাধারণ আমল ইতিমধ্যে তালিকায় রয়েছে'
+                                      )
+                                    }
+                                    className="flex-1 min-w-[140px] py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    style={{
+                                      backgroundColor: 'var(--accent-soft)',
+                                      borderColor: 'var(--accent)',
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                                    ৫ ওয়াক্ত সাধারণ (১০টি)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      addBulkDuas(
+                                        SALAH_FAJR_SPECIAL_IDS,
+                                        'ফজরের বিশেষ আমল',
+                                        'ফজরের বিশেষ আমলগুলো ইতিমধ্যে তালিকায় রয়েছে'
+                                      )
+                                    }
+                                    className="py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    style={{
+                                      backgroundColor: 'var(--bg-elevated)',
+                                      borderColor: 'var(--border-subtle)',
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                                    ফজর (৩টি)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      addBulkDuas(
+                                        SALAH_MAGHRIB_SPECIAL_IDS,
+                                        'মাগরিবের বিশেষ আমল',
+                                        'মাগরিবের বিশেষ আমলগুলো ইতিমধ্যে তালিকায় রয়েছে'
+                                      )
+                                    }
+                                    className="py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    style={{
+                                      backgroundColor: 'var(--bg-elevated)',
+                                      borderColor: 'var(--border-subtle)',
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                                    মাগরিব (২টি)
                                   </button>
                                 </div>
                               )}

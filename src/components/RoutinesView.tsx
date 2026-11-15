@@ -169,6 +169,22 @@ export function RoutinesView({
     }
   }, [shouldOpenCreate, onHandledCreate]);
 
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen]);
+
   const openEditModal = (routine: Routine) => {
     setEditingRoutine(routine);
     setTitle(routine.title);
@@ -834,40 +850,63 @@ export function RoutinesView({
         )}
       </div>
 
-      {/* Create / Edit Routine Full-Screen Sheet */}
+      {/* Create / Edit Routine Bottom Sheet (-72px from top over dimmed overlay) */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex flex-col paper-frame"
-          style={{ backgroundColor: 'var(--bg-page)' }}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 backdrop-blur-xs pt-[72px] sm:px-4"
+          onClick={() => setIsModalOpen(false)}
         >
           <div
-            className="border-b safe-top shrink-0"
-            style={{ borderColor: 'var(--border-subtle)' }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="routine-sheet-title"
+            className="w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] border-t border-x shadow-2xl flex flex-col overflow-hidden"
+            style={{
+              backgroundColor: 'var(--bg-page)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="max-w-2xl mx-auto w-full flex items-center justify-between px-4 py-3.5">
-              <h2 className="font-bold text-base">
-                {editingRoutine ? 'রুটিন সম্পাদনা' : 'নতুন রুটিন তৈরি'}
-              </h2>
+            {/* Sheet Header */}
+            <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <h2
+                  id="routine-sheet-title"
+                  className="font-bold text-lg tracking-tight"
+                >
+                  {editingRoutine ? 'রুটিন সম্পাদনা' : 'নতুন রুটিন তৈরি'}
+                </h2>
+                <p
+                  className="text-xs mt-0.5"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {editingRoutine
+                    ? 'রুটিনের সূরা, দুআ ও সাপ্তাহিক সময়সূচি আপডেট করুন।'
+                    : 'দৈনিক বা সাপ্তাহিক তিলাওয়াত ও দুআর তালিকা সাজান।'}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
                 aria-label="বন্ধ করুন"
-                className="p-1.5 rounded-full cursor-pointer"
-                style={{ color: 'var(--text-muted)' }}
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors active:scale-95 cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-secondary)',
+                }}
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-          </div>
 
-          <form
-            onSubmit={handleSave}
-            noValidate
-            className="flex flex-col flex-1 min-h-0"
-          >
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="max-w-2xl mx-auto w-full min-h-full flex flex-col">
-                <div className="p-4 sm:px-6 sm:pt-6 pb-3 space-y-5">
+            <form
+              onSubmit={handleSave}
+              noValidate
+              className="flex flex-col flex-1 min-h-0"
+            >
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="w-full min-h-full flex flex-col">
+                  <div className="px-5 pt-2 pb-4 space-y-5">
               {/* Title */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold">রুটিনের নাম</label>
@@ -1538,55 +1577,56 @@ export function RoutinesView({
                       );
                     })
                   )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {formError && (
+              {formError && (
+                <div
+                  className="border-t px-5 py-2 text-xs font-medium text-red-600 shrink-0"
+                  style={{
+                    borderColor: 'var(--border-subtle)',
+                    backgroundColor: 'var(--bg-page)',
+                  }}
+                >
+                  {formError}
+                </div>
+              )}
+
+              {/* Sticky Footer */}
               <div
-                className="border-t px-4 py-2 text-xs font-medium text-red-600 shrink-0"
+                className="border-t shrink-0 safe-bottom"
                 style={{
                   borderColor: 'var(--border-subtle)',
                   backgroundColor: 'var(--bg-page)',
                 }}
               >
-                <div className="max-w-2xl mx-auto w-full">{formError}</div>
+                <div className="px-5 py-3 flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold border cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    বাতিল
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--accent)',
+                      color: 'var(--accent-text)',
+                    }}
+                  >
+                    সংরক্ষণ করুন
+                  </button>
+                </div>
               </div>
-            )}
-
-            {/* Sticky Footer */}
-            <div
-              className="border-t shrink-0 safe-bottom"
-              style={{
-                borderColor: 'var(--border-subtle)',
-                backgroundColor: 'var(--bg-page)',
-              }}
-            >
-              <div className="max-w-2xl mx-auto w-full px-4 py-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-xl text-xs font-semibold cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--accent)',
-                    color: 'var(--accent-text)',
-                  }}
-                >
-                  সংরক্ষণ করুন
-                </button>
-              </div>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
     </div>

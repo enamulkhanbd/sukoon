@@ -33,6 +33,7 @@ import {
   TopBar,
   TopBarIconButton,
 } from './NavigationChrome';
+import { BismillahHeader } from './BismillahHeader';
 import { useToast } from './ToastProvider';
 
 interface ReaderViewProps {
@@ -441,42 +442,61 @@ export function ReaderView({
           setChromeVisible((v) => !v);
         }}
       >
-        {/* Ornamental Surah Banner */}
+        {/* Surah Name Card */}
         <div
-          className="rounded-3xl border px-5 py-5 mb-7 text-center space-y-2"
+          className="rounded-3xl border px-5 py-5 sm:px-7 sm:py-6 mb-7 space-y-3"
           style={{
             backgroundColor: 'var(--bg-surface)',
             borderColor: 'var(--border-subtle)',
           }}
         >
           {routine && (
-            <div
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-0.5 rounded-full"
-              style={{
-                backgroundColor: 'var(--accent-soft)',
-                color: 'var(--accent)',
-              }}
-            >
-              {routine.title}
+            <div className="text-center">
+              <span
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: 'var(--accent-soft)',
+                  color: 'var(--accent)',
+                }}
+              >
+                {routine.title}
+              </span>
             </div>
           )}
+          <div className="flex items-center justify-center gap-4 sm:gap-5">
+            <div
+              className="font-surah-names shrink-0 select-none text-[3.25rem] sm:text-[3.75rem]"
+              style={{ color: 'var(--text-primary)' }}
+              aria-hidden="true"
+            >
+              {String(meta.id).padStart(3, '0')}
+            </div>
+            <div className="text-left min-w-0">
+              <h1
+                className="text-lg sm:text-xl font-bold leading-snug tracking-tight"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {toBanglaDigits(meta.id)}. সূরা {meta.nameBangla}
+              </h1>
+              <p
+                className="text-sm font-medium leading-snug"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {meta.meaningBangla}
+              </p>
+            </div>
+          </div>
           <div
-            className="font-indopak text-3xl sm:text-4xl leading-relaxed"
-            style={{ color: 'var(--text-primary)' }}
+            className="text-xs text-center leading-relaxed"
+            style={{ color: 'var(--text-secondary)' }}
           >
-            سُوْرَةُ {meta.nameArabic}
-          </div>
-          <div className="text-sm font-semibold">
-            {toBanglaDigits(meta.id)}. {meta.nameBangla} ({meta.meaningBangla})
-          </div>
-          <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            {meta.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'} •{' '}
+            {meta.revelationPlace === 'makkah' ? 'মক্কায় অবতীর্ণ' : 'মদীনায় অবতীর্ণ'} •{' '}
             {activeRoutineItem &&
             (activeRoutineItem.startAyah > 1 ||
               activeRoutineItem.endAyah < meta.versesCount)
               ? `আয়াত ${toBanglaDigits(activeRoutineItem.startAyah)}–${toBanglaDigits(
                   activeRoutineItem.endAyah
-                )}`
+                )} (${toBanglaDigits(meta.versesCount)} আয়াত)`
               : `${toBanglaDigits(meta.versesCount)} আয়াত`}{' '}
             • পৃষ্ঠা {toBanglaDigits(meta.pages[0])}–{toBanglaDigits(meta.pages[1])}
           </div>
@@ -524,17 +544,8 @@ export function ReaderView({
             {/* Bismillah Header (all Surahs except Al-Fatihah #1 and At-Tawbah #9, and only when starting from Ayah 1) */}
             {meta.bismillahPre &&
               (!activeRoutineItem || activeRoutineItem.startAyah === 1) && (
-              <div
-                className="font-indopak text-center mb-6 select-text"
-                style={{
-                  fontSize: `${Math.min(settings.fontSize + 2, 44)}px`,
-                  lineHeight: 1.9,
-                  color: 'var(--text-primary)',
-                }}
-              >
-                بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِیْمِ
-              </div>
-            )}
+                <BismillahHeader />
+              )}
 
             {/* Flowing Mushaf Indo-Pak Text */}
             <div

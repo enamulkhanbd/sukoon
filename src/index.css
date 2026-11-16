@@ -8,6 +8,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "surahnames";
+  src: url("/fonts/sura_names.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-theme="paper"] {
   --bg-page: #faf6ee;
@@ -78,6 +86,14 @@ body {
   font-style: normal;
   letter-spacing: 0;
   word-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-surah-names {
+  font-family: "surahnames", serif;
+  line-height: 1;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

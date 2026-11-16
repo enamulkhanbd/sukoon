@@ -15,6 +15,7 @@ export default defineConfig({
         'pwa-192x192.png',
         'pwa-512x512.png',
         'fonts/indopak-nastaleeq.woff2',
+        'fonts/sura_names.woff2',
       ],
       manifest: {
         name: 'সুকূন — Distraction-Free Quran',

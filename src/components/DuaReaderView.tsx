@@ -21,6 +21,7 @@ import {
 import { useWakeLock } from '../hooks/useWakeLock';
 import {
   formatNormalizedRoutineItemLabel,
+  normalizeIndoPakText,
   toBanglaDigits,
 } from '../utils/formatters';
 import {
@@ -291,7 +292,7 @@ export function DuaReaderView({
               color: 'var(--text-primary)',
             }}
           >
-            {dua.arabic}
+            {normalizeIndoPakText(dua.arabic)}
           </p>
         </section>
 

@@ -8,12 +8,14 @@ import {
 
 const QURAN_API_BASE = 'https://api.quran.com/api/v4';
 const REQUEST_TIMEOUT_MS = 20000;
+const INDOPAK_SCRIPT_VERSION = 2;
 
 interface ApiVerseResponse {
   verses: Array<{
     id: number;
     verse_number: number;
-    text_indopak: string;
+    text_indopak_nastaleeq?: string;
+    text_indopak?: string;
     page_number: number;
     juz_number: number;
   }>;
@@ -84,7 +86,7 @@ async function fetchSurahFromNetwork(
   let hasMore = true;
 
   while (hasMore) {
-    const url = `${QURAN_API_BASE}/verses/by_chapter/${surahId}?fields=text_indopak,page_number,juz_number&per_page=300&page=${page}`;
+    const url = `${QURAN_API_BASE}/verses/by_chapter/${surahId}?fields=text_indopak_nastaleeq,text_indopak,page_number,juz_number&per_page=300&page=${page}`;
     const res = await fetchWithTimeout(url, signal);
     if (!res.ok) {
       throw new Error(`কুরআন এপিআই ত্রুটি (${res.status})`);
@@ -97,7 +99,7 @@ async function fetchSurahFromNetwork(
       allVerses.push({
         id: v.id,
         verse_number: v.verse_number,
-        text_indopak: v.text_indopak,
+        text_indopak: v.text_indopak_nastaleeq ?? v.text_indopak ?? '',
         page_number: v.page_number,
         juz_number: v.juz_number,
       });
@@ -119,6 +121,7 @@ async function fetchSurahFromNetwork(
     nameBangla: meta.nameBangla,
     totalVerses: meta.versesCount,
     verses: allVerses,
+    scriptVersion: INDOPAK_SCRIPT_VERSION,
   };
 
   await db.cachedSurahs.put(cached);
@@ -131,6 +134,13 @@ export async function getSurahOfflineFirst(
 ): Promise<CachedSurah> {
   const cached = await db.cachedSurahs.get(surahId);
   if (isSurahFullyCached(cached, surahId)) {
+    if (
+      cached!.scriptVersion !== INDOPAK_SCRIPT_VERSION &&
+      typeof navigator !== 'undefined' &&
+      navigator.onLine
+    ) {
+      fetchSurahFromNetwork(surahId, signal).catch(() => {});
+    }
     return cached!;
   }
   return fetchSurahFromNetwork(surahId, signal);

@@ -71,12 +71,15 @@ body {
 }
 
 .font-indopak {
-  font-family: "IndoPak", "PDMS_Saleem_QuranFont", "AlQalam Quran Majeed",
-    "Noto Naskh Arabic", serif;
+  font-family: "IndoPak", "Noto Naskh Arabic", serif;
   direction: rtl;
   unicode-bidi: isolate;
-  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
-  text-rendering: optimizeLegibility;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: 0;
+  word-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Subtle paper grain overlay in light modes without blocking taps */

@@ -23,6 +23,7 @@ import { getSurahOfflineFirst } from '../services/quranApi';
 import {
   AUTO_SCROLL_SPEEDS,
   formatNormalizedRoutineItemLabel,
+  normalizeIndoPakText,
   toBanglaDigits,
 } from '../utils/formatters';
 import {
@@ -527,21 +528,20 @@ export function ReaderView({
                 className="font-indopak text-center mb-6 select-text"
                 style={{
                   fontSize: `${Math.min(settings.fontSize + 2, 44)}px`,
-                  lineHeight: 2.4,
+                  lineHeight: 1.9,
                   color: 'var(--text-primary)',
                 }}
               >
-                بِسۡمِ اللّٰهِ الرَّحۡمٰنِ الرَّحِيۡمِ
+                بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِیْمِ
               </div>
             )}
 
             {/* Flowing Mushaf Indo-Pak Text */}
             <div
-              className="font-indopak text-justify select-text"
+              className="font-indopak text-right select-text"
               style={{
                 fontSize: `${settings.fontSize}px`,
-                lineHeight: 2.55,
-                wordSpacing: '0.08em',
+                lineHeight: 1.95,
               }}
             >
               {displayedVerses.map((verse, idx) => {
@@ -570,14 +570,14 @@ export function ReaderView({
                       data-ayah={verse.verse_number}
                       data-page={verse.page_number}
                       data-juz={verse.juz_number}
-                      className="rounded-md transition-colors duration-300 px-0.5"
+                      className="rounded-md transition-colors duration-300 py-0.5"
                       style={{
                         backgroundColor: isActive
                           ? 'var(--ayah-highlight)'
                           : 'transparent',
                       }}
                     >
-                      {verse.text_indopak}{' '}
+                      {normalizeIndoPakText(verse.text_indopak)}{' '}
                       <button
                         type="button"
                         data-ayah-marker
@@ -587,7 +587,7 @@ export function ReaderView({
                         }
                         title={`আয়াত ${toBanglaDigits(verse.verse_number)} চিহ্নিত করুন`}
                         aria-label={`আয়াত ${toBanglaDigits(verse.verse_number)}`}
-                        className="inline-flex items-center justify-center min-w-[1.65em] h-[1.65em] px-[0.38em] mx-1.5 rounded-full border align-middle font-semibold leading-none tracking-normal cursor-pointer transition-transform active:scale-90"
+                        className="inline-flex items-center justify-center min-w-[1.65em] h-[1.65em] px-[0.38em] mx-1 rounded-full border align-middle font-semibold leading-none tracking-normal cursor-pointer transition-transform active:scale-90"
                         style={{
                           fontFamily: '"Noto Sans Bengali", sans-serif',
                           fontSize: '0.42em',

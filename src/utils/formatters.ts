@@ -25,6 +25,26 @@ export function toBanglaDigits(num: number): string {
     .join('');
 }
 
+/**
+ * Normalizes Quran.com IndoPak text so:
+ * - trailing PUA ayah-number circles (\uF500-\uF61E) and their \u06DF marker
+ *   are stripped cleanly (while keeping any waqf sign before them),
+ * - em-spaces (\u2003) and stray BOMs (\ufeff) do not create wide gaps,
+ * - legacy U+06E1 circle-sukun and U+0649 medial-yeh map to IndoPak Nastaleeq
+ *   jazm (U+0652) and Farsi yeh (U+06CC) to match Quran.com 100%.
+ */
+export function normalizeIndoPakText(text: string): string {
+  return text
+    .replace(/\ufeff/g, '')
+    .replace(/\s*\u06df([^\s]*?)[\uf500-\uf61e]\s*$/, (_, waqf: string) =>
+      waqf ? ` ${waqf}` : ''
+    )
+    .replace(/\u06e1/g, '\u0652')
+    .replace(/\u0649(?=\u0652|[\u0621-\u064a])/g, '\u06cc')
+    .replace(/[\u2003 ]+/g, ' ')
+    .trim();
+}
+
 export const DAY_NAMES_BN = [
   'রবিবার',
   'সোমবার',

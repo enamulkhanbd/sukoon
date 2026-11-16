@@ -92,6 +92,7 @@ export interface CachedSurah {
   nameBangla: string;
   totalVerses: number;
   verses: CachedVerse[];
+  scriptVersion?: number;
 }
 
 export type ThemeMode = 'paper' | 'olive' | 'black';

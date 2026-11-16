@@ -170,7 +170,7 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
                   boxShadow: active ? '0 0 0 2px var(--accent)' : 'none',
                 }}
               >
-                <div className="font-indopak text-xl leading-none">بِسۡمِ</div>
+                <div className="font-indopak text-xl leading-none">بِسْمِ</div>
                 <div className="text-xs font-semibold pt-1">{t.label}</div>
                 <div className="text-[10px] opacity-75">{t.desc}</div>
               </button>
@@ -202,10 +202,10 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
               backgroundColor: 'var(--bg-page)',
               borderColor: 'var(--border-subtle)',
               fontSize: `${settings.fontSize}px`,
-              lineHeight: 2.5,
+              lineHeight: 1.95,
             }}
           >
-            اَلۡحَمۡدُ لِلّٰهِ رَبِّ الۡعٰلَمِيۡنَۙ‏
+            اَلْحَمْدُ لِلّٰهِ رَبِّ الْعٰلَمِیْنَ ۙ
           </div>
         </div>
 

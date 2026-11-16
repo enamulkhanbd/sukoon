@@ -474,7 +474,8 @@ export function ReaderQuickSettingsSheet({
             onChange={(e) =>
               onUpdateSettings({ fontSize: Number(e.target.value) })
             }
-            className="w-full accent-emerald-700 cursor-pointer"
+            className="w-full cursor-pointer"
+            style={{ accentColor: 'var(--accent)' }}
           />
         </div>
 

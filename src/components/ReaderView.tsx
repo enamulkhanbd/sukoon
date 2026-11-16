@@ -631,7 +631,7 @@ export function ReaderView({
                 className="font-indopak text-2xl"
                 style={{ color: 'var(--gold)' }}
               >
-                صَدَقَ اللّٰهُ الْعَظِيْمُ
+                صَدَقَ اللّٰهُ الْعَظِیْمُ
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {activeRoutineItem &&

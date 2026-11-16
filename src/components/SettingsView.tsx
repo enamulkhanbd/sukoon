@@ -149,7 +149,8 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
             onChange={(e) =>
               onUpdateSettings({ fontSize: Number(e.target.value) })
             }
-            className="w-full accent-emerald-700 cursor-pointer"
+            className="w-full cursor-pointer"
+            style={{ accentColor: 'var(--accent)' }}
           />
           <div
             className="rounded-2xl border px-4 py-3 text-center font-indopak"

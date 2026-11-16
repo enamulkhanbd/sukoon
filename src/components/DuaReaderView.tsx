@@ -286,7 +286,7 @@ export function DuaReaderView({
           <p
             dir="rtl"
             lang="ar"
-            className="font-indopak text-right leading-[2.25] select-text whitespace-pre-line"
+            className="font-indopak text-right leading-[1.95] select-text whitespace-pre-line"
             style={{
               fontSize: `${arabicFontSize}px`,
               color: 'var(--text-primary)',

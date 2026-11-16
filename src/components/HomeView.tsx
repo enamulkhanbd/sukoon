@@ -281,12 +281,13 @@ export function HomeView({
             </div>
             <div className="text-right shrink-0 hidden xs:block sm:block">
               <div
-                className="font-indopak text-3xl leading-normal"
+                className="font-surah-names text-5xl leading-none select-none"
                 style={{ color: 'var(--gold)' }}
+                aria-hidden="true"
               >
-                {lastReadMeta.nameArabic}
+                {String(lastReadMeta.id).padStart(3, '0')}
               </div>
-              <div className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+              <div className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
                 সূরা {toBanglaDigits(lastReadMeta.id)}
               </div>
             </div>

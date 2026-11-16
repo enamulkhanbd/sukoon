@@ -24,6 +24,7 @@ import {
   DAY_SHORT_BN,
   formatNormalizedRoutineItemLabel,
   formatRoutineSummaryBn,
+  normalizeIndoPakText,
   toBanglaDigits,
 } from '../utils/formatters';
 import { TopBar } from './NavigationChrome';
@@ -350,11 +351,11 @@ export function RoutineDetailView({
                             </p>
                           </div>
                           <span
-                            className="font-indopak text-xl shrink-0"
-                            dir="rtl"
+                            className="font-surah-names text-[2rem] leading-none shrink-0 select-none"
                             style={{ color: 'var(--text-primary)' }}
+                            aria-hidden="true"
                           >
-                            {surahMeta.nameArabic}
+                            {String(surahMeta.id).padStart(3, '0')}
                           </span>
                         </div>
 
@@ -393,7 +394,7 @@ export function RoutineDetailView({
                             borderColor: 'var(--border-subtle)',
                           }}
                         >
-                          {dua.arabic}
+                          {normalizeIndoPakText(dua.arabic)}
                         </p>
                         <p
                           className="text-xs leading-relaxed"

@@ -158,19 +158,32 @@ export async function countCompleteCachedSurahs(): Promise<number> {
   return all.filter((c) => isSurahFullyCached(c, c.surahId)).length;
 }
 
+export async function countOutdatedCachedSurahs(): Promise<number> {
+  const all = await db.cachedSurahs.toArray();
+  return all.filter(
+    (c) =>
+      isSurahFullyCached(c, c.surahId) &&
+      c.scriptVersion !== INDOPAK_SCRIPT_VERSION
+  ).length;
+}
+
 export async function downloadAllSurahsForOffline(
   onProgress: (progress: OfflineDownloadProgress) => void,
   signal?: AbortSignal
 ): Promise<{ totalCached: number; failedIds: number[] }> {
   const existingRows = await db.cachedSurahs.toArray();
-  const completeIds = new Set(
+  const upToDateIds = new Set(
     existingRows
-      .filter((c) => isSurahFullyCached(c, c.surahId))
+      .filter(
+        (c) =>
+          isSurahFullyCached(c, c.surahId) &&
+          c.scriptVersion === INDOPAK_SCRIPT_VERSION
+      )
       .map((c) => c.surahId)
   );
-  const missing = SURAHS.filter((s) => !completeIds.has(s.id));
+  const missing = SURAHS.filter((s) => !upToDateIds.has(s.id));
 
-  let completed = completeIds.size;
+  let completed = upToDateIds.size;
   const total = SURAHS.length;
   const failedIds: number[] = [];
 

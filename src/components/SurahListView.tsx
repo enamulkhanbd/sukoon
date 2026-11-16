@@ -211,10 +211,11 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
                   </div>
 
                   <span
-                    className="font-indopak text-xl leading-normal shrink-0"
+                    className="font-surah-names text-[2rem] leading-none shrink-0 select-none"
                     style={{ color: 'var(--text-primary)' }}
+                    aria-hidden="true"
                   >
-                    {surah.nameArabic}
+                    {String(surah.id).padStart(3, '0')}
                   </span>
                 </div>
 

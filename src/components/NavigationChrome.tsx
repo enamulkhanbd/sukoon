@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -276,16 +277,92 @@ export function TopBar({
   );
 }
 
-const READER_THEMES: Array<{
+export const THEME_OPTIONS: Array<{
   id: ThemeMode;
   label: string;
+  desc: string;
   swatch: string;
   ink: string;
 }> = [
-  { id: 'paper', label: 'কাগজ', swatch: '#FAF6EE', ink: '#1F241E' },
-  { id: 'olive', label: 'জলপাই', swatch: '#EEF2EA', ink: '#1A241B' },
-  { id: 'black', label: 'রাত', swatch: '#070807', ink: '#E8E2D5' },
+  { id: 'paper', label: 'কাগজ', desc: 'উষ্ণ মুসহাফ', swatch: '#FAF6EE', ink: '#1F241E' },
+  { id: 'olive', label: 'জলপাই', desc: 'স্নিগ্ধ সবুজ', swatch: '#EEF2EA', ink: '#1A241B' },
+  { id: 'black', label: 'রাত', desc: 'ওলেড কালো', swatch: '#070807', ink: '#E8E2D5' },
 ];
+
+interface ThemePickerProps {
+  value: ThemeMode;
+  onSelect: (theme: ThemeMode, label: string) => void;
+  showDescription?: boolean;
+}
+
+/** Tactile circular-swatch theme selector shared across Settings and Reader sheets. */
+export function ThemePicker({
+  value,
+  onSelect,
+  showDescription = false,
+}: ThemePickerProps) {
+  return (
+    <div className="grid grid-cols-3 gap-2.5">
+      {THEME_OPTIONS.map((t) => {
+        const active = value === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onSelect(t.id, t.label)}
+            aria-pressed={active}
+            className="relative flex flex-col items-center gap-2 rounded-2xl border px-2.5 py-3 transition-colors cursor-pointer active:scale-[0.98]"
+            style={{
+              backgroundColor: active ? 'var(--bg-surface)' : 'var(--bg-page)',
+              borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
+            }}
+          >
+            <span
+              className="w-9 h-9 rounded-full border flex items-center justify-center font-indopak text-base leading-none"
+              style={{
+                backgroundColor: t.swatch,
+                color: t.ink,
+                borderColor: active
+                  ? 'var(--accent)'
+                  : 'color-mix(in srgb, var(--text-primary) 16%, transparent)',
+              }}
+              aria-hidden="true"
+            >
+              ع
+            </span>
+            <div className="text-center leading-tight">
+              <div
+                className="text-xs font-semibold"
+                style={{ color: active ? 'var(--accent)' : 'var(--text-primary)' }}
+              >
+                {t.label}
+              </div>
+              {showDescription && (
+                <div
+                  className="text-[10px] mt-0.5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  {t.desc}
+                </div>
+              )}
+            </div>
+            {active && (
+              <span
+                className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  color: 'var(--accent-text)',
+                }}
+              >
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface ReaderQuickSettingsSheetProps {
   open: boolean;
@@ -374,28 +451,10 @@ export function ReaderQuickSettingsSheet({
         {/* Theme Selection */}
         <div className="space-y-2">
           <label className="block text-xs font-semibold">পড়ার থিম</label>
-          <div className="grid grid-cols-3 gap-2">
-            {READER_THEMES.map((t) => {
-              const active = settings.theme === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => onUpdateSettings({ theme: t.id })}
-                  className="flex flex-col items-center gap-1.5 py-2.5 px-2 rounded-2xl border text-xs font-medium cursor-pointer"
-                  style={{
-                    backgroundColor: t.swatch,
-                    color: t.ink,
-                    borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
-                    boxShadow: active ? '0 0 0 2px var(--accent)' : 'none',
-                  }}
-                >
-                  <span className="font-indopak text-lg leading-none">ق</span>
-                  <span>{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <ThemePicker
+            value={settings.theme}
+            onSelect={(theme) => onUpdateSettings({ theme })}
+          />
         </div>
 
         {/* Font Size Slider */}

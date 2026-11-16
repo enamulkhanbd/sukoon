@@ -1319,8 +1319,11 @@ export function RoutinesView({
                                 ({toBanglaDigits(s.versesCount)})
                               </span>
                             </span>
-                            <span className="font-indopak text-base mr-2">
-                              {s.nameArabic}
+                            <span
+                              className="font-surah-names text-2xl leading-none mr-2 select-none"
+                              aria-hidden="true"
+                            >
+                              {String(s.id).padStart(3, '0')}
                             </span>
                           </button>
 

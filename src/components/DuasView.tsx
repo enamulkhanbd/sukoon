@@ -14,7 +14,7 @@ import {
   type DuaItem,
 } from '../data/duas';
 import type { Settings } from '../db/database';
-import { toBanglaDigits } from '../utils/formatters';
+import { normalizeIndoPakText, toBanglaDigits } from '../utils/formatters';
 import { TabHeader, TopBar, TopBarIconButton } from './NavigationChrome';
 
 interface DuasViewProps {
@@ -210,7 +210,7 @@ export function DuasView({
           className="font-indopak text-right text-lg leading-loose line-clamp-1 opacity-90"
           style={{ color: 'var(--text-primary)' }}
         >
-          {dua.arabic}
+          {normalizeIndoPakText(dua.arabic)}
         </p>
       </div>
     );

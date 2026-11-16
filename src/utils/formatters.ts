@@ -41,7 +41,7 @@ export function normalizeIndoPakText(text: string): string {
     )
     .replace(/\u06e1/g, '\u0652')
     .replace(/\u0649(?=\u0652|[\u0621-\u064a])/g, '\u06cc')
-    .replace(/[\u2003 ]+/g, ' ')
+    .replace(/[\u2002\u2003 ]+/g, ' ')
     .trim();
 }
 

@@ -16,7 +16,6 @@ import {
   exportUserData,
   importUserData,
   type Settings,
-  type ThemeMode,
 } from '../db/database';
 import { usePwaInstall } from '../hooks/usePwaInstall';
 import {
@@ -24,9 +23,12 @@ import {
   startOfflineSync,
   useOfflineSync,
 } from '../services/offlineSyncStore';
-import { countCompleteCachedSurahs } from '../services/quranApi';
+import {
+  countCompleteCachedSurahs,
+  countOutdatedCachedSurahs,
+} from '../services/quranApi';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
-import { TabHeader } from './NavigationChrome';
+import { TabHeader, ThemePicker } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface SettingsViewProps {
@@ -34,39 +36,10 @@ interface SettingsViewProps {
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
 }
 
-const THEME_OPTIONS: Array<{
-  id: ThemeMode;
-  label: string;
-  desc: string;
-  bg: string;
-  ink: string;
-}> = [
-  {
-    id: 'paper',
-    label: 'কাগজ',
-    desc: 'উষ্ণ মুসহাফ',
-    bg: '#FAF6EE',
-    ink: '#1F241E',
-  },
-  {
-    id: 'olive',
-    label: 'জলপাই',
-    desc: 'স্নিগ্ধ সবুজ',
-    bg: '#EEF2EA',
-    ink: '#1A241B',
-  },
-  {
-    id: 'black',
-    label: 'রাত',
-    desc: 'ওলেড কালো',
-    bg: '#070807',
-    ink: '#E8E2D5',
-  },
-];
-
 export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) {
   const toast = useToast();
   const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []) ?? 0;
+  const outdatedCount = useLiveQuery(() => countOutdatedCachedSurahs(), []) ?? 0;
   const readingHistory = useLiveQuery(() => db.readingHistory.toArray(), []) ?? [];
   const { canInstall, isInstalled, promptInstall } = usePwaInstall();
 
@@ -151,32 +124,14 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
       >
         <h2 className="text-sm font-semibold">পড়ার পরিবেশ ও টাইপোগ্রাফি</h2>
 
-        <div className="grid grid-cols-3 gap-2.5">
-          {THEME_OPTIONS.map((t) => {
-            const active = settings.theme === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={async () => {
-                  await onUpdateSettings({ theme: t.id });
-                  toast.success(`থিম পরিবর্তন হয়েছে: ${t.label}`);
-                }}
-                className="rounded-2xl border p-3 text-center space-y-1 transition-all cursor-pointer"
-                style={{
-                  backgroundColor: t.bg,
-                  color: t.ink,
-                  borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
-                  boxShadow: active ? '0 0 0 2px var(--accent)' : 'none',
-                }}
-              >
-                <div className="font-indopak text-xl leading-none">بِسْمِ</div>
-                <div className="text-xs font-semibold pt-1">{t.label}</div>
-                <div className="text-[10px] opacity-75">{t.desc}</div>
-              </button>
-            );
-          })}
-        </div>
+        <ThemePicker
+          value={settings.theme}
+          showDescription
+          onSelect={async (theme, label) => {
+            await onUpdateSettings({ theme });
+            toast.success(`থিম পরিবর্তন হয়েছে: ${label}`);
+          }}
+        />
 
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
@@ -356,7 +311,7 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
               স্থগিত করুন
             </button>
           ) : (
-            cachedCount < 114 && (
+            (cachedCount < 114 || outdatedCount > 0) && (
               <button
                 type="button"
                 onClick={handleDownloadAll}
@@ -367,9 +322,11 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
                 }}
               >
                 <CloudDownload className="w-4 h-4" />
-                {cachedCount > 0
-                  ? 'বাকি সূরা ডাউনলোড করুন'
-                  : 'সম্পূর্ণ কুরআন ডাউনলোড করুন'}
+                {cachedCount >= 114
+                  ? 'ইন্দো-পাক স্ক্রিপ্ট আপডেট করুন'
+                  : cachedCount > 0
+                    ? 'বাকি সূরা ডাউনলোড করুন'
+                    : 'সম্পূর্ণ কুরআন ডাউনলোড করুন'}
               </button>
             )
           )}

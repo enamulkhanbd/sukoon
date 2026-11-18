@@ -4,6 +4,14 @@ export interface QuranRef {
   endAyah: number;
 }
 
+export interface DuaPart {
+  id: string;
+  arabic: string;
+  transliteration?: string;
+  translationBangla: string;
+  repeatCount?: number;
+}
+
 export interface DuaChapter {
   id: number;
   titleBangla: string;
@@ -22,4 +30,5 @@ export interface DuaItem {
   translationBangla: string;
   reference?: string;
   quranRef?: QuranRef;
+  parts?: DuaPart[];
 }

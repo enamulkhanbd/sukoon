@@ -1,7 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
-  BookOpenCheck,
   CalendarDays,
   CheckCircle2,
   Compass,
@@ -23,10 +22,10 @@ import {
   DAY_NAMES_BN,
   DAY_SHORT_BN,
   formatNormalizedRoutineItemLabel,
-  formatRelativeTimeBn,
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
+import { LastReadSurahCard } from './LastReadSurahCard';
 import { TabHeader } from './NavigationChrome';
 
 interface HomeViewProps {
@@ -44,7 +43,10 @@ export function HomeView({
 }: HomeViewProps) {
   const todayIndex = new Date().getDay();
 
-  const lastRead = useLiveQuery(() => db.globalLastRead.get('current'), []);
+  const lastRead = useLiveQuery(
+    async () => (await db.globalLastRead.get('current')) ?? null,
+    []
+  );
   const routines = useLiveQuery(
     () => db.routines.orderBy('createdAt').toArray(),
     []
@@ -236,63 +238,16 @@ export function HomeView({
       />
 
       {/* Smart Last-Read Hero Card */}
-      <section
-        className="rounded-3xl border p-5 relative overflow-hidden"
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          borderColor: 'var(--border-subtle)',
-        }}
-      >
-        {lastRead && lastReadMeta ? (
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 space-y-1">
-              <div
-                className="inline-flex items-center gap-1.5 text-xs font-medium"
-                style={{ color: 'var(--accent)' }}
-              >
-                <BookOpenCheck className="w-4 h-4" />
-                <span>সর্বশেষ তিলাওয়াত</span>
-                <span style={{ color: 'var(--text-muted)' }}>
-                  • {formatRelativeTimeBn(lastRead.timestamp)}
-                </span>
-              </div>
-              <h2 className="text-xl font-bold tracking-tight truncate">
-                {lastReadMeta.nameBangla}
-              </h2>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                আয়াত {toBanglaDigits(lastRead.ayahNumber)} /{' '}
-                {toBanglaDigits(lastReadMeta.versesCount)} • পৃষ্ঠা{' '}
-                {toBanglaDigits(lastRead.pageNumber)}
-              </p>
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => onOpenSurah(lastRead.surahId, lastRead.ayahNumber)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-transform active:scale-95 cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--accent)',
-                    color: 'var(--accent-text)',
-                  }}
-                >
-                  তিলাওয়াত চালিয়ে যান
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div className="text-right shrink-0 hidden xs:block sm:block">
-              <div
-                className="font-surah-names text-5xl leading-none select-none"
-                style={{ color: 'var(--gold)' }}
-                aria-hidden="true"
-              >
-                {String(lastReadMeta.id).padStart(3, '0')}
-              </div>
-              <div className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                সূরা {toBanglaDigits(lastReadMeta.id)}
-              </div>
-            </div>
-          </div>
-        ) : (
+      {lastRead && lastReadMeta ? (
+        <LastReadSurahCard lastRead={lastRead} onOpenSurah={onOpenSurah} />
+      ) : lastRead !== undefined ? (
+        <section
+          className="rounded-3xl border p-5 relative overflow-hidden"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border-subtle)',
+          }}
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div
@@ -335,8 +290,8 @@ export function HomeView({
               </button>
             </div>
           </div>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       {/* Today's Routines */}
       <section className="space-y-3">

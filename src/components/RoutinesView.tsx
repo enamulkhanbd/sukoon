@@ -1515,7 +1515,7 @@ export function RoutinesView({
                                     }}
                                   >
                                     <Plus className="w-3.5 h-3.5 shrink-0" />
-                                    ফজর (৩টি)
+                                    ফজর ({toBanglaDigits(SALAH_FAJR_SPECIAL_IDS.length)}টি)
                                   </button>
                                   <button
                                     type="button"

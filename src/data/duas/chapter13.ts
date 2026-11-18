@@ -144,9 +144,48 @@ export const DUAS_CHAPTER_13: DuaItem[] = [
     quranRef: { surahId: 112, startAyah: 1, endAyah: 4 },
   },
   {
-    id: 'ch13-fajr-ajirni',
+    id: 'ch13-fajr-sunnah-fard-tasbih',
     chapterId: 13,
     order: 11,
+    titleBangla: 'ফজর: সুন্নাত ও ফরজের মাঝে পঠিত দুআ',
+    repeatCount: 100,
+    occasionNote: 'ফজরের ২ রাকাত সুন্নাত ও ফরজ সালাতের মাঝে (প্রতিটি ১০০ বার)',
+    arabic:
+      'سُبْحَانَ اللّٰهِ وَبِحَمْدِهِ ۞ سُبْحَانَ اللّٰهِ الْعَظِيمِ ۞ أَسْتَغْفِرُ اللّٰهَ',
+    transliteration:
+      '১. সুবহানাল্লাহি ওয়া বিহামদিহী।\n২. সুবহানাল্লাহিল আযীম।\n৩. আস্তাগফিরুল্লাহ।',
+    translationBangla:
+      'ফজরের ২ রাকাত সুন্নাত ও ফরজ সালাতের মধ্যবর্তী সময়ে নিচের তিনটি তাসবীহ ও ইস্তেগফার পৃথকভাবে ১০০ বার করে পাঠ করার আমল বর্ণিত রয়েছে।',
+    reference:
+      'আল-মুস্তাগফিরী (আদ-দাআওয়াত), ইহইয়াউ উলূমিদ্দীন; মূল তাসবীহ: সহীহ বুখারী ৬৬৮২, সহীহ মুসলিম ২৬৯৪',
+    parts: [
+      {
+        id: 'subhanallahi-wa-bihamdihi',
+        arabic: 'سُبْحَانَ اللّٰهِ وَبِحَمْدِهِ',
+        transliteration: 'সুবহানাল্লাহি ওয়া বিহামদিহী।',
+        translationBangla: 'আমি আল্লাহর প্রশংসা ও পবিত্রতা ঘোষণা করছি।',
+        repeatCount: 100,
+      },
+      {
+        id: 'subhanallahil-azeem',
+        arabic: 'سُبْحَانَ اللّٰهِ الْعَظِيمِ',
+        transliteration: 'সুবহানাল্লাহিল আযীম।',
+        translationBangla: 'মহান আল্লাহর পবিত্রতা ঘোষণা করছি।',
+        repeatCount: 100,
+      },
+      {
+        id: 'astaghfirullah',
+        arabic: 'أَسْتَغْفِرُ اللّٰهَ',
+        transliteration: 'আস্তাগফিরুল্লাহ।',
+        translationBangla: 'আমি আল্লাহর কাছে ক্ষমা প্রার্থনা করছি।',
+        repeatCount: 100,
+      },
+    ],
+  },
+  {
+    id: 'ch13-fajr-ajirni',
+    chapterId: 13,
+    order: 12,
     titleBangla: 'ফজর: জাহান্নাম থেকে মুক্তির দুআ (আজিরনী মিনান-নার)',
     repeatCount: 7,
     occasionNote: 'ফজরের ফরজ সালাতের পর কথা বলার আগেই ৭ বার',
@@ -159,7 +198,7 @@ export const DUAS_CHAPTER_13: DuaItem[] = [
   {
     id: 'ch13-fajr-kalima-10',
     chapterId: 13,
-    order: 12,
+    order: 13,
     titleBangla: 'ফজর: কালিমায়ে তাওহীদ (১০ বার)',
     repeatCount: 10,
     occasionNote: 'ফজরের ফরজ সালাতের পর কথা বলার আগেই ১০ বার',
@@ -174,7 +213,7 @@ export const DUAS_CHAPTER_13: DuaItem[] = [
   {
     id: 'ch13-fajr-ilm-rizq',
     chapterId: 13,
-    order: 13,
+    order: 14,
     titleBangla: 'ফজর: উপকারী ইলম, পবিত্র রিযিক ও কবুল আমলের দুআ',
     repeatCount: 1,
     occasionNote: 'ফজরের ফরজ সালাতের সালাম ফেরানোর পর ১ বার',
@@ -189,7 +228,7 @@ export const DUAS_CHAPTER_13: DuaItem[] = [
   {
     id: 'ch13-maghrib-ajirni',
     chapterId: 13,
-    order: 14,
+    order: 15,
     titleBangla: 'মাগরিব: জাহান্নাম থেকে মুক্তির দুআ (আজিরনী মিনান-নার)',
     repeatCount: 7,
     occasionNote: 'মাগরিবের ফরজ সালাতের পর কথা বলার আগেই ৭ বার',
@@ -202,7 +241,7 @@ export const DUAS_CHAPTER_13: DuaItem[] = [
   {
     id: 'ch13-maghrib-kalima-10',
     chapterId: 13,
-    order: 15,
+    order: 16,
     titleBangla: 'মাগরিব: কালিমায়ে তাওহীদ (১০ বার)',
     repeatCount: 10,
     occasionNote: 'মাগরিবের ফরজ সালাতের পর কথা বলার আগেই ১০ বার',
@@ -230,6 +269,7 @@ export const SALAH_COMMON_DUA_IDS: string[] = [
 ];
 
 export const SALAH_FAJR_SPECIAL_IDS: string[] = [
+  'ch13-fajr-sunnah-fard-tasbih',
   'ch13-fajr-ajirni',
   'ch13-fajr-kalima-10',
   'ch13-fajr-ilm-rizq',

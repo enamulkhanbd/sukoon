@@ -61,8 +61,14 @@ export function DuaReaderView({
   const toast = useToast();
   const targetCount = Math.max(1, routineTargetCount ?? dua.repeatCount ?? 1);
   const [tapCount, setTapCount] = useState(0);
+  const [partTapCounts, setPartTapCounts] = useState<Record<string, number>>({});
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const parts = dua.parts && dua.parts.length > 0 ? dua.parts : null;
+  const hasAnyTransliteration = Boolean(
+    dua.transliteration || parts?.some((p) => p.transliteration)
+  );
 
   const { supported: wakeLockSupported, active: wakeLockActive } = useWakeLock(
     settings.keepScreenAwake
@@ -102,6 +108,7 @@ export function DuaReaderView({
   // Reset counter & mark routine item visited when Dua changes
   useEffect(() => {
     setTapCount(0);
+    setPartTapCounts({});
     window.scrollTo({ top: 0, behavior: 'auto' });
     if (routine && routineNav) {
       updateDuaRoutineProgress({
@@ -128,10 +135,23 @@ export function DuaReaderView({
   };
 
   const handleCopy = async () => {
+    const bodyText = parts
+      ? parts
+          .map((part, idx) =>
+            [
+              `${toBanglaDigits(idx + 1)}. ${part.arabic}`,
+              part.transliteration ?? '',
+              part.translationBangla,
+            ]
+              .filter(Boolean)
+              .join('\n')
+          )
+          .join('\n\n')
+      : [dua.arabic, dua.translationBangla].join('\n\n');
+
     const text = [
       dua.titleBangla,
-      dua.arabic,
-      dua.translationBangla,
+      bodyText,
       dua.reference ? `সূত্র: ${dua.reference}` : '',
     ]
       .filter(Boolean)
@@ -154,6 +174,16 @@ export function DuaReaderView({
         navigator.vibrate(next === targetCount ? [20, 40, 20] : 12);
       }
       return next;
+    });
+  };
+
+  const handleIncrementPartCounter = (partId: string, partTarget: number) => {
+    setPartTapCounts((prev) => {
+      const next = (prev[partId] ?? 0) + 1;
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(next === partTarget ? [20, 40, 20] : 12);
+      }
+      return { ...prev, [partId]: next };
     });
   };
 
@@ -183,12 +213,135 @@ export function DuaReaderView({
   };
 
   const arabicFontSize = Math.min(44, Math.max(24, settings.fontSize));
-  const counterDone = tapCount >= targetCount;
   const wakeLockSubtitle = !wakeLockSupported
     ? 'এই ব্রাউজারে ওয়েক-লক সমর্থিত নয়'
     : wakeLockActive
       ? 'সক্রিয় রয়েছে (স্ক্রিন বন্ধ হবে না)'
       : 'তিলাওয়াতের সময় স্ক্রিন জাগ্রত রাখবে';
+
+  const renderTasbihCounter = (params: {
+    count: number;
+    target: number;
+    surfaceBg: string;
+    resetBg: string;
+    onReset: () => void;
+    onIncrement: () => void;
+  }) => {
+    const { count, target, surfaceBg, resetBg, onReset, onIncrement } = params;
+    const done = count >= target;
+    return (
+      <div
+        className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3"
+        style={{
+          backgroundColor: done ? 'var(--accent-soft)' : surfaceBg,
+          borderColor: done ? 'var(--accent)' : 'var(--border-subtle)',
+        }}
+      >
+        <div>
+          <div className="text-xs font-semibold">জিকির গণনা</div>
+          <div className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            লক্ষ্য: {toBanglaDigits(target)} বার • সম্পন্ন:{' '}
+            <strong>{toBanglaDigits(count)}</strong> বার
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {count > 0 && (
+            <button
+              type="button"
+              onClick={onReset}
+              aria-label="গণনা রিসেট"
+              className="p-2 rounded-xl border cursor-pointer"
+              style={{
+                backgroundColor: resetBg,
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onIncrement}
+            className="px-4 py-2 rounded-xl text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
+            style={{
+              backgroundColor: 'var(--accent)',
+              color: 'var(--accent-text)',
+            }}
+          >
+            {done
+              ? `সম্পন্ন (${toBanglaDigits(count)})`
+              : `+১ (${toBanglaDigits(count)}/${toBanglaDigits(target)})`}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTransliterationAndMeaning = (params: {
+    transliteration?: string;
+    meaning: string;
+    meaningLabel: string;
+  }) => {
+    const { transliteration, meaning, meaningLabel } = params;
+    const hasTranslit = Boolean(transliteration && showTransliteration);
+    return (
+      <>
+        {hasTranslit && (
+          <div className="space-y-1">
+            <div
+              className="text-[11px] font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--accent)' }}
+            >
+              বাংলা উচ্চারণ
+            </div>
+            <p
+              className="text-sm leading-relaxed whitespace-pre-line"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {transliteration}
+            </p>
+          </div>
+        )}
+
+        <div
+          className={`space-y-1 ${hasTranslit ? 'pt-3 border-t' : ''}`}
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
+          <div
+            className="text-[11px] font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--gold)' }}
+          >
+            {meaningLabel}
+          </div>
+          <p className="text-sm leading-relaxed whitespace-pre-line">{meaning}</p>
+        </div>
+      </>
+    );
+  };
+
+  const renderReferenceFooter = () => (
+    <>
+      {dua.reference && (
+        <span style={{ color: 'var(--text-muted)' }}>
+          সূত্র: {dua.reference}
+        </span>
+      )}
+      {dua.quranRef && onOpenQuranRef && !routine && (
+        <button
+          type="button"
+          onClick={() =>
+            onOpenQuranRef(dua.quranRef!.surahId, dua.quranRef!.startAyah)
+          }
+          className="inline-flex items-center gap-1 font-semibold cursor-pointer"
+          style={{ color: 'var(--accent)' }}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          কুরআন রিডারে পড়ুন
+        </button>
+      )}
+    </>
+  );
 
   return (
     <div className="min-h-dvh paper-frame pb-16">
@@ -271,155 +424,168 @@ export function DuaReaderView({
               color: 'var(--accent)',
             }}
           >
-            {toBanglaDigits(targetCount)} বার
+            {parts
+              ? `${toBanglaDigits(parts.length)}টি পৃথক জিকির`
+              : `${toBanglaDigits(targetCount)} বার`}
           </span>
         </div>
 
-        {/* Arabic Box */}
-        <section
-          className="rounded-3xl border p-5 sm:p-7"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-          }}
-        >
-          <p
-            dir="rtl"
-            lang="ar"
-            className="font-indopak text-right leading-[1.95] select-text whitespace-pre-line"
-            style={{
-              fontSize: `${arabicFontSize}px`,
-              color: 'var(--text-primary)',
-            }}
-          >
-            {normalizeIndoPakText(dua.arabic)}
-          </p>
-        </section>
+        {parts ? (
+          <>
+            <div className="space-y-4">
+              {parts.map((part, idx) => {
+                const partTarget = Math.max(
+                  1,
+                  routineTargetCount ?? part.repeatCount ?? dua.repeatCount ?? 1
+                );
+                const partTapCount = partTapCounts[part.id] ?? 0;
+                const partDone = partTapCount >= partTarget;
 
-        {/* Tasbih Counter (shown cleanly for every Dua; highlighted when targetCount > 1 or inside routine) */}
-        {(targetCount > 1 || routine) && (
-          <section
-            className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3"
-            style={{
-              backgroundColor: counterDone
-                ? 'var(--accent-soft)'
-                : 'var(--bg-elevated)',
-              borderColor: counterDone ? 'var(--accent)' : 'var(--border-subtle)',
-            }}
-          >
-            <div>
-              <div className="text-xs font-semibold">জিকির গণনা</div>
-              <div className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                লক্ষ্য: {toBanglaDigits(targetCount)} বার • সম্পন্ন:{' '}
-                <strong>{toBanglaDigits(tapCount)}</strong> বার
-              </div>
+                return (
+                  <section
+                    key={part.id}
+                    className="rounded-3xl border p-5 space-y-4"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      borderColor: partDone
+                        ? 'var(--accent)'
+                        : 'var(--border-subtle)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold"
+                        style={{
+                          backgroundColor: 'var(--bg-surface)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {toBanglaDigits(idx + 1)}
+                      </span>
+                      <span
+                        className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: 'var(--accent-soft)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {toBanglaDigits(partTarget)} বার
+                      </span>
+                    </div>
+
+                    <p
+                      dir="rtl"
+                      lang="ar"
+                      className="font-indopak text-right leading-[1.95] select-text whitespace-pre-line"
+                      style={{
+                        fontSize: `${arabicFontSize}px`,
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {normalizeIndoPakText(part.arabic)}
+                    </p>
+
+                    <div
+                      className="pt-3 border-t space-y-3"
+                      style={{ borderColor: 'var(--border-subtle)' }}
+                    >
+                      {renderTransliterationAndMeaning({
+                        transliteration: part.transliteration,
+                        meaning: part.translationBangla,
+                        meaningLabel: 'বাংলা অর্থ',
+                      })}
+                    </div>
+
+                    {(partTarget > 1 || routine) &&
+                      renderTasbihCounter({
+                        count: partTapCount,
+                        target: partTarget,
+                        surfaceBg: 'var(--bg-page)',
+                        resetBg: 'var(--bg-elevated)',
+                        onReset: () =>
+                          setPartTapCounts((prev) => ({
+                            ...prev,
+                            [part.id]: 0,
+                          })),
+                        onIncrement: () =>
+                          handleIncrementPartCounter(part.id, partTarget),
+                      })}
+                  </section>
+                );
+              })}
             </div>
-            <div className="flex items-center gap-2">
-              {tapCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setTapCount(0)}
-                  aria-label="গণনা রিসেট"
-                  className="p-2 rounded-xl border cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--bg-page)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleIncrementCounter}
-                className="px-4 py-2 rounded-xl text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
+
+            {(dua.reference || dua.quranRef) && (
+              <section
+                className="rounded-3xl border px-5 py-4 flex items-center justify-between gap-3 flex-wrap text-xs"
                 style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--border-subtle)',
                 }}
               >
-                {counterDone
-                  ? `সম্পন্ন (${toBanglaDigits(tapCount)})`
-                  : `+১ (${toBanglaDigits(tapCount)}/${toBanglaDigits(
-                      targetCount
-                    )})`}
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Bangla Transliteration & Meaning */}
-        <section
-          className="rounded-3xl border p-5 space-y-4"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-          }}
-        >
-          {dua.transliteration && showTransliteration && (
-            <div className="space-y-1">
-              <div
-                className="text-[11px] font-semibold uppercase tracking-wide"
-                style={{ color: 'var(--accent)' }}
-              >
-                বাংলা উচ্চারণ
-              </div>
+                {renderReferenceFooter()}
+              </section>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Arabic Box */}
+            <section
+              className="rounded-3xl border p-5 sm:p-7"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-subtle)',
+              }}
+            >
               <p
-                className="text-sm leading-relaxed whitespace-pre-line"
-                style={{ color: 'var(--text-secondary)' }}
+                dir="rtl"
+                lang="ar"
+                className="font-indopak text-right leading-[1.95] select-text whitespace-pre-line"
+                style={{
+                  fontSize: `${arabicFontSize}px`,
+                  color: 'var(--text-primary)',
+                }}
               >
-                {dua.transliteration}
+                {normalizeIndoPakText(dua.arabic)}
               </p>
-            </div>
-          )}
+            </section>
 
-          <div
-            className={`space-y-1 ${
-              dua.transliteration && showTransliteration ? 'pt-3 border-t' : ''
-            }`}
-            style={{ borderColor: 'var(--border-subtle)' }}
-          >
-            <div
-              className="text-[11px] font-semibold uppercase tracking-wide"
-              style={{ color: 'var(--gold)' }}
-            >
-              বাংলা অর্থ ও ফজিলত
-            </div>
-            <p className="text-sm leading-relaxed whitespace-pre-line">
-              {dua.translationBangla}
-            </p>
-          </div>
+            {/* Tasbih Counter (shown cleanly for every Dua; highlighted when targetCount > 1 or inside routine) */}
+            {(targetCount > 1 || routine) &&
+              renderTasbihCounter({
+                count: tapCount,
+                target: targetCount,
+                surfaceBg: 'var(--bg-elevated)',
+                resetBg: 'var(--bg-page)',
+                onReset: () => setTapCount(0),
+                onIncrement: handleIncrementCounter,
+              })}
 
-          {(dua.reference || dua.quranRef) && (
-            <div
-              className="pt-3 border-t flex items-center justify-between gap-3 flex-wrap text-xs"
-              style={{ borderColor: 'var(--border-subtle)' }}
+            {/* Bangla Transliteration & Meaning */}
+            <section
+              className="rounded-3xl border p-5 space-y-4"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-subtle)',
+              }}
             >
-              {dua.reference && (
-                <span style={{ color: 'var(--text-muted)' }}>
-                  সূত্র: {dua.reference}
-                </span>
-              )}
-              {dua.quranRef && onOpenQuranRef && !routine && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenQuranRef(
-                      dua.quranRef!.surahId,
-                      dua.quranRef!.startAyah
-                    )
-                  }
-                  className="inline-flex items-center gap-1 font-semibold cursor-pointer"
-                  style={{ color: 'var(--accent)' }}
+              {renderTransliterationAndMeaning({
+                transliteration: dua.transliteration,
+                meaning: dua.translationBangla,
+                meaningLabel: 'বাংলা অর্থ ও ফজিলত',
+              })}
+
+              {(dua.reference || dua.quranRef) && (
+                <div
+                  className="pt-3 border-t flex items-center justify-between gap-3 flex-wrap text-xs"
+                  style={{ borderColor: 'var(--border-subtle)' }}
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  কুরআন রিডারে পড়ুন
-                </button>
+                  {renderReferenceFooter()}
+                </div>
               )}
-            </div>
-          )}
-        </section>
+            </section>
+          </>
+        )}
 
         {/* Bottom Routine Progression or Chapter Navigation */}
         {routineNav ? (
@@ -481,7 +647,7 @@ export function DuaReaderView({
         onUpdateSettings={onUpdateSettings}
         wakeLockSubtitle={wakeLockSubtitle}
       >
-        {dua.transliteration && (
+        {hasAnyTransliteration && (
           <div
             className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border"
             style={{

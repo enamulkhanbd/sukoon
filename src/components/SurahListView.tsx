@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Search, X } from 'lucide-react';
-import { SURAHS } from '../data/surahs';
+import { SURAH_MAP, SURAHS } from '../data/surahs';
 import { db, type GlobalLastRead } from '../db/database';
 import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
+import { LastReadSurahCard } from './LastReadSurahCard';
 import { TabHeader } from './NavigationChrome';
 
 interface SurahListViewProps {
@@ -28,6 +29,11 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
           .map((c) => c.surahId)
       ),
     [cachedRows]
+  );
+
+  const currentLastRead = useMemo(
+    () => (lastReadRows ?? []).find((row) => row.id === 'current'),
+    [lastReadRows]
   );
 
   const surahLastReadMap = useMemo(() => {
@@ -127,6 +133,14 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
           );
         })}
       </div>
+
+      {/* Last-Read Surah Card */}
+      {currentLastRead && SURAH_MAP[currentLastRead.surahId] && !query.trim() && (
+        <LastReadSurahCard
+          lastRead={currentLastRead}
+          onOpenSurah={onOpenSurah}
+        />
+      )}
 
       {/* Surah List */}
       <div className="space-y-2">

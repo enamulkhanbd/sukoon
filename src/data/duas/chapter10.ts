@@ -10,6 +10,7 @@ function makeQuranRuqyahItem(params: {
   startAyah: number;
   endAyah: number;
   reference: string;
+  transliteration?: string;
 }): DuaItem {
   const passage = RUQYAH_PASSAGES[params.passageKey];
   return {
@@ -20,6 +21,7 @@ function makeQuranRuqyahItem(params: {
     repeatCount: 1,
     occasionNote: 'অনিষ্ট, জাদু ও বদনজর থেকে আত্মরক্ষার রুকইয়া',
     arabic: passage?.arabic ?? '',
+    transliteration: params.transliteration,
     translationBangla: passage?.translationBangla ?? '',
     reference: params.reference,
     quranRef: {
@@ -96,6 +98,8 @@ export const DUAS_CHAPTER_10: DuaItem[] = [
     startAyah: 255,
     endAyah: 255,
     reference: 'সূরা বাকারা ২৫৫ (সহীহ বুখারী ২৩১১)',
+    transliteration:
+      'আল্লা-হু লা- ইলা-হা ইল্লা- হুওয়াল হাইয়ুল কাইয়ূম; লা- তা’খুযুহূ সিনাতুওঁ ওয়া লা- নাওম।\nলাহূ মা- ফিস-সামা-ওয়া-তি ওয়া মা- ফিল আরদ্ব। মান যাল্লাযী ইয়াশফা‘উ ‘ইনদাহূ ইল্লা- বিইযনিহ।\nইয়া‘লামু মা- বাইনা আইদীহিম ওয়া মা- খালফাহুম, ওয়া লা- ইউহীত্বূনা বিশাইইম মিন ‘ইলমিহী ইল্লা- বিমা- শা-আ।\nওয়াসি‘আ কুরসিয়্যুহুস-সামা-ওয়া-তি ওয়াল আরদ্ব, ওয়া লা- ইয়াঊদুহূ হিফযুহুমা- ওয়া হুওয়াল ‘আলিয়্যুল ‘আযীম।',
   }),
   makeQuranRuqyahItem({
     id: 'ch10-rq-06-baqarah-last-2',

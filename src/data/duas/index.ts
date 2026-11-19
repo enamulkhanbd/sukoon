@@ -80,7 +80,7 @@ export const DUA_CHAPTERS: DuaChapter[] = [
   },
   {
     id: 12,
-    titleBangla: 'নির্বাচিত ৩৩টি গুরুত্বপূর্ণ দুআ',
+    titleBangla: 'নির্বাচিত ৩৪টি গুরুত্বপূর্ণ দুআ',
     subtitleBangla: 'দ্বাদশ অধ্যায় • কুরআন ও সুন্নাহর জামে দুআ',
   },
   {

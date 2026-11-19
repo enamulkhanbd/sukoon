@@ -193,9 +193,39 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
     reference: 'সহীহ বুখারী ৬৪০৬, সহীহ মুসলিম ২৬৯৪',
   },
   {
-    id: 'ch6-death-fitnah',
+    id: 'ch6-tahlil-tasbih-hawqalah',
     chapterId: 6,
     order: 15,
+    titleBangla: 'তাওহীদ, তাসবীহ ও আল্লাহর শক্তির ঘোষণা',
+    repeatCount: 1,
+    occasionNote: 'দৈনিক জিকির ও যেকোনো সময় পাঠযোগ্য',
+    arabic:
+      'لَا إِلٰهَ إِلَّا اللّٰهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ ۞ سُبْحَانَ اللّٰهِ، وَالْحَمْدُ لِلّٰهِ، وَلَا إِلٰهَ إِلَّا اللّٰهُ، وَاللّٰهُ أَكْبَرُ، وَلَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللّٰهِ',
+    transliteration:
+      'লা- ইলা-হা ইল্লাল্লা-হু ওয়াহদাহূ লা- শারীকা লাহূ, লাহুল মুলকু ওয়া লাহুল হামদু ওয়া হুওয়া ‘আলা- কুল্লি শাইয়িন কাদীর।\nসুবহা-নাল্লা-হি ওয়ালহামদু লিল্লা-হি, ওয়া লা- ইলা-হা ইল্লাল্লা-হু ওয়াল্লা-হু আকবার; ওয়া লা- হাওলা ওয়া লা- কুওয়াতা ইল্লা- বিল্লা-হ।',
+    translationBangla:
+      'আল্লাহ ছাড়া কোনো সত্য ইলাহ নেই, তিনি একক, তাঁর কোনো শরীক নেই। রাজত্ব তাঁরই, সমস্ত প্রশংসা তাঁরই এবং তিনি সবকিছুর ওপর ক্ষমতাবান। আল্লাহর পবিত্রতা ও প্রশংসা, আল্লাহ ছাড়া কোনো সত্য ইলাহ নেই, আল্লাহ সর্বশ্রেষ্ঠ; এবং আল্লাহর সাহায্য ছাড়া (গুনাহ থেকে বাঁচা ও নেক আমলের) কোনো শক্তি ও সামর্থ্য নেই।',
+    reference: 'সহীহ বুখারী ১১৫৪, সহীহ মুসলিম ২৬৯১ ও ২৬৯৫',
+  },
+  {
+    id: 'ch6-istighfar-hawqalah-azim',
+    chapterId: 6,
+    order: 16,
+    titleBangla: 'ইস্তেগফার ও তাসবীহে হাওকালাহ',
+    repeatCount: 1,
+    occasionNote: 'তাওবা, ক্ষমা প্রার্থনা ও আল্লাহর সাহায্য কামনায়',
+    arabic:
+      'أَسْتَغْفِرُ اللّٰهَ الَّذِي لَا إِلٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ وَأَتُوبُ إِلَيْهِ ۞ لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللّٰهِ الْعَلِيِّ الْعَظِيمِ',
+    transliteration:
+      'আস্তাগফিরুল্লা-হাল্লাযী লা- ইলা-হা ইল্লা- হুওয়াল হাইয়ুল কাইয়ূমু ওয়া আতূবু ইলাইহি।\nলা- হাওলা ওয়া লা- কুওয়াতা ইল্লা- বিল্লা-হিল ‘আলিয়্যিল ‘আযীম।',
+    translationBangla:
+      'আমি সেই আল্লাহর কাছে ক্ষমা প্রার্থনা করছি যিনি ছাড়া কোনো সত্য ইলাহ নেই—চিরঞ্জীব ও সর্বসত্তার ধারক, এবং তাঁরই কাছে তাওবা করছি। সুউচ্চ ও মহান আল্লাহর সাহায্য ছাড়া কোনো উপায় ও শক্তি নেই।',
+    reference: 'সুনানু আবী দাউদ ১৫১৭, তিরমিযী ৩৫৭৭ ও সহীহ বুখারী ৪২০৫',
+  },
+  {
+    id: 'ch6-death-fitnah',
+    chapterId: 6,
+    order: 17,
     titleBangla: 'মৃত্যুর সময় ফিতনা থেকে আশ্রয় চাওয়ার দুআ',
     repeatCount: 1,
     occasionNote: 'নামাজের শেষ বৈঠকে সালামের আগে',
@@ -210,7 +240,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-death-shaytan',
     chapterId: 6,
-    order: 16,
+    order: 18,
     titleBangla: 'মৃত্যুর সময় শয়তানের বিভ্রান্তি থেকে আশ্রয় চাওয়ার দুআ',
     repeatCount: 1,
     occasionNote: 'দুআ ও সালামের আগে পাঠযোগ্য',
@@ -225,7 +255,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-new-moon',
     chapterId: 6,
-    order: 17,
+    order: 19,
     titleBangla: 'নতুন চাঁদ দেখার দুআ',
     repeatCount: 1,
     occasionNote: 'আরবি মাসের নতুন চাঁদ দেখলে',
@@ -240,7 +270,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-repentance-sin',
     chapterId: 6,
-    order: 18,
+    order: 20,
     titleBangla: 'গুনাহ হয়ে গেলে অনুতপ্ত হয়ে দুআ',
     repeatCount: 1,
     occasionNote: 'কোনো ভুল বা গুনাহ হয়ে গেলে ওযু করে ২ রাকাত সালাতের পর',
@@ -255,7 +285,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-eid-greeting',
     chapterId: 6,
-    order: 19,
+    order: 21,
     titleBangla: 'ঈদের দিনে একে অপরকে অভিবাদন জানানো',
     repeatCount: 1,
     occasionNote: 'ঈদুল ফিতর ও ঈদুল আযহায় সাক্ষাতে',
@@ -267,7 +297,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-lost-item-travel',
     chapterId: 6,
-    order: 20,
+    order: 22,
     titleBangla: 'সফরে কোনো কিছু হারিয়ে গেলে বা সাহায্য প্রয়োজনে দুআ',
     repeatCount: 1,
     occasionNote: 'জিনিস হারালে বা হারানো পথ খুঁজতে',
@@ -282,7 +312,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-shahadat-madinah',
     chapterId: 6,
-    order: 21,
+    order: 23,
     titleBangla: 'শাহাদাত প্রাপ্তি ও মদিনায় মৃত্যুর দুআ',
     repeatCount: 1,
     occasionNote: 'উমর (রা.)-এর প্রসিদ্ধ দুআ',
@@ -297,7 +327,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-majlis-kaffarah',
     chapterId: 6,
-    order: 22,
+    order: 24,
     titleBangla: 'মজলিস শেষের দুআ (কাফফারাতুল মজলিস)',
     repeatCount: 1,
     occasionNote: 'বৈঠক বা আলোচনা শেষ করে ওঠার আগে',
@@ -312,7 +342,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-shaytan-whisper',
     chapterId: 6,
-    order: 23,
+    order: 25,
     titleBangla: 'শয়তানের কুমন্ত্রণা থেকে বাঁচতে দুআ',
     repeatCount: 1,
     occasionNote: 'ঈমান বা মনে ওয়াসওয়াসা এলে',
@@ -327,7 +357,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-fear-anxiety',
     chapterId: 6,
-    order: 24,
+    order: 26,
     titleBangla: 'বিপদ, ভয় ও আশঙ্কার সময় দুআ',
     repeatCount: 1,
     occasionNote: 'যেকোনো ভীতিকর পরিস্থিতিতে',
@@ -339,7 +369,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-istikharah',
     chapterId: 6,
-    order: 25,
+    order: 27,
     titleBangla: 'ইস্তেখারার দুআ',
     repeatCount: 1,
     occasionNote: 'দুই রাকাত নফল সালাতের পর যেকোনো বৈধ কাজের সিদ্ধান্তে',
@@ -354,7 +384,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-rain-prayer',
     chapterId: 6,
-    order: 26,
+    order: 28,
     titleBangla: 'বৃষ্টির জন্য দুআ',
     repeatCount: 3,
     occasionNote: 'অনাবৃষ্টি বা খরায় বৃষ্টির প্রার্থনায়',
@@ -369,7 +399,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-excess-rain',
     chapterId: 6,
-    order: 27,
+    order: 29,
     titleBangla: 'অতি বৃষ্টির ক্ষতি থেকে বাঁচার দুআ',
     repeatCount: 1,
     occasionNote: 'অতিরিক্ত বৃষ্টি বা বন্যার আশঙ্কায়',
@@ -384,7 +414,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-rajab-moon',
     chapterId: 6,
-    order: 28,
+    order: 30,
     titleBangla: 'রজব মাসের দুআ',
     repeatCount: 1,
     occasionNote: 'রজব ও শাবান মাসে রমজানের তাওফীক কামনায়',
@@ -398,7 +428,7 @@ export const DUAS_CHAPTER_6: DuaItem[] = [
   {
     id: 'ch6-99-names',
     chapterId: 6,
-    order: 29,
+    order: 31,
     titleBangla: 'আল্লাহর ৯৯ নাম (আসমাউল হুসনা)',
     repeatCount: 1,
     occasionNote: 'মুখস্থ ও আমলের ফজিলতপূর্ণ ৯৯ নাম',

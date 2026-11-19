@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Bookmark,
   BookOpen,
   Check,
+  CheckCircle2,
   ChevronUp,
   Copy,
   RotateCcw,
@@ -14,7 +16,11 @@ import {
   type DuaItem,
 } from '../data/duas';
 import {
+  db,
   getRoutineItems,
+  getTodayDateKey,
+  recordDhikirDelta,
+  recordDuaCompleted,
   updateDuaRoutineProgress,
   type Routine,
   type Settings,
@@ -68,6 +74,11 @@ export function DuaReaderView({
   const targetCount = Math.max(1, routineTargetCount ?? dua.repeatCount ?? 1);
   const [tapCount, setTapCount] = useState(0);
   const [partTapCounts, setPartTapCounts] = useState<Record<string, number>>({});
+  const tapCountRef = useRef(0);
+  const partTapCountsRef = useRef<Record<string, number>>({});
+  const singleRoundLoggedRef = useRef(false);
+  const duaCompletedInSessionRef = useRef(false);
+  const multiPartRoundLoggedRef = useRef(false);
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [counterSheetOpen, setCounterSheetOpen] = useState(false);
@@ -75,6 +86,15 @@ export function DuaReaderView({
     mode: 'single',
   });
   const partRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  const todayHistory = useLiveQuery(
+    () => db.readingHistory.get(getTodayDateKey()),
+    [dua.id]
+  );
+  const standaloneReadCountToday =
+    todayHistory?.duaCounts?.[dua.id] ??
+    (todayHistory?.duasCompleted?.includes(dua.id) ? 1 : 0);
+  const isStandaloneMarkedToday = standaloneReadCountToday > 0;
 
   const parts = dua.parts && dua.parts.length > 0 ? dua.parts : null;
   const hasAnyTransliteration = Boolean(
@@ -118,6 +138,11 @@ export function DuaReaderView({
 
   // Reset counter & mark routine item visited when Dua changes
   useEffect(() => {
+    tapCountRef.current = 0;
+    partTapCountsRef.current = {};
+    singleRoundLoggedRef.current = false;
+    duaCompletedInSessionRef.current = false;
+    multiPartRoundLoggedRef.current = false;
     setTapCount(0);
     setPartTapCounts({});
     setCounterSheetOpen(false);
@@ -180,34 +205,94 @@ export function DuaReaderView({
   };
 
   const handleIncrementCounter = () => {
-    setTapCount((prev) => {
-      const next = prev + 1;
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate(next === targetCount ? [20, 40, 20] : 12);
-      }
-      return next;
-    });
+    const next = tapCountRef.current + 1;
+    tapCountRef.current = next;
+    setTapCount(next);
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(next === targetCount ? [20, 40, 20] : 12);
+    }
+    void recordDhikirDelta({ duaId: dua.id, delta: 1 });
+    if (next === targetCount && !singleRoundLoggedRef.current) {
+      singleRoundLoggedRef.current = true;
+      duaCompletedInSessionRef.current = true;
+      void recordDuaCompleted({ duaId: dua.id, delta: 1 });
+    }
   };
 
   const handleDecrementCounter = () => {
-    setTapCount((prev) => Math.max(0, prev - 1));
+    if (tapCountRef.current <= 0) return;
+    const next = tapCountRef.current - 1;
+    tapCountRef.current = next;
+    setTapCount(next);
+    void recordDhikirDelta({ duaId: dua.id, delta: -1 });
+  };
+
+  const handleResetCounter = () => {
+    tapCountRef.current = 0;
+    singleRoundLoggedRef.current = false;
+    setTapCount(0);
+    // Deliberately preserves today's earned Dhikir stats when starting a fresh round
   };
 
   const handleIncrementPartCounter = (partId: string, partTarget: number) => {
-    setPartTapCounts((prev) => {
-      const next = (prev[partId] ?? 0) + 1;
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate(next === partTarget ? [20, 40, 20] : 12);
+    const prevCount = partTapCountsRef.current[partId] ?? 0;
+    const next = prevCount + 1;
+    const nextMap = { ...partTapCountsRef.current, [partId]: next };
+    partTapCountsRef.current = nextMap;
+    setPartTapCounts(nextMap);
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(next === partTarget ? [20, 40, 20] : 12);
+    }
+    void recordDhikirDelta({ duaId: dua.id, delta: 1 });
+
+    if (parts && next === partTarget && !multiPartRoundLoggedRef.current) {
+      const allPartsDone = parts.every((p) => {
+        const pTarget = Math.max(
+          1,
+          routineTargetCount ?? p.repeatCount ?? dua.repeatCount ?? 1
+        );
+        return (nextMap[p.id] ?? 0) >= pTarget;
+      });
+      if (allPartsDone) {
+        multiPartRoundLoggedRef.current = true;
+        duaCompletedInSessionRef.current = true;
+        void recordDuaCompleted({ duaId: dua.id, delta: 1 });
       }
-      return { ...prev, [partId]: next };
-    });
+    }
   };
 
   const handleDecrementPartCounter = (partId: string) => {
-    setPartTapCounts((prev) => ({
-      ...prev,
-      [partId]: Math.max(0, (prev[partId] ?? 0) - 1),
-    }));
+    const prevCount = partTapCountsRef.current[partId] ?? 0;
+    if (prevCount <= 0) return;
+    const nextMap = { ...partTapCountsRef.current, [partId]: prevCount - 1 };
+    partTapCountsRef.current = nextMap;
+    setPartTapCounts(nextMap);
+    void recordDhikirDelta({ duaId: dua.id, delta: -1 });
+  };
+
+  const handleResetPartCounter = (partId: string) => {
+    const nextMap = { ...partTapCountsRef.current, [partId]: 0 };
+    partTapCountsRef.current = nextMap;
+    multiPartRoundLoggedRef.current = false;
+    setPartTapCounts(nextMap);
+    // Deliberately preserves today's earned Dhikir stats when starting a fresh round
+  };
+
+  const handleToggleStandaloneRead = async () => {
+    if (isStandaloneMarkedToday) {
+      await recordDuaCompleted({
+        duaId: dua.id,
+        delta: -standaloneReadCountToday,
+      });
+      toast.info('আজকের পড়া তালিকা থেকে সরানো হয়েছে');
+    } else {
+      await recordDuaCompleted({ duaId: dua.id, delta: 1 });
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(14);
+      }
+      toast.success('দুআ পড়া হয়েছে হিসেবে সংরক্ষিত হয়েছে');
+    }
   };
 
   const openCounterSheet = (target: ActiveCounterTarget) => {
@@ -235,6 +320,7 @@ export function DuaReaderView({
         routineItemIndex: routineNav.index,
         duaId: dua.id,
         completed: true,
+        skipDuaHistoryLog: duaCompletedInSessionRef.current,
       });
     }
     onAdvanceRoutineItem?.(nextIndex);
@@ -247,6 +333,7 @@ export function DuaReaderView({
         routineItemIndex: routineNav.index,
         duaId: dua.id,
         completed: true,
+        skipDuaHistoryLog: duaCompletedInSessionRef.current,
       });
       toast.success(`মাশাআল্লাহ! “${routine.title}” সম্পন্ন হয়েছে`);
     }
@@ -647,11 +734,7 @@ export function DuaReaderView({
                           counterSheetOpen &&
                           activeCounter.mode === 'part' &&
                           activeCounter.partIndex === idx,
-                        onReset: () =>
-                          setPartTapCounts((prev) => ({
-                            ...prev,
-                            [part.id]: 0,
-                          })),
+                        onReset: () => handleResetPartCounter(part.id),
                         onOpenSheet: () =>
                           openCounterSheet({ mode: 'part', partIndex: idx }),
                       })}
@@ -695,8 +778,8 @@ export function DuaReaderView({
               </p>
             </section>
 
-            {/* Tasbih Counter (opens half-screen tap sheet) */}
-            {(targetCount > 1 || routine) &&
+            {/* Tasbih Counter (opens half-screen tap sheet) or 1-time Dua read marker */}
+            {targetCount > 1 || routine ? (
               renderTasbihCounter({
                 count: tapCount,
                 target: targetCount,
@@ -704,9 +787,55 @@ export function DuaReaderView({
                 resetBg: 'var(--bg-page)',
                 isSheetActive:
                   counterSheetOpen && activeCounter.mode === 'single',
-                onReset: () => setTapCount(0),
+                onReset: handleResetCounter,
                 onOpenSheet: () => openCounterSheet({ mode: 'single' }),
-              })}
+              })
+            ) : (
+              <div
+                className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-colors"
+                style={{
+                  backgroundColor: isStandaloneMarkedToday
+                    ? 'var(--accent-soft)'
+                    : 'var(--bg-elevated)',
+                  borderColor: isStandaloneMarkedToday
+                    ? 'var(--accent)'
+                    : 'var(--border-subtle)',
+                }}
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold">
+                    {isStandaloneMarkedToday ? 'আজ পড়া হয়েছে' : 'আজকের আমল'}
+                  </div>
+                  <div
+                    className="text-[11px]"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    {isStandaloneMarkedToday
+                      ? 'আপনার দৈনিক পরিসংখ্যানে যুক্ত হয়েছে'
+                      : 'দুআটি পড়া শেষ হলে চিহ্নিত করুন'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleStandaloneRead()}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
+                  style={{
+                    backgroundColor: isStandaloneMarkedToday
+                      ? 'var(--bg-page)'
+                      : 'var(--accent)',
+                    color: isStandaloneMarkedToday
+                      ? 'var(--accent)'
+                      : 'var(--accent-text)',
+                    border: isStandaloneMarkedToday
+                      ? '1px solid var(--accent)'
+                      : '1px solid transparent',
+                  }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{isStandaloneMarkedToday ? 'চিহ্নিত' : 'পড়া হয়েছে'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Bangla Transliteration & Meaning */}
             <section
@@ -809,9 +938,9 @@ export function DuaReaderView({
         }}
         onReset={() => {
           if (activePart) {
-            setPartTapCounts((prev) => ({ ...prev, [activePart.id]: 0 }));
+            handleResetPartCounter(activePart.id);
           } else {
-            setTapCount(0);
+            handleResetCounter();
           }
         }}
         nextActionLabel={sheetNextAction?.label ?? null}

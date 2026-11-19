@@ -76,6 +76,10 @@ export interface ReadingHistory {
   date: string; // YYYY-MM-DD
   ayahsCount: number;
   routinesCompleted: string[];
+  dhikirCount?: number;
+  dhikirByDua?: Record<string, number>;
+  duasCompleted?: string[];
+  duaCounts?: Record<string, number>;
 }
 
 export interface CachedVerse {
@@ -148,6 +152,132 @@ export function getTodayDateKey(): string {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function normalizeHistoryRecord(
+  date: string,
+  existing?: Partial<ReadingHistory>
+): ReadingHistory {
+  const duaCounts: Record<string, number> = { ...(existing?.duaCounts ?? {}) };
+  if (Array.isArray(existing?.duasCompleted)) {
+    for (const id of existing.duasCompleted) {
+      if (typeof id === 'string' && id && !(id in duaCounts)) {
+        duaCounts[id] = 1;
+      }
+    }
+  }
+  const cleanDuaCounts: Record<string, number> = {};
+  for (const [id, count] of Object.entries(duaCounts)) {
+    if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+      cleanDuaCounts[id] = Math.floor(count);
+    }
+  }
+
+  const cleanDhikirByDua: Record<string, number> = {};
+  if (existing?.dhikirByDua && typeof existing.dhikirByDua === 'object') {
+    for (const [id, count] of Object.entries(existing.dhikirByDua)) {
+      if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+        cleanDhikirByDua[id] = Math.floor(count);
+      }
+    }
+  }
+
+  const routinesCompleted = Array.isArray(existing?.routinesCompleted)
+    ? Array.from(
+        new Set(
+          existing.routinesCompleted.filter(
+            (id): id is string => typeof id === 'string' && id.length > 0
+          )
+        )
+      )
+    : [];
+
+  return {
+    date,
+    ayahsCount:
+      typeof existing?.ayahsCount === 'number' && Number.isFinite(existing.ayahsCount)
+        ? Math.max(0, Math.floor(existing.ayahsCount))
+        : 0,
+    routinesCompleted,
+    dhikirCount:
+      typeof existing?.dhikirCount === 'number' && Number.isFinite(existing.dhikirCount)
+        ? Math.max(0, Math.floor(existing.dhikirCount))
+        : 0,
+    dhikirByDua: cleanDhikirByDua,
+    duasCompleted: Object.keys(cleanDuaCounts),
+    duaCounts: cleanDuaCounts,
+  };
+}
+
+function applyDuaCountDelta(
+  record: ReadingHistory,
+  duaId: string,
+  delta: number
+): ReadingHistory {
+  if (!duaId || delta === 0) return record;
+  const nextCounts = { ...(record.duaCounts ?? {}) };
+  const nextVal = Math.max(0, (nextCounts[duaId] ?? 0) + delta);
+  if (nextVal > 0) {
+    nextCounts[duaId] = nextVal;
+  } else {
+    delete nextCounts[duaId];
+  }
+  return {
+    ...record,
+    duaCounts: nextCounts,
+    duasCompleted: Object.keys(nextCounts),
+  };
+}
+
+export async function recordDhikirDelta(params: {
+  duaId: string;
+  delta: number;
+  dateKey?: string;
+}): Promise<void> {
+  const { duaId, delta, dateKey = getTodayDateKey() } = params;
+  if (!duaId || delta === 0) return;
+
+  await db.transaction('rw', db.readingHistory, async () => {
+    const existing = await db.readingHistory.get(dateKey);
+    const record = normalizeHistoryRecord(dateKey, existing);
+    const nextByDua = { ...(record.dhikirByDua ?? {}) };
+    const currentForDua = nextByDua[duaId] ?? 0;
+    const nextForDua = Math.max(0, currentForDua + delta);
+    const actualDelta = nextForDua - currentForDua;
+
+    if (nextForDua > 0) {
+      nextByDua[duaId] = nextForDua;
+    } else {
+      delete nextByDua[duaId];
+    }
+
+    const nextTotal = Math.max(
+      0,
+      (record.dhikirCount ?? 0) + (delta > 0 ? delta : actualDelta)
+    );
+
+    await db.readingHistory.put({
+      ...record,
+      dhikirCount: nextTotal,
+      dhikirByDua: nextByDua,
+    });
+  });
+}
+
+export async function recordDuaCompleted(params: {
+  duaId: string;
+  delta?: number;
+  dateKey?: string;
+}): Promise<void> {
+  const { duaId, delta = 1, dateKey = getTodayDateKey() } = params;
+  if (!duaId || delta === 0) return;
+
+  await db.transaction('rw', db.readingHistory, async () => {
+    const existing = await db.readingHistory.get(dateKey);
+    const record = normalizeHistoryRecord(dateKey, existing);
+    const next = applyDuaCountDelta(record, duaId, delta);
+    await db.readingHistory.put(next);
+  });
 }
 
 export function getRoutineItems(
@@ -422,6 +552,7 @@ export async function toggleRoutineItemCompleted(params: {
 
       const existing = await db.routineProgress.get(routineId);
       const completedSet = new Set(getCompletedItemIndexes(routine, existing));
+      const wasCompleted = completedSet.has(itemIndex);
       if (completed) {
         completedSet.add(itemIndex);
       } else {
@@ -464,19 +595,39 @@ export async function toggleRoutineItemCompleted(params: {
 
       await db.routineProgress.put(updated);
 
-      if (percentage >= 100) {
-        const todayRecord = (await db.readingHistory.get(todayKey)) ?? {
-          date: todayKey,
-          ayahsCount: 0,
-          routinesCompleted: [],
-        };
-        if (!todayRecord.routinesCompleted.includes(routineId)) {
-          await db.readingHistory.put({
-            date: todayKey,
-            ayahsCount: todayRecord.ayahsCount,
-            routinesCompleted: [...todayRecord.routinesCompleted, routineId],
-          });
+      const toggledItem = items[itemIndex];
+      const duaChanged =
+        toggledItem.kind === 'dua' && wasCompleted !== completed;
+      const existingHistory = await db.readingHistory.get(todayKey);
+      const hasRoutineLogged = Boolean(
+        existingHistory?.routinesCompleted?.includes(routineId)
+      );
+      const shouldAddRoutine = percentage >= 100 && !hasRoutineLogged;
+      const shouldRemoveRoutine = percentage < 100 && hasRoutineLogged;
+
+      if (duaChanged || shouldAddRoutine || shouldRemoveRoutine) {
+        let nextRecord = normalizeHistoryRecord(todayKey, existingHistory);
+        if (duaChanged && toggledItem.kind === 'dua') {
+          nextRecord = applyDuaCountDelta(
+            nextRecord,
+            toggledItem.duaId,
+            completed ? 1 : -1
+          );
         }
+        if (shouldAddRoutine) {
+          nextRecord = {
+            ...nextRecord,
+            routinesCompleted: [...nextRecord.routinesCompleted, routineId],
+          };
+        } else if (shouldRemoveRoutine) {
+          nextRecord = {
+            ...nextRecord,
+            routinesCompleted: nextRecord.routinesCompleted.filter(
+              (id) => id !== routineId
+            ),
+          };
+        }
+        await db.readingHistory.put(nextRecord);
       }
     }
   );
@@ -599,11 +750,8 @@ export async function updateReadingProgress(params: {
       }
 
       if (incrementTodayAyahs > 0 || completedRoutineNow) {
-        const todayRecord = (await db.readingHistory.get(todayKey)) ?? {
-          date: todayKey,
-          ayahsCount: 0,
-          routinesCompleted: [],
-        };
+        const existingHistory = await db.readingHistory.get(todayKey);
+        const todayRecord = normalizeHistoryRecord(todayKey, existingHistory);
         const updatedRoutines = [...todayRecord.routinesCompleted];
         if (
           completedRoutineNow &&
@@ -613,7 +761,7 @@ export async function updateReadingProgress(params: {
           updatedRoutines.push(routineId);
         }
         await db.readingHistory.put({
-          date: todayKey,
+          ...todayRecord,
           ayahsCount: todayRecord.ayahsCount + incrementTodayAyahs,
           routinesCompleted: updatedRoutines,
         });
@@ -652,8 +800,15 @@ export async function updateDuaRoutineProgress(params: {
   routineItemIndex?: number;
   duaId: string;
   completed: boolean;
+  skipDuaHistoryLog?: boolean;
 }): Promise<void> {
-  const { routineId, routineItemIndex, duaId, completed } = params;
+  const {
+    routineId,
+    routineItemIndex,
+    duaId,
+    completed,
+    skipDuaHistoryLog = false,
+  } = params;
   if (!DUA_MAP[duaId]) return;
 
   const now = Date.now();
@@ -680,6 +835,7 @@ export async function updateDuaRoutineProgress(params: {
       const completedSet = new Set(
         getCompletedItemIndexes(routine, existingProgress)
       );
+      const wasAlreadyCompleted = completedSet.has(resolvedIdx);
       if (completed) {
         completedSet.add(resolvedIdx);
       }
@@ -714,19 +870,21 @@ export async function updateDuaRoutineProgress(params: {
         lastUpdated: now,
       });
 
-      if (percentage >= 100) {
-        const todayRecord = (await db.readingHistory.get(todayKey)) ?? {
-          date: todayKey,
-          ayahsCount: 0,
-          routinesCompleted: [],
-        };
-        if (!todayRecord.routinesCompleted.includes(routineId)) {
-          await db.readingHistory.put({
-            date: todayKey,
-            ayahsCount: todayRecord.ayahsCount,
-            routinesCompleted: [...todayRecord.routinesCompleted, routineId],
-          });
+      const newlyCompletedDua =
+        completed && !wasAlreadyCompleted && !skipDuaHistoryLog;
+      if (newlyCompletedDua || percentage >= 100) {
+        const existingHistory = await db.readingHistory.get(todayKey);
+        let todayRecord = normalizeHistoryRecord(todayKey, existingHistory);
+        if (newlyCompletedDua) {
+          todayRecord = applyDuaCountDelta(todayRecord, duaId, 1);
         }
+        if (percentage >= 100 && !todayRecord.routinesCompleted.includes(routineId)) {
+          todayRecord = {
+            ...todayRecord,
+            routinesCompleted: [...todayRecord.routinesCompleted, routineId],
+          };
+        }
+        await db.readingHistory.put(todayRecord);
       }
     }
   );
@@ -800,7 +958,17 @@ export async function importUserData(raw: unknown): Promise<{
       if (routines.length > 0) await db.routines.bulkPut(routines);
       if (routineProgress.length > 0) await db.routineProgress.bulkPut(routineProgress);
       if (globalLastRead.length > 0) await db.globalLastRead.bulkPut(globalLastRead);
-      if (readingHistory.length > 0) await db.readingHistory.bulkPut(readingHistory);
+      if (readingHistory.length > 0) {
+        const normalizedHistory = readingHistory
+          .filter(
+            (h): h is ReadingHistory =>
+              Boolean(h) && typeof h === 'object' && typeof h.date === 'string' && h.date.length > 0
+          )
+          .map((h) => normalizeHistoryRecord(h.date, h));
+        if (normalizedHistory.length > 0) {
+          await db.readingHistory.bulkPut(normalizedHistory);
+        }
+      }
 
       if (settings && typeof settings === 'object') {
         const cachedCount = await db.cachedSurahs.count();

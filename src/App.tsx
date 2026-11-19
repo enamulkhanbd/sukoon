@@ -8,6 +8,7 @@ import { ReaderView } from './components/ReaderView';
 import { RoutineDetailView } from './components/RoutineDetailView';
 import { RoutinesView } from './components/RoutinesView';
 import { SettingsView } from './components/SettingsView';
+import { StatsView } from './components/StatsView';
 import { SurahListView } from './components/SurahListView';
 import { useToast } from './components/ToastProvider';
 import { DUA_MAP, type DuaItem } from './data/duas';
@@ -61,7 +62,7 @@ export function App() {
 
   // Keep non-reader return destination up to date
   useEffect(() => {
-    if (!isReaderRoute(route)) {
+    if (!isReaderRoute(route) && route.type !== 'stats') {
       lastBaseRouteRef.current = route;
     }
   }, [route]);
@@ -172,6 +173,19 @@ export function App() {
     },
     [navigate]
   );
+
+  const openStats = useCallback(() => {
+    navigate({ type: 'stats' });
+  }, [navigate]);
+
+  const closeStats = useCallback(() => {
+    const base = lastBaseRouteRef.current;
+    if (base.type === 'tab') {
+      navigate(base, { restoreScroll: true });
+    } else {
+      navigate({ type: 'tab', tab: 'home' }, { restoreScroll: true });
+    }
+  }, [navigate]);
 
   const openRoutineDetails = useCallback(
     (routine: Routine) => {
@@ -443,6 +457,10 @@ export function App() {
     }
   }
 
+  if (route.type === 'stats') {
+    return <StatsView onBack={closeStats} />;
+  }
+
   if (route.type === 'routineDetail') {
     return (
       <RoutineDetailView
@@ -466,6 +484,7 @@ export function App() {
         <HomeView
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
+          onOpenStats={openStats}
           onGoToRoutines={() => {
             setOpenCreateRoutine(true);
             navigate({ type: 'tab', tab: 'routines' });
@@ -503,6 +522,7 @@ export function App() {
         <SettingsView
           settings={settings}
           onUpdateSettings={handleUpdateSettings}
+          onOpenStats={openStats}
         />
       )}
 

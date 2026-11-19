@@ -6,6 +6,7 @@ export type AppRoute =
   | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
   | { type: 'surah'; surahId: number; initialAyah: number }
   | { type: 'dua'; duaId: string }
+  | { type: 'stats' }
   | { type: 'routineDetail'; routineId: string }
   | {
       type: 'routineRead';
@@ -46,6 +47,9 @@ export function parseRoute(
   }
   if (path === '/settings') {
     return { type: 'tab', tab: 'settings' };
+  }
+  if (path === '/stats') {
+    return { type: 'stats' };
   }
 
   const duaChapterMatch = /^\/duas\/chapter\/(\d+)$/.exec(path);
@@ -147,6 +151,8 @@ export function buildPath(route: AppRoute): string {
         : `/surah/${route.surahId}`;
     case 'dua':
       return `/dua/${encodeURIComponent(route.duaId)}`;
+    case 'stats':
+      return '/stats';
     case 'routineDetail':
       return `/routines/${encodeURIComponent(route.routineId)}`;
     case 'routineRead':
@@ -167,6 +173,7 @@ export function isReaderRoute(route: AppRoute): boolean {
 export function hidesBottomNav(route: AppRoute): boolean {
   return (
     isReaderRoute(route) ||
+    route.type === 'stats' ||
     route.type === 'routineDetail' ||
     (route.type === 'tab' &&
       route.tab === 'duas' &&

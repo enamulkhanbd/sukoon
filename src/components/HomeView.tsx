@@ -1,9 +1,12 @@
+import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   Compass,
+  Flame,
   Plus,
   Sparkles,
 } from 'lucide-react';
@@ -14,6 +17,7 @@ import {
   db,
   getRoutineItems,
   getRoutineSummaryCounts,
+  getTodayDateKey,
   type Routine,
   type RoutineProgress,
 } from '../db/database';
@@ -25,12 +29,18 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
+import {
+  buildDayMetrics,
+  buildHistoryMap,
+  computeStreaks,
+} from '../utils/stats';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import { TabHeader } from './NavigationChrome';
 
 interface HomeViewProps {
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
   onOpenRoutineDetails: (routine: Routine) => void;
+  onOpenStats: () => void;
   onGoToRoutines: () => void;
   onGoToSurahs: () => void;
 }
@@ -38,6 +48,7 @@ interface HomeViewProps {
 export function HomeView({
   onOpenSurah,
   onOpenRoutineDetails,
+  onOpenStats,
   onGoToRoutines,
   onGoToSurahs,
 }: HomeViewProps) {
@@ -53,6 +64,17 @@ export function HomeView({
   );
   const progressList = useLiveQuery(() => db.routineProgress.toArray(), []);
   const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []);
+  const historyRows = useLiveQuery(() => db.readingHistory.toArray(), []);
+
+  const { todayMetrics, streaks } = useMemo(() => {
+    const map = buildHistoryMap(historyRows ?? []);
+    const now = new Date();
+    const todayKey = getTodayDateKey();
+    return {
+      todayMetrics: buildDayMetrics(now, map.get(todayKey), todayKey),
+      streaks: computeStreaks(map, now),
+    };
+  }, [historyRows]);
 
   const progressMap = new Map<string, RoutineProgress>(
     (progressList ?? []).map((p) => [p.routineId, p])
@@ -292,6 +314,98 @@ export function HomeView({
           </div>
         </section>
       ) : null}
+
+      {/* Today's Ibadah Stats Summary Card */}
+      <section
+        role="button"
+        tabIndex={0}
+        onClick={onOpenStats}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenStats();
+          }
+        }}
+        className="rounded-3xl border p-4 space-y-3 transition-colors cursor-pointer active:scale-[0.995]"
+        style={{
+          backgroundColor: 'var(--bg-elevated)',
+          borderColor: 'var(--border-subtle)',
+        }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                color: 'var(--accent)',
+              }}
+            >
+              <BarChart3 className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-xs font-semibold truncate">
+                আজকের আমল ও পরিসংখ্যান
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {streaks.currentStreak > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: 'var(--gold-soft)',
+                  color: 'var(--gold)',
+                }}
+              >
+                <Flame className="w-3 h-3" />
+                {toBanglaDigits(streaks.currentStreak)} দিন
+              </span>
+            )}
+            <span
+              className="inline-flex items-center gap-1 text-xs font-semibold"
+              style={{ color: 'var(--accent)' }}
+            >
+              বিস্তারিত
+              <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+        </div>
+
+        <div
+          className="grid grid-cols-4 divide-x pt-1"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
+          {[
+            { label: 'জিকির', value: todayMetrics.dhikir },
+            { label: 'দুআ', value: todayMetrics.duas },
+            { label: 'রুটিন', value: todayMetrics.routines },
+            { label: 'আয়াত', value: todayMetrics.ayahs },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="px-1 py-1 text-center"
+              style={{ borderColor: 'var(--border-subtle)' }}
+            >
+              <div
+                className="text-base font-bold tabular-nums leading-tight"
+                style={{
+                  color: stat.value > 0 ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                {toBanglaDigits(stat.value)}
+              </div>
+              <div
+                className="text-[10px] mt-0.5"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Today's Routines */}
       <section className="space-y-3">

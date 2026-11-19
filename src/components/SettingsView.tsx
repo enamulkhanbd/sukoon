@@ -1,6 +1,8 @@
 import { useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  ArrowRight,
+  BarChart3,
   CheckCircle2,
   CloudDownload,
   Download,
@@ -28,15 +30,21 @@ import {
   countOutdatedCachedSurahs,
 } from '../services/quranApi';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
+import { getRecordDuaTotal } from '../utils/stats';
 import { TabHeader, ThemePicker } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface SettingsViewProps {
   settings: Settings;
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
+  onOpenStats: () => void;
 }
 
-export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) {
+export function SettingsView({
+  settings,
+  onUpdateSettings,
+  onOpenStats,
+}: SettingsViewProps) {
   const toast = useToast();
   const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []) ?? 0;
   const outdatedCount = useLiveQuery(() => countOutdatedCachedSurahs(), []) ?? 0;
@@ -47,7 +55,21 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const totalAyahsRead = readingHistory.reduce((acc, h) => acc + h.ayahsCount, 0);
-  const activeDaysCount = readingHistory.filter((h) => h.ayahsCount > 0).length;
+  const totalDhikir = readingHistory.reduce(
+    (acc, h) => acc + (h.dhikirCount ?? 0),
+    0
+  );
+  const totalDuas = readingHistory.reduce(
+    (acc, h) => acc + getRecordDuaTotal(h),
+    0
+  );
+  const activeDaysCount = readingHistory.filter(
+    (h) =>
+      h.ayahsCount > 0 ||
+      (h.dhikirCount ?? 0) > 0 ||
+      getRecordDuaTotal(h) > 0 ||
+      (h.routinesCompleted?.length ?? 0) > 0
+  ).length;
 
   const handleDownloadAll = () => {
     void startOfflineSync(toast);
@@ -361,10 +383,28 @@ export function SettingsView({ settings, onUpdateSettings }: SettingsViewProps) 
         <div>
           <h2 className="text-sm font-semibold">ডেটা পোর্টেবিলিটি ও ব্যাকআপ</h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            সর্বমোট তিলাওয়াত: {toBanglaDigits(totalAyahsRead)} আয়াত (
-            {toBanglaDigits(activeDaysCount)} দিন) • সব ডেটা আপনার ডিভাইসেই সুরক্ষিত
+            সর্বমোট: {toBanglaDigits(totalDhikir)} জিকির •{' '}
+            {toBanglaDigits(totalDuas)} দুআ • {toBanglaDigits(totalAyahsRead)} আয়াত (
+            {toBanglaDigits(activeDaysCount)} সক্রিয় দিন)
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenStats}
+          className="w-full flex items-center justify-between gap-2 py-2.5 px-3.5 rounded-xl border text-xs font-semibold transition-colors active:scale-[0.99] cursor-pointer"
+          style={{
+            backgroundColor: 'var(--accent-soft)',
+            borderColor: 'color-mix(in srgb, var(--accent) 30%, var(--border-subtle))',
+            color: 'var(--accent)',
+          }}
+        >
+          <span className="inline-flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            সাপ্তাহিক, মাসিক ও বাৎসরিক পরিসংখ্যান দেখুন
+          </span>
+          <ArrowRight className="w-4 h-4 shrink-0" />
+        </button>
 
         <div className="grid grid-cols-2 gap-2.5">
           <button

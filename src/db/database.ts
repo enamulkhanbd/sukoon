@@ -1,6 +1,11 @@
 import Dexie, { type Table } from 'dexie';
 import { DUA_MAP } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
+import {
+  DEFAULT_FASTING_LOCATION,
+  type FastingCalculationMethod,
+  type FastingLocation,
+} from '../utils/fasting';
 
 export interface SurahRoutineItem {
   kind?: 'surah';
@@ -110,6 +115,10 @@ export interface Settings {
   offlineDownloaded: boolean;
   showDuaTransliteration?: boolean;
   bookmarkedDuaIds?: string[];
+  fastingLocation?: FastingLocation;
+  fastingMethod?: FastingCalculationMethod;
+  fastingTimeFormat?: '12h' | '24h';
+  hijriOffsetDays?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -121,6 +130,10 @@ export const DEFAULT_SETTINGS: Settings = {
   offlineDownloaded: false,
   showDuaTransliteration: true,
   bookmarkedDuaIds: [],
+  fastingLocation: DEFAULT_FASTING_LOCATION,
+  fastingMethod: 'karachi',
+  fastingTimeFormat: '12h',
+  hijriOffsetDays: 0,
 };
 
 export class SukoonDatabase extends Dexie {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
@@ -17,11 +17,17 @@ import {
   db,
   getRoutineItems,
   getRoutineSummaryCounts,
-  getTodayDateKey,
   type Routine,
   type RoutineProgress,
+  type Settings,
 } from '../db/database';
 import { countCompleteCachedSurahs } from '../services/quranApi';
+import {
+  DEBUG_NOW_STORAGE_KEY,
+  DEFAULT_FASTING_LOCATION,
+  getCurrentNow,
+} from '../utils/fasting';
+import { clampHijriOffsetDays } from '../utils/hijri';
 import {
   DAY_NAMES_BN,
   DAY_SHORT_BN,
@@ -33,11 +39,15 @@ import {
   buildDayMetrics,
   buildHistoryMap,
   computeStreaks,
+  formatDateKey,
 } from '../utils/stats';
+import { FastingCard } from './FastingCard';
+import { FastingScheduleSheet } from './FastingScheduleSheet';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import { TabHeader } from './NavigationChrome';
 
 interface HomeViewProps {
+  settings: Settings;
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   onOpenStats: () => void;
@@ -46,13 +56,44 @@ interface HomeViewProps {
 }
 
 export function HomeView({
+  settings,
   onOpenSurah,
   onOpenRoutineDetails,
   onOpenStats,
   onGoToRoutines,
   onGoToSurahs,
 }: HomeViewProps) {
-  const todayIndex = new Date().getDay();
+  const [now, setNow] = useState<Date>(() => getCurrentNow());
+  const [isFastingSheetOpen, setIsFastingSheetOpen] = useState(false);
+
+  useEffect(() => {
+    const refreshNow = () => setNow(getCurrentNow());
+    const intervalId = window.setInterval(refreshNow, 60_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshNow();
+      }
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key === DEBUG_NOW_STORAGE_KEY) {
+        refreshNow();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  const todayIndex = now.getDay();
+  const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
+  const fastingMethod = settings.fastingMethod ?? 'karachi';
+  const fastingTimeFormat = settings.fastingTimeFormat ?? '12h';
+  const hijriOffsetDays = clampHijriOffsetDays(settings.hijriOffsetDays ?? 0);
 
   const lastRead = useLiveQuery(
     async () => (await db.globalLastRead.get('current')) ?? null,
@@ -68,13 +109,12 @@ export function HomeView({
 
   const { todayMetrics, streaks } = useMemo(() => {
     const map = buildHistoryMap(historyRows ?? []);
-    const now = new Date();
-    const todayKey = getTodayDateKey();
+    const todayKey = formatDateKey(now);
     return {
       todayMetrics: buildDayMetrics(now, map.get(todayKey), todayKey),
       streaks: computeStreaks(map, now),
     };
-  }, [historyRows]);
+  }, [historyRows, now]);
 
   const progressMap = new Map<string, RoutineProgress>(
     (progressList ?? []).map((p) => [p.routineId, p])
@@ -91,7 +131,7 @@ export function HomeView({
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  }).format(new Date());
+  }).format(now);
 
   const renderRoutineCard = (routine: Routine, isToday: boolean) => {
     const prog = progressMap.get(routine.id);
@@ -315,6 +355,16 @@ export function HomeView({
         </section>
       ) : null}
 
+      {/* Ramadan & Fasting Card */}
+      <FastingCard
+        now={now}
+        location={fastingLocation}
+        method={fastingMethod}
+        timeFormat={fastingTimeFormat}
+        hijriOffsetDays={hijriOffsetDays}
+        onOpenSchedule={() => setIsFastingSheetOpen(true)}
+      />
+
       {/* Today's Ibadah Stats Summary Card */}
       <section
         role="button"
@@ -468,6 +518,16 @@ export function HomeView({
           </span>
         </div>
       )}
+
+      <FastingScheduleSheet
+        open={isFastingSheetOpen}
+        onClose={() => setIsFastingSheetOpen(false)}
+        now={now}
+        location={fastingLocation}
+        method={fastingMethod}
+        timeFormat={fastingTimeFormat}
+        hijriOffsetDays={hijriOffsetDays}
+      />
     </div>
   );
 }

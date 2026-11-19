@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BarChart3,
@@ -7,6 +7,7 @@ import {
   CloudDownload,
   Download,
   Loader2,
+  LocateFixed,
   Smartphone,
   Trash2,
   Upload,
@@ -28,6 +29,13 @@ import {
   countCompleteCachedSurahs,
   countOutdatedCachedSurahs,
 } from '../services/quranApi';
+import {
+  DEFAULT_FASTING_LOCATION,
+  FASTING_CALCULATION_METHODS,
+  PRESET_FASTING_LOCATIONS,
+  type FastingCalculationMethod,
+} from '../utils/fasting';
+import { clampHijriOffsetDays } from '../utils/hijri';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 import { getRecordDuaTotal } from '../utils/stats';
 import { TabHeader, ThemePicker } from './NavigationChrome';
@@ -52,6 +60,41 @@ export function SettingsView({
 
   const { downloading, progress: downloadProgress } = useOfflineSync();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [locatingGps, setLocatingGps] = useState(false);
+
+  const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
+  const fastingMethod = settings.fastingMethod ?? 'karachi';
+  const fastingTimeFormat = settings.fastingTimeFormat ?? '12h';
+  const hijriOffsetDays = clampHijriOffsetDays(settings.hijriOffsetDays ?? 0);
+
+  const handleUseBrowserLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error('এই ব্রাউজারে অবস্থান নির্ণয় সুবিধা পাওয়া যায়নি।');
+      return;
+    }
+    setLocatingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocatingGps(false);
+        const lat = Number(pos.coords.latitude.toFixed(4));
+        const lng = Number(pos.coords.longitude.toFixed(4));
+        await onUpdateSettings({
+          fastingLocation: {
+            id: 'custom',
+            nameBn: 'বর্তমান অবস্থান',
+            latitude: lat,
+            longitude: lng,
+          },
+        });
+        toast.success('বর্তমান অবস্থান অনুযায়ী সময়সূচি হালনাগাদ হয়েছে।');
+      },
+      () => {
+        setLocatingGps(false);
+        toast.error('অবস্থানের অনুমতি পাওয়া যায়নি। তালিকা থেকে শহর নির্বাচন করুন।');
+      },
+      { enableHighAccuracy: false, timeout: 10000 }
+    );
+  };
 
   const totalAyahsRead = readingHistory.reduce((acc, h) => acc + h.ayahsCount, 0);
   const totalDhikir = readingHistory.reduce(
@@ -302,6 +345,204 @@ export function SettingsView({
                   }}
                 >
                   {sp.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Fasting & Hijri Settings */}
+      <section
+        className="pt-6 border-t space-y-5"
+        style={{ borderColor: 'var(--border-subtle)' }}
+      >
+        <div>
+          <h2
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            রোজা, সাহরি ও ইফতারের সময়সূচি
+          </h2>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            অবস্থান ও হিসাবের পদ্ধতি অনুযায়ী সম্পূর্ণ অফলাইনে সময় নির্ণয় হয়।
+          </p>
+        </div>
+
+        {/* Location Preset + GPS */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-medium">অবস্থান (শহর)</span>
+            <span className="tabular-nums text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              {fastingLocation.nameBn} ({toBanglaDigits(Number(fastingLocation.latitude.toFixed(2)))}°,{' '}
+              {toBanglaDigits(Number(fastingLocation.longitude.toFixed(2)))}°)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="অবস্থান নির্বাচন"
+              value={
+                PRESET_FASTING_LOCATIONS.some((loc) => loc.id === fastingLocation.id)
+                  ? fastingLocation.id
+                  : 'custom'
+              }
+              onChange={async (e) => {
+                const selected = PRESET_FASTING_LOCATIONS.find(
+                  (loc) => loc.id === e.target.value
+                );
+                if (!selected) return;
+                await onUpdateSettings({ fastingLocation: selected });
+                toast.success(`অবস্থান নির্ধারিত হয়েছে: ${selected.nameBn}`);
+              }}
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl border text-xs font-medium cursor-pointer"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {PRESET_FASTING_LOCATIONS.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.nameBn}
+                </option>
+              ))}
+              {fastingLocation.id === 'custom' && (
+                <option value="custom">বর্তমান অবস্থান (GPS)</option>
+              )}
+            </select>
+
+            <button
+              type="button"
+              onClick={handleUseBrowserLocation}
+              disabled={locatingGps}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium shrink-0 cursor-pointer disabled:opacity-60"
+              style={{
+                backgroundColor: 'transparent',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--accent)',
+              }}
+            >
+              {locatingGps ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <LocateFixed className="w-3.5 h-3.5" />
+              )}
+              জিপিএস
+            </button>
+          </div>
+        </div>
+
+        {/* Calculation Method */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-medium">হিসাবের পদ্ধতি</span>
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              {FASTING_CALCULATION_METHODS.find((m) => m.id === fastingMethod)?.hintBn}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {FASTING_CALCULATION_METHODS.map((method) => {
+              const active = fastingMethod === method.id;
+              return (
+                <button
+                  key={method.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={async () => {
+                    await onUpdateSettings({
+                      fastingMethod: method.id as FastingCalculationMethod,
+                    });
+                    toast.info(`সময়সূচি পদ্ধতি: ${method.labelBn}`);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: active
+                      ? 'var(--accent)'
+                      : 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {method.labelBn}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Time Format */}
+        <div className="space-y-2">
+          <span className="text-xs font-medium block">সময়ের ফরম্যাট</span>
+          <div
+            className="grid grid-cols-2 gap-1 p-1 rounded-2xl"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+            }}
+          >
+            {(
+              [
+                { value: '12h', label: '১২ ঘণ্টা' },
+                { value: '24h', label: '২৪ ঘণ্টা' },
+              ] as const
+            ).map((opt) => {
+              const active = fastingTimeFormat === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={async () => {
+                    await onUpdateSettings({ fastingTimeFormat: opt.value });
+                  }}
+                  className="py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
+                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Hijri Date Offset */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium">হিজরি তারিখ সমন্বয়</span>
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              চাঁদ দেখার ভিত্তিতে (-২ থেকে +২ দিন)
+            </span>
+          </div>
+          <div
+            className="grid grid-cols-5 gap-1 p-1 rounded-2xl"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+            }}
+          >
+            {([-2, -1, 0, 1, 2] as const).map((offset) => {
+              const active = hijriOffsetDays === offset;
+              const label =
+                offset === 0
+                  ? '০ দিন'
+                  : offset > 0
+                    ? `+${toBanglaDigits(offset)} দিন`
+                    : `-${toBanglaDigits(Math.abs(offset))} দিন`;
+              return (
+                <button
+                  key={offset}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={async () => {
+                    await onUpdateSettings({ hijriOffsetDays: offset });
+                  }}
+                  className="py-1.5 rounded-xl text-xs font-medium tabular-nums transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
+                    color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {label}
                 </button>
               );
             })}

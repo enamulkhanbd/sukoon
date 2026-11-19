@@ -121,8 +121,19 @@ export function App() {
     []
   );
 
-  const settings =
-    useLiveQuery(() => db.settings.get('app'), []) ?? DEFAULT_SETTINGS;
+  const rawSettings = useLiveQuery(() => db.settings.get('app'), []);
+  const settings: Settings = {
+    ...DEFAULT_SETTINGS,
+    ...rawSettings,
+    fastingLocation:
+      rawSettings?.fastingLocation ?? DEFAULT_SETTINGS.fastingLocation,
+    fastingMethod:
+      rawSettings?.fastingMethod ?? DEFAULT_SETTINGS.fastingMethod,
+    fastingTimeFormat:
+      rawSettings?.fastingTimeFormat ?? DEFAULT_SETTINGS.fastingTimeFormat,
+    hijriOffsetDays:
+      rawSettings?.hijriOffsetDays ?? DEFAULT_SETTINGS.hijriOffsetDays,
+  };
 
   const routineReadId = route.type === 'routineRead' ? route.routineId : '';
   const activeRouteRoutineQuery = useLiveQuery(
@@ -304,6 +315,7 @@ export function App() {
     async (patch: Partial<Settings>) => {
       const current = (await db.settings.get('app')) ?? DEFAULT_SETTINGS;
       await db.settings.put({
+        ...DEFAULT_SETTINGS,
         ...current,
         ...patch,
         key: 'app',
@@ -482,6 +494,7 @@ export function App() {
     <div className="min-h-dvh paper-frame">
       {activeTab === 'home' && (
         <HomeView
+          settings={settings}
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}

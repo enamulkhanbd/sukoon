@@ -42,7 +42,6 @@ import {
   formatDateKey,
 } from '../utils/stats';
 import { FastingCard } from './FastingCard';
-import { FastingScheduleSheet } from './FastingScheduleSheet';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import { TabHeader } from './NavigationChrome';
 
@@ -51,6 +50,7 @@ interface HomeViewProps {
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   onOpenStats: () => void;
+  onOpenFastingSchedule: () => void;
   onGoToRoutines: () => void;
   onGoToSurahs: () => void;
 }
@@ -60,11 +60,11 @@ export function HomeView({
   onOpenSurah,
   onOpenRoutineDetails,
   onOpenStats,
+  onOpenFastingSchedule,
   onGoToRoutines,
   onGoToSurahs,
 }: HomeViewProps) {
   const [now, setNow] = useState<Date>(() => getCurrentNow());
-  const [isFastingSheetOpen, setIsFastingSheetOpen] = useState(false);
 
   useEffect(() => {
     const refreshNow = () => setNow(getCurrentNow());
@@ -299,7 +299,7 @@ export function HomeView({
         }
       />
 
-      {/* Smart Last-Read Hero Card */}
+      {/* Minimal Last-Read Surah Card (Top Section) */}
       {lastRead && lastReadMeta ? (
         <LastReadSurahCard lastRead={lastRead} onOpenSurah={onOpenSurah} />
       ) : lastRead !== undefined ? (
@@ -362,7 +362,7 @@ export function HomeView({
         method={fastingMethod}
         timeFormat={fastingTimeFormat}
         hijriOffsetDays={hijriOffsetDays}
-        onOpenSchedule={() => setIsFastingSheetOpen(true)}
+        onOpenSchedule={onOpenFastingSchedule}
       />
 
       {/* Today's Ibadah Stats Summary Card */}
@@ -518,16 +518,6 @@ export function HomeView({
           </span>
         </div>
       )}
-
-      <FastingScheduleSheet
-        open={isFastingSheetOpen}
-        onClose={() => setIsFastingSheetOpen(false)}
-        now={now}
-        location={fastingLocation}
-        method={fastingMethod}
-        timeFormat={fastingTimeFormat}
-        hijriOffsetDays={hijriOffsetDays}
-      />
     </div>
   );
 }

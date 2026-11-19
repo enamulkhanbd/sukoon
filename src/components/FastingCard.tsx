@@ -1,17 +1,11 @@
-import { ChevronRight, Moon, Sparkles, Sunrise } from 'lucide-react';
+import { Moon, Sparkles, Sunrise } from 'lucide-react';
 import { toBanglaDigits } from '../utils/formatters';
 import {
-  computeDailyFastingTimes,
-  computeFastingProgress,
-  toZonedCalendarDate,
+  resolveActiveFastingContext,
   type FastingCalculationMethod,
   type FastingLocation,
 } from '../utils/fasting';
-import {
-  formatHijriDateBn,
-  getHijriDate,
-  isWeeklySunnahFastDay,
-} from '../utils/hijri';
+import { formatHijriDateBn } from '../utils/hijri';
 
 interface FastingCardProps {
   now: Date;
@@ -30,21 +24,18 @@ export function FastingCard({
   hijriOffsetDays,
   onOpenSchedule,
 }: FastingCardProps) {
-  const zonedNow = toZonedCalendarDate(now, location.timeZone);
-  const hijri = getHijriDate(zonedNow, hijriOffsetDays);
-  const dailyTimes = computeDailyFastingTimes(now, location, method, timeFormat);
-  const progress = computeFastingProgress(now, dailyTimes.sehri, dailyTimes.iftar);
-  const weeklySunnah = isWeeklySunnahFastDay(zonedNow);
+  const { hijri, dailyTimes, progress, weeklySunnah } =
+    resolveActiveFastingContext(
+      now,
+      location,
+      method,
+      timeFormat,
+      hijriOffsetDays
+    );
 
   const isRamadan = hijri.isRamadan;
   const isWeeklyToday = weeklySunnah.isWeeklySunnah;
   const isMonthlyToday = hijri.isAyyamAlBid;
-  const weeklyTodayLabel =
-    weeklySunnah.weekday === 'monday'
-      ? 'সোমবার'
-      : weeklySunnah.weekday === 'thursday'
-        ? 'বৃহস্পতিবার'
-        : null;
 
   const cardStyle = isRamadan
     ? {
@@ -104,34 +95,28 @@ export function FastingCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          {isRamadan ? (
-            <span
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-              style={{
-                backgroundColor: 'var(--gold-soft)',
-                color: 'var(--gold)',
-              }}
-            >
-              <Sparkles className="w-3 h-3" />
-              রমজান {toBanglaDigits(hijri.day)}
-            </span>
-          ) : (isWeeklyToday || isMonthlyToday) ? (
-            <span
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-              style={{
-                backgroundColor: 'var(--accent-soft)',
-                color: 'var(--accent)',
-              }}
-            >
-              সুন্নাহ রোজা
-            </span>
-          ) : null}
-          <ChevronRight
-            className="w-4 h-4"
-            style={{ color: 'var(--text-muted)' }}
-          />
-        </div>
+        {isRamadan ? (
+          <span
+            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full shrink-0"
+            style={{
+              backgroundColor: 'var(--gold-soft)',
+              color: 'var(--gold)',
+            }}
+          >
+            <Sparkles className="w-3 h-3" />
+            রমজান {toBanglaDigits(hijri.day)}
+          </span>
+        ) : isWeeklyToday || isMonthlyToday ? (
+          <span
+            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full shrink-0"
+            style={{
+              backgroundColor: 'var(--accent-soft)',
+              color: 'var(--accent)',
+            }}
+          >
+            সুন্নাহ রোজা
+          </span>
+        ) : null}
       </div>
 
       {/* Unboxed Sehri & Iftar Readout */}
@@ -202,62 +187,18 @@ export function FastingCard({
         </div>
       </div>
 
-      {/* Weekly & Monthly Sunnah Fast Indicators */}
+      {/* Monthly Sunnah Fast Note */}
       <div
-        className="pt-3 border-t flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-[11px]"
-        style={{ borderColor: 'var(--border-subtle)' }}
+        className="pt-3 border-t text-[11px]"
+        style={{
+          borderColor: 'var(--border-subtle)',
+          color: isMonthlyToday ? highlightAccent : 'var(--text-secondary)',
+        }}
       >
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span
-            className={
-              isWeeklyToday
-                ? 'inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-full'
-                : 'inline-flex items-center gap-1'
-            }
-            style={
-              isWeeklyToday
-                ? {
-                    backgroundColor: highlightSoft,
-                    color: highlightAccent,
-                  }
-                : { color: 'var(--text-secondary)' }
-            }
-          >
-            {isWeeklyToday && weeklyTodayLabel
-              ? `আজ সাপ্তাহিক সুন্নাহ (${weeklyTodayLabel})`
-              : 'সাপ্তাহিক সুন্নাহ: সোম ও বৃহঃ'}
-          </span>
-
-          <span style={{ color: 'var(--text-muted)' }} aria-hidden="true">
-            •
-          </span>
-
-          <span
-            className={
-              isMonthlyToday
-                ? 'inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-full'
-                : 'inline-flex items-center gap-1'
-            }
-            style={
-              isMonthlyToday
-                ? {
-                    backgroundColor: highlightSoft,
-                    color: highlightAccent,
-                  }
-                : { color: 'var(--text-secondary)' }
-            }
-          >
-            {isMonthlyToday
-              ? `আজ আইয়ামে বীজ (${toBanglaDigits(hijri.day)} তারিখ)`
-              : 'মাসিক: ১৩–১৫ হিজরি'}
-          </span>
-        </div>
-
-        <span
-          className="font-medium shrink-0"
-          style={{ color: highlightAccent }}
-        >
-          মাসিক সূচি
+        <span className={isMonthlyToday ? 'font-semibold' : undefined}>
+          {isMonthlyToday
+            ? `আজ আইয়ামে বীজ (${toBanglaDigits(hijri.day)} তারিখ)`
+            : 'মাসিক: ১৩–১৫ হিজরি'}
         </span>
       </div>
     </section>

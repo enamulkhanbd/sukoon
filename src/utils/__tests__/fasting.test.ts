@@ -6,6 +6,8 @@ import {
   DEFAULT_FASTING_LOCATION,
   formatPrayerTimeBn,
   PRESET_FASTING_LOCATIONS,
+  resolveActiveFastingContext,
+  resolveIslamicCalendarDate,
   toZonedCalendarDate,
 } from '../fasting';
 
@@ -262,11 +264,12 @@ describe('fasting utilities', () => {
       method: 'mwl',
       timeFormat: '24h',
     });
+    // After Maghrib on 2026-03-02 (13 Ramadan), the Hijri day has rolled over to 14 Ramadan (2026-03-03)
     const londonToday = londonSchedule.days.filter((d) => d.isToday);
     expect(londonToday).toHaveLength(1);
-    expect(londonToday[0].dateKey).toBe('2026-03-02');
-    expect(londonToday[0].hijri.day).toBe(13);
-    expect(londonToday[0].isWeeklySunnah).toBe(true);
+    expect(londonToday[0].dateKey).toBe('2026-03-03');
+    expect(londonToday[0].hijri.day).toBe(14);
+    expect(londonToday[0].isWeeklySunnah).toBe(false);
     expect(londonToday[0].isMonthlySunnah).toBe(true);
 
     // Fallback safety for invalid timeZone or invalid instant
@@ -329,5 +332,95 @@ describe('fasting utilities', () => {
     expect(Number.isFinite(badTimesProgress.percent)).toBe(true);
     expect(badTimesProgress.percent).toBe(0);
     expect(badTimesProgress.percentTextBn).not.toContain('NaN');
+  });
+
+  it('ends the Hijri day at Maghrib and advances to the next Hijri day/month at sunset', () => {
+    // 2026-02-17 in Dhaka is 29 Shaban 1447; 2026-02-18 is 1 Ramadan 1447
+    const shaban29Times = computeDailyFastingTimes(
+      new Date('2026-02-17T06:00:00Z'),
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      '12h',
+      'Asia/Dhaka'
+    );
+    const oneMinBeforeMaghrib = new Date(shaban29Times.iftar.getTime() - 60_000);
+    const atMaghrib = new Date(shaban29Times.iftar.getTime());
+
+    // 1 minute before Maghrib: still 29 Shaban (not Ramadan yet)
+    const beforeCtx = resolveActiveFastingContext(
+      oneMinBeforeMaghrib,
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      '12h',
+      0,
+      'Asia/Dhaka'
+    );
+    expect(beforeCtx.isAfterMaghrib).toBe(false);
+    expect(beforeCtx.hijri.month).toBe(8);
+    expect(beforeCtx.hijri.day).toBe(29);
+    expect(beforeCtx.hijri.isRamadan).toBe(false);
+    expect(beforeCtx.progress.phase).toBe('fasting');
+
+    const beforeSchedule = buildHijriMonthSchedule(oneMinBeforeMaghrib, {
+      location: DEFAULT_FASTING_LOCATION,
+      method: 'karachi',
+      timeZone: 'Asia/Dhaka',
+    });
+    expect(beforeSchedule.hijriMonth).toBe(8);
+    expect(beforeSchedule.isRamadan).toBe(false);
+    expect(beforeSchedule.days.find((d) => d.isToday)?.hijri.day).toBe(29);
+
+    // At exact Maghrib: 29 Shaban ended -> 1 Ramadan begins immediately!
+    const atMaghribCtx = resolveActiveFastingContext(
+      atMaghrib,
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      '12h',
+      0,
+      'Asia/Dhaka'
+    );
+    expect(atMaghribCtx.isAfterMaghrib).toBe(true);
+    expect(atMaghribCtx.hijri.month).toBe(9);
+    expect(atMaghribCtx.hijri.day).toBe(1);
+    expect(atMaghribCtx.hijri.isRamadan).toBe(true);
+    expect(atMaghribCtx.progress.phase).toBe('before_sehri');
+    expect(atMaghribCtx.progress.percent).toBe(0);
+
+    const afterSchedule = buildHijriMonthSchedule(atMaghrib, {
+      location: DEFAULT_FASTING_LOCATION,
+      method: 'karachi',
+      timeZone: 'Asia/Dhaka',
+    });
+    expect(afterSchedule.hijriMonth).toBe(9);
+    expect(afterSchedule.isRamadan).toBe(true);
+    expect(afterSchedule.days.find((d) => d.isToday)?.hijri.day).toBe(1);
+
+    // 2026-03-19 is 30 Ramadan 1447; after Maghrib it rolls over to 1 Shawwal 1447
+    const ramadan30Times = computeDailyFastingTimes(
+      new Date('2026-03-19T06:00:00Z'),
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      '12h',
+      'Asia/Dhaka'
+    );
+    const afterRamadanMaghrib = new Date(ramadan30Times.iftar.getTime() + 60_000);
+    const { isAfterMaghrib } = resolveIslamicCalendarDate(
+      afterRamadanMaghrib,
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      'Asia/Dhaka'
+    );
+    expect(isAfterMaghrib).toBe(true);
+    const shawwalCtx = resolveActiveFastingContext(
+      afterRamadanMaghrib,
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      '12h',
+      0,
+      'Asia/Dhaka'
+    );
+    expect(shawwalCtx.hijri.month).toBe(10);
+    expect(shawwalCtx.hijri.day).toBe(1);
+    expect(shawwalCtx.hijri.isRamadan).toBe(false);
   });
 });

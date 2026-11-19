@@ -14,7 +14,7 @@ import {
   isWeeklySunnahFastDay,
   type HijriDateInfo,
 } from './hijri';
-import { formatDateKey } from './stats';
+import { addDays, formatDateKey } from './stats';
 
 export type FastingCalculationMethod =
   | 'karachi'
@@ -449,6 +449,95 @@ export function computeFastingProgress(
   };
 }
 
+export interface ActiveFastingContext {
+  gregorianDate: Date;
+  islamicDate: Date;
+  isAfterMaghrib: boolean;
+  hijri: HijriDateInfo;
+  dailyTimes: DailyFastingTimes;
+  progress: FastingProgress;
+  weeklySunnah: {
+    isWeeklySunnah: boolean;
+    weekday: 'monday' | 'thursday' | null;
+  };
+}
+
+/**
+ * In the Islamic (Hijri) calendar, each day ends at Maghrib (sunset / Iftar)
+ * and the next Hijri day begins immediately at Maghrib.
+ */
+export function resolveIslamicCalendarDate(
+  instant: Date,
+  location: FastingLocation = DEFAULT_FASTING_LOCATION,
+  method: FastingCalculationMethod = 'karachi',
+  timeZone?: string
+): {
+  gregorianDate: Date;
+  islamicDate: Date;
+  isAfterMaghrib: boolean;
+} {
+  const effectiveTimeZone = timeZone ?? location.timeZone;
+  const zoned = toZonedCalendarDate(instant, effectiveTimeZone);
+  const gregorianDate = Number.isFinite(zoned.getTime())
+    ? zoned
+    : toZonedCalendarDate(new Date(), effectiveTimeZone);
+
+  const gregorianTodayTimes = computePrayerTimesForCalendarDate(
+    gregorianDate,
+    location,
+    method,
+    '24h',
+    effectiveTimeZone
+  );
+
+  const isAfterMaghrib =
+    Number.isFinite(instant.getTime()) &&
+    Number.isFinite(gregorianTodayTimes.iftar.getTime()) &&
+    instant.getTime() >= gregorianTodayTimes.iftar.getTime();
+
+  const islamicDate = isAfterMaghrib ? addDays(gregorianDate, 1) : gregorianDate;
+
+  return {
+    gregorianDate,
+    islamicDate,
+    isAfterMaghrib,
+  };
+}
+
+export function resolveActiveFastingContext(
+  now: Date,
+  location: FastingLocation = DEFAULT_FASTING_LOCATION,
+  method: FastingCalculationMethod = 'karachi',
+  timeFormat: '12h' | '24h' = '12h',
+  hijriOffsetDays = 0,
+  timeZone?: string
+): ActiveFastingContext {
+  const effectiveTimeZone = timeZone ?? location.timeZone;
+  const { gregorianDate, islamicDate, isAfterMaghrib } =
+    resolveIslamicCalendarDate(now, location, method, effectiveTimeZone);
+
+  const hijri = getHijriDate(islamicDate, hijriOffsetDays);
+  const dailyTimes = computePrayerTimesForCalendarDate(
+    islamicDate,
+    location,
+    method,
+    timeFormat,
+    effectiveTimeZone
+  );
+  const progress = computeFastingProgress(now, dailyTimes.sehri, dailyTimes.iftar);
+  const weeklySunnah = isWeeklySunnahFastDay(islamicDate);
+
+  return {
+    gregorianDate,
+    islamicDate,
+    isAfterMaghrib,
+    hijri,
+    dailyTimes,
+    progress,
+    weeklySunnah,
+  };
+}
+
 export function buildHijriMonthSchedule(
   referenceDate: Date,
   options?: {
@@ -471,13 +560,15 @@ export function buildHijriMonthSchedule(
   const hijriOffsetDays = clampHijriOffsetDays(options?.hijriOffsetDays ?? 0);
   const effectiveTimeZone = options?.timeZone ?? location.timeZone;
 
-  const zonedRefDate = toZonedCalendarDate(referenceDate, effectiveTimeZone);
-  const safeZonedRef = Number.isFinite(zonedRefDate.getTime())
-    ? zonedRefDate
-    : toZonedCalendarDate(new Date(), effectiveTimeZone);
+  const { islamicDate } = resolveIslamicCalendarDate(
+    referenceDate,
+    location,
+    method,
+    effectiveTimeZone
+  );
 
-  const monthDates = getHijriMonthGregorianDates(safeZonedRef, hijriOffsetDays);
-  const todayKey = formatDateKey(safeZonedRef);
+  const monthDates = getHijriMonthGregorianDates(islamicDate, hijriOffsetDays);
+  const todayKey = formatDateKey(islamicDate);
 
   const days: MonthlyScheduleDay[] = monthDates.map(({ gregorianDate, hijri }) => {
     const times = computePrayerTimesForCalendarDate(
@@ -507,7 +598,7 @@ export function buildHijriMonthSchedule(
     };
   });
 
-  const firstHijri = days[0]?.hijri ?? getHijriDate(safeZonedRef, hijriOffsetDays);
+  const firstHijri = days[0]?.hijri ?? getHijriDate(islamicDate, hijriOffsetDays);
 
   return {
     hijriYear: firstHijri.year,

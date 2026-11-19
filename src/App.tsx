@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { BottomNav, type AppTab } from './components/BottomNav';
 import { DuaReaderView } from './components/DuaReaderView';
 import { DuasView } from './components/DuasView';
+import { FastingScheduleView } from './components/FastingScheduleView';
 import { HomeView } from './components/HomeView';
 import { ReaderView } from './components/ReaderView';
 import { RoutineDetailView } from './components/RoutineDetailView';
@@ -62,7 +63,7 @@ export function App() {
 
   // Keep non-reader return destination up to date
   useEffect(() => {
-    if (!isReaderRoute(route) && route.type !== 'stats') {
+    if (!isReaderRoute(route) && route.type !== 'stats' && route.type !== 'ramadan') {
       lastBaseRouteRef.current = route;
     }
   }, [route]);
@@ -189,7 +190,11 @@ export function App() {
     navigate({ type: 'stats' });
   }, [navigate]);
 
-  const closeStats = useCallback(() => {
+  const openRamadanSchedule = useCallback(() => {
+    navigate({ type: 'ramadan' });
+  }, [navigate]);
+
+  const closeSubView = useCallback(() => {
     const base = lastBaseRouteRef.current;
     if (base.type === 'tab') {
       navigate(base, { restoreScroll: true });
@@ -470,7 +475,11 @@ export function App() {
   }
 
   if (route.type === 'stats') {
-    return <StatsView onBack={closeStats} />;
+    return <StatsView onBack={closeSubView} />;
+  }
+
+  if (route.type === 'ramadan') {
+    return <FastingScheduleView settings={settings} onBack={closeSubView} />;
   }
 
   if (route.type === 'routineDetail') {
@@ -498,6 +507,7 @@ export function App() {
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
+          onOpenFastingSchedule={openRamadanSchedule}
           onGoToRoutines={() => {
             setOpenCreateRoutine(true);
             navigate({ type: 'tab', tab: 'routines' });

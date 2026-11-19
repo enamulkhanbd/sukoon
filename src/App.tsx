@@ -124,18 +124,26 @@ export function App() {
     useLiveQuery(() => db.settings.get('app'), []) ?? DEFAULT_SETTINGS;
 
   const routineReadId = route.type === 'routineRead' ? route.routineId : '';
-  const activeRouteRoutine = useLiveQuery(
-    async () =>
-      routineReadId && dbReady
-        ? (await db.routines.get(routineReadId)) ?? null
-        : null,
+  const activeRouteRoutineQuery = useLiveQuery(
+    async () => {
+      if (!routineReadId || !dbReady) return null;
+      const routine = (await db.routines.get(routineReadId)) ?? null;
+      return { id: routineReadId, routine };
+    },
     [routineReadId, dbReady]
   );
+  const isRoutineReadReady =
+    route.type !== 'routineRead' ||
+    activeRouteRoutineQuery?.id === route.routineId;
+  const activeRouteRoutine =
+    route.type === 'routineRead' && isRoutineReadReady
+      ? (activeRouteRoutineQuery?.routine ?? null)
+      : undefined;
 
   // Redirect cleanly if direct /routines/:id/read/:idx points to missing routine or index
   useEffect(() => {
     if (!dbReady || route.type !== 'routineRead') return;
-    if (activeRouteRoutine === undefined) return;
+    if (!isRoutineReadReady || activeRouteRoutine === undefined) return;
     if (activeRouteRoutine === null) {
       navigate({ type: 'tab', tab: 'routines' }, { replace: true });
       return;
@@ -147,7 +155,7 @@ export function App() {
         { replace: true }
       );
     }
-  }, [dbReady, route, activeRouteRoutine, navigate]);
+  }, [dbReady, route, isRoutineReadReady, activeRouteRoutine, navigate]);
 
   // Apply theme attribute & PWA status bar color
   useEffect(() => {
@@ -438,6 +446,7 @@ export function App() {
   if (route.type === 'routineDetail') {
     return (
       <RoutineDetailView
+        key={route.routineId}
         routineId={route.routineId}
         onBack={closeRoutineDetails}
         onStartItem={handleStartRoutineItem}

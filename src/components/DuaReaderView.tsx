@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bookmark,
   BookOpen,
   Check,
+  ChevronUp,
   Copy,
   RotateCcw,
   SlidersHorizontal,
@@ -31,7 +32,12 @@ import {
   TopBar,
   TopBarIconButton,
 } from './NavigationChrome';
+import { TasbihCounterSheet } from './TasbihCounterSheet';
 import { useToast } from './ToastProvider';
+
+type ActiveCounterTarget =
+  | { mode: 'single' }
+  | { mode: 'part'; partIndex: number };
 
 interface DuaReaderViewProps {
   dua: DuaItem;
@@ -64,6 +70,11 @@ export function DuaReaderView({
   const [partTapCounts, setPartTapCounts] = useState<Record<string, number>>({});
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [counterSheetOpen, setCounterSheetOpen] = useState(false);
+  const [activeCounter, setActiveCounter] = useState<ActiveCounterTarget>({
+    mode: 'single',
+  });
+  const partRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const parts = dua.parts && dua.parts.length > 0 ? dua.parts : null;
   const hasAnyTransliteration = Boolean(
@@ -109,6 +120,7 @@ export function DuaReaderView({
   useEffect(() => {
     setTapCount(0);
     setPartTapCounts({});
+    setCounterSheetOpen(false);
     window.scrollTo({ top: 0, behavior: 'auto' });
     if (routine && routineNav) {
       updateDuaRoutineProgress({
@@ -177,6 +189,10 @@ export function DuaReaderView({
     });
   };
 
+  const handleDecrementCounter = () => {
+    setTapCount((prev) => Math.max(0, prev - 1));
+  };
+
   const handleIncrementPartCounter = (partId: string, partTarget: number) => {
     setPartTapCounts((prev) => {
       const next = (prev[partId] ?? 0) + 1;
@@ -185,6 +201,31 @@ export function DuaReaderView({
       }
       return { ...prev, [partId]: next };
     });
+  };
+
+  const handleDecrementPartCounter = (partId: string) => {
+    setPartTapCounts((prev) => ({
+      ...prev,
+      [partId]: Math.max(0, (prev[partId] ?? 0) - 1),
+    }));
+  };
+
+  const openCounterSheet = (target: ActiveCounterTarget) => {
+    setSettingsOpen(false);
+    setActiveCounter(target);
+    setCounterSheetOpen(true);
+
+    if (target.mode === 'part' && parts) {
+      const part = parts[target.partIndex];
+      if (part) {
+        requestAnimationFrame(() => {
+          partRefs.current[part.id]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        });
+      }
+    }
   };
 
   const handleCompleteAndNext = async (nextIndex: number) => {
@@ -224,56 +265,99 @@ export function DuaReaderView({
     target: number;
     surfaceBg: string;
     resetBg: string;
+    isSheetActive: boolean;
     onReset: () => void;
-    onIncrement: () => void;
+    onOpenSheet: () => void;
   }) => {
-    const { count, target, surfaceBg, resetBg, onReset, onIncrement } = params;
+    const {
+      count,
+      target,
+      surfaceBg,
+      resetBg,
+      isSheetActive,
+      onReset,
+      onOpenSheet,
+    } = params;
     const done = count >= target;
+    const percent = Math.min(100, target > 0 ? Math.round((count / target) * 100) : 0);
+    const buttonLabel = done
+      ? `সম্পন্ন (${toBanglaDigits(count)})`
+      : count > 0
+        ? `চালিয়ে যান (${toBanglaDigits(count)}/${toBanglaDigits(target)})`
+        : 'জিকির শুরু করুন';
+
     return (
       <div
-        className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3"
+        role="button"
+        tabIndex={0}
+        onClick={onOpenSheet}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenSheet();
+          }
+        }}
+        className="rounded-2xl border px-4 py-3 space-y-2.5 transition-colors cursor-pointer active:scale-[0.995]"
         style={{
           backgroundColor: done ? 'var(--accent-soft)' : surfaceBg,
-          borderColor: done ? 'var(--accent)' : 'var(--border-subtle)',
+          borderColor:
+            done || isSheetActive ? 'var(--accent)' : 'var(--border-subtle)',
         }}
       >
-        <div>
-          <div className="text-xs font-semibold">জিকির গণনা</div>
-          <div className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-            লক্ষ্য: {toBanglaDigits(target)} বার • সম্পন্ন:{' '}
-            <strong>{toBanglaDigits(count)}</strong> বার
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold">জিকির গণনা</div>
+            <div className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+              লক্ষ্য: {toBanglaDigits(target)} বার • সম্পন্ন:{' '}
+              <strong>{toBanglaDigits(count)}</strong> বার
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {count > 0 && (
-            <button
-              type="button"
-              onClick={onReset}
-              aria-label="গণনা রিসেট"
-              className="p-2 rounded-xl border cursor-pointer"
+          <div className="flex items-center gap-2 shrink-0">
+            {count > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
+                aria-label="গণনা রিসেট"
+                className="p-2 rounded-xl border cursor-pointer"
+                style={{
+                  backgroundColor: resetBg,
+                  borderColor: 'var(--border-subtle)',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <span
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold"
               style={{
-                backgroundColor: resetBg,
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-muted)',
+                backgroundColor: 'var(--accent)',
+                color: 'var(--accent-text)',
               }}
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onIncrement}
-            className="px-4 py-2 rounded-xl text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
-            style={{
-              backgroundColor: 'var(--accent)',
-              color: 'var(--accent-text)',
-            }}
-          >
-            {done
-              ? `সম্পন্ন (${toBanglaDigits(count)})`
-              : `+১ (${toBanglaDigits(count)}/${toBanglaDigits(target)})`}
-          </button>
+              <span>{buttonLabel}</span>
+              <ChevronUp className="w-3.5 h-3.5" />
+            </span>
+          </div>
         </div>
+
+        {count > 0 && (
+          <div
+            className="h-1 w-full rounded-full overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-surface)' }}
+          >
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${percent}%`,
+                backgroundColor: 'var(--accent)',
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   };
@@ -343,8 +427,59 @@ export function DuaReaderView({
     </>
   );
 
+  const routineNextAction = routineNav
+    ? routineNav.nextItem
+      ? {
+          label: `পরবর্তী অংশ: ${formatNormalizedRoutineItemLabel(routineNav.nextItem)}`,
+          action: () => {
+            setCounterSheetOpen(false);
+            void handleCompleteAndNext(routineNav.nextIndex);
+          },
+        }
+      : {
+          label: 'রুটিন সমাপ্ত করে ফিরুন',
+          action: () => {
+            setCounterSheetOpen(false);
+            void handleCompleteRoutine();
+          },
+        }
+    : null;
+
+  const activePartIndex =
+    parts && activeCounter.mode === 'part'
+      ? Math.min(Math.max(0, activeCounter.partIndex), parts.length - 1)
+      : null;
+  const activePart =
+    parts && activePartIndex !== null ? parts[activePartIndex] : null;
+  const activePartTarget = activePart
+    ? Math.max(
+        1,
+        routineTargetCount ?? activePart.repeatCount ?? dua.repeatCount ?? 1
+      )
+    : targetCount;
+
+  const sheetTitle =
+    parts && activePartIndex !== null
+      ? `জিকির ${toBanglaDigits(activePartIndex + 1)}/${toBanglaDigits(parts.length)}`
+      : 'জিকির গণনা';
+  const sheetCount = activePart ? (partTapCounts[activePart.id] ?? 0) : tapCount;
+  const sheetTarget = activePart ? activePartTarget : targetCount;
+
+  const sheetNextAction =
+    parts && activePartIndex !== null && activePartIndex + 1 < parts.length
+      ? {
+          label: `পরবর্তী জিকির (${toBanglaDigits(activePartIndex + 2)}/${toBanglaDigits(parts.length)})`,
+          action: () =>
+            openCounterSheet({ mode: 'part', partIndex: activePartIndex + 1 }),
+        }
+      : routineNextAction;
+
   return (
-    <div className="min-h-dvh paper-frame pb-16">
+    <div
+      className={`min-h-dvh paper-frame transition-[padding] duration-300 ${
+        counterSheetOpen ? 'pb-[56dvh]' : 'pb-16'
+      }`}
+    >
       <TopBar
         mode="sticky"
         onBack={onClose}
@@ -392,7 +527,10 @@ export function DuaReaderView({
               )}
             </TopBarIconButton>
             <TopBarIconButton
-              onClick={() => setSettingsOpen(true)}
+              onClick={() => {
+                setCounterSheetOpen(false);
+                setSettingsOpen(true);
+              }}
               label="পাঠ সেটিংস"
               active={settingsOpen}
             >
@@ -444,7 +582,10 @@ export function DuaReaderView({
                 return (
                   <section
                     key={part.id}
-                    className="rounded-3xl border p-5 space-y-4"
+                    ref={(el) => {
+                      partRefs.current[part.id] = el;
+                    }}
+                    className="rounded-3xl border p-5 space-y-4 scroll-mt-16"
                     style={{
                       backgroundColor: 'var(--bg-elevated)',
                       borderColor: partDone
@@ -502,13 +643,17 @@ export function DuaReaderView({
                         target: partTarget,
                         surfaceBg: 'var(--bg-page)',
                         resetBg: 'var(--bg-elevated)',
+                        isSheetActive:
+                          counterSheetOpen &&
+                          activeCounter.mode === 'part' &&
+                          activeCounter.partIndex === idx,
                         onReset: () =>
                           setPartTapCounts((prev) => ({
                             ...prev,
                             [part.id]: 0,
                           })),
-                        onIncrement: () =>
-                          handleIncrementPartCounter(part.id, partTarget),
+                        onOpenSheet: () =>
+                          openCounterSheet({ mode: 'part', partIndex: idx }),
                       })}
                   </section>
                 );
@@ -550,15 +695,17 @@ export function DuaReaderView({
               </p>
             </section>
 
-            {/* Tasbih Counter (shown cleanly for every Dua; highlighted when targetCount > 1 or inside routine) */}
+            {/* Tasbih Counter (opens half-screen tap sheet) */}
             {(targetCount > 1 || routine) &&
               renderTasbihCounter({
                 count: tapCount,
                 target: targetCount,
                 surfaceBg: 'var(--bg-elevated)',
                 resetBg: 'var(--bg-page)',
+                isSheetActive:
+                  counterSheetOpen && activeCounter.mode === 'single',
                 onReset: () => setTapCount(0),
-                onIncrement: handleIncrementCounter,
+                onOpenSheet: () => openCounterSheet({ mode: 'single' }),
               })}
 
             {/* Bangla Transliteration & Meaning */}
@@ -639,6 +786,37 @@ export function DuaReaderView({
           )
         )}
       </main>
+
+      <TasbihCounterSheet
+        open={counterSheetOpen}
+        onClose={() => setCounterSheetOpen(false)}
+        title={sheetTitle}
+        count={sheetCount}
+        target={sheetTarget}
+        onIncrement={() => {
+          if (activePart) {
+            handleIncrementPartCounter(activePart.id, activePartTarget);
+          } else {
+            handleIncrementCounter();
+          }
+        }}
+        onDecrement={() => {
+          if (activePart) {
+            handleDecrementPartCounter(activePart.id);
+          } else {
+            handleDecrementCounter();
+          }
+        }}
+        onReset={() => {
+          if (activePart) {
+            setPartTapCounts((prev) => ({ ...prev, [activePart.id]: 0 }));
+          } else {
+            setTapCount(0);
+          }
+        }}
+        nextActionLabel={sheetNextAction?.label ?? null}
+        onNextAction={sheetNextAction?.action}
+      />
 
       <ReaderQuickSettingsSheet
         open={settingsOpen}

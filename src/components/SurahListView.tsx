@@ -14,6 +14,14 @@ interface SurahListViewProps {
 
 type FilterMode = 'all' | 'offline' | 'makkah' | 'madinah';
 
+const TOTAL_SURAHS_COUNT = SURAHS.length;
+const MAKKAH_SURAHS_COUNT = SURAHS.filter(
+  (s) => s.revelationPlace === 'makkah'
+).length;
+const MADINAH_SURAHS_COUNT = SURAHS.filter(
+  (s) => s.revelationPlace === 'madinah'
+).length;
+
 export function SurahListView({ onOpenSurah }: SurahListViewProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterMode>('all');
@@ -109,10 +117,10 @@ export function SurahListView({ onOpenSurah }: SurahListViewProps) {
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {(
           [
-            ['all', 'সব (১১৪)'],
+            ['all', `সব (${toBanglaDigits(TOTAL_SURAHS_COUNT)})`],
             ['offline', `অফলাইন (${toBanglaDigits(cachedSet.size)})`],
-            ['makkah', 'মাক্কী'],
-            ['madinah', 'মাদানী'],
+            ['makkah', `মাক্কী (${toBanglaDigits(MAKKAH_SURAHS_COUNT)})`],
+            ['madinah', `মাদানী (${toBanglaDigits(MADINAH_SURAHS_COUNT)})`],
           ] as const
         ).map(([id, label]) => {
           const active = filter === id;

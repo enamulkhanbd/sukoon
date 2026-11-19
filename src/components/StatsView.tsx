@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ChevronLeft,
@@ -86,6 +86,8 @@ export function StatsView({ onBack }: StatsViewProps) {
 
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number | null>(null);
+  const yearlyGridScrollRef = useRef<HTMLDivElement | null>(null);
+  const focusWeekColRef = useRef<HTMLDivElement | null>(null);
 
   const historyRows = useLiveQuery(() => db.readingHistory.toArray(), []);
   const routines = useLiveQuery(() => db.routines.toArray(), []);
@@ -244,6 +246,35 @@ export function StatsView({ onBack }: StatsViewProps) {
     }
     return max;
   }, [yearly.weeks, metric]);
+
+  const yearlyFocusWeekIndex = useMemo(() => {
+    if (yearly.isCurrent) {
+      const todayWeek = yearly.weeks.find((w) => w.days.some((d) => d.isToday));
+      if (todayWeek) return todayWeek.weekIndex;
+    }
+    const latestActiveWeek = [...yearly.weeks]
+      .reverse()
+      .find((w) => w.days.some((d) => d.inTargetYear && d.isActive));
+    return latestActiveWeek?.weekIndex ?? 0;
+  }, [yearly.isCurrent, yearly.weeks]);
+
+  useEffect(() => {
+    if (period !== 'yearly') return;
+    const raf = requestAnimationFrame(() => {
+      const container = yearlyGridScrollRef.current;
+      const targetCol = focusWeekColRef.current;
+      if (!container || !targetCol) return;
+      const colRect = targetCol.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const colLeftInsideScroll =
+        colRect.left - containerRect.left + container.scrollLeft;
+      const targetLeft =
+        colLeftInsideScroll - container.clientWidth * 0.68 + colRect.width / 2;
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      container.scrollLeft = Math.min(maxScroll, Math.max(0, targetLeft));
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [period, yearOffset, yearlyFocusWeekIndex]);
 
   const metricLedger: Array<{
     id: Exclude<StatsMetric, 'all'>;
@@ -884,38 +915,46 @@ export function StatsView({ onBack }: StatsViewProps) {
                 </p>
               </div>
 
-              <div className="overflow-x-auto pb-1.5">
-                <div className="inline-flex flex-col gap-1 min-w-max">
-                  <div className="flex items-center pl-[30px] gap-[3px]">
-                    {yearly.weeks.map((week) => (
-                      <div
-                        key={`ml-${week.weekIndex}`}
-                        className="w-[11px] text-[9px] leading-none overflow-visible whitespace-nowrap"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {week.monthLabel ?? ''}
-                      </div>
-                    ))}
-                  </div>
+              <div className="flex items-start gap-2">
+                <div
+                  className="grid grid-rows-7 gap-[3px] text-[9px] leading-[11px] w-6 shrink-0 pt-[15px]"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <span>শনি</span>
+                  <span className="opacity-0">রবি</span>
+                  <span>সোম</span>
+                  <span className="opacity-0">মঙ্গল</span>
+                  <span>বুধ</span>
+                  <span className="opacity-0">বৃহঃ</span>
+                  <span>শুক্র</span>
+                </div>
 
-                  <div className="flex items-start gap-1.5">
-                    <div
-                      className="grid grid-rows-7 gap-[3px] text-[9px] leading-[11px] w-6 shrink-0 pt-[1px]"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      <span>শনি</span>
-                      <span className="opacity-0">রবি</span>
-                      <span>সোম</span>
-                      <span className="opacity-0">মঙ্গল</span>
-                      <span>বুধ</span>
-                      <span className="opacity-0">বৃহঃ</span>
-                      <span>শুক্র</span>
+                <div
+                  ref={yearlyGridScrollRef}
+                  className="overflow-x-auto pb-1.5 flex-1 min-w-0"
+                >
+                  <div className="inline-flex flex-col gap-1 min-w-max">
+                    <div className="flex items-center gap-[3px] h-[11px]">
+                      {yearly.weeks.map((week) => (
+                        <div
+                          key={`ml-${week.weekIndex}`}
+                          className="w-[11px] text-[9px] leading-none overflow-visible whitespace-nowrap"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {week.monthLabel ?? ''}
+                        </div>
+                      ))}
                     </div>
 
                     <div className="flex gap-[3px]">
                       {yearly.weeks.map((week) => (
                         <div
                           key={`w-${week.weekIndex}`}
+                          ref={
+                            week.weekIndex === yearlyFocusWeekIndex
+                              ? focusWeekColRef
+                              : undefined
+                          }
                           className="grid grid-rows-7 gap-[3px]"
                         >
                           {week.days.map((cell) => {

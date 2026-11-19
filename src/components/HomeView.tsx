@@ -350,27 +350,18 @@ export function HomeView({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {streaks.currentStreak > 0 && (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: 'var(--gold-soft)',
-                  color: 'var(--gold)',
-                }}
-              >
-                <Flame className="w-3 h-3" />
-                {toBanglaDigits(streaks.currentStreak)} দিন
-              </span>
-            )}
+          {streaks.currentStreak > 0 && (
             <span
-              className="inline-flex items-center gap-1 text-xs font-semibold"
-              style={{ color: 'var(--accent)' }}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+              style={{
+                backgroundColor: 'var(--gold-soft)',
+                color: 'var(--gold)',
+              }}
             >
-              বিস্তারিত
-              <ArrowRight className="w-3.5 h-3.5" />
+              <Flame className="w-3 h-3" />
+              {toBanglaDigits(streaks.currentStreak)} দিন
             </span>
-          </div>
+          )}
         </div>
 
         <div

@@ -1,12 +1,11 @@
 import { useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  ArrowRight,
   BarChart3,
   CheckCircle2,
+  ChevronRight,
   CloudDownload,
   Download,
-  HardDrive,
   Loader2,
   Smartphone,
   Trash2,
@@ -130,21 +129,68 @@ export function SettingsView({
   const offlinePercent = Math.round((cachedCount / 114) * 100);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-6">
+    <div className="max-w-2xl mx-auto px-5 pt-5 pb-28 space-y-8">
       <TabHeader
         title="সেটিংস ও অফলাইন"
-        subtitle="থিম, ইন্দো-পাক ফন্ট, সম্পূর্ণ অফলাইন কুরআন ও ডেটা ব্যাকআপ"
+        subtitle="থিম, ইন্দো-পাক ফন্ট, আমল পরিসংখ্যান ও ডেটা ব্যাকআপ"
       />
 
-      {/* Theme & Typography */}
+      {/* Dedicated Ibadah Statistics Section */}
+      <section className="space-y-3">
+        <h2
+          className="text-xs font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          আমল পরিসংখ্যান
+        </h2>
+
+        <button
+          type="button"
+          onClick={onOpenStats}
+          className="w-full flex items-center justify-between gap-3 py-2 text-left transition-opacity active:opacity-75 cursor-pointer group"
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <span
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                color: 'var(--accent)',
+              }}
+            >
+              <BarChart3 className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">
+                সাপ্তাহিক, মাসিক ও বাৎসরিক অগ্রগতি
+              </div>
+              <p
+                className="text-xs mt-0.5 leading-relaxed"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {toBanglaDigits(totalDhikir)} জিকির • {toBanglaDigits(totalDuas)} দুআ •{' '}
+                {toBanglaDigits(totalAyahsRead)} আয়াত ({toBanglaDigits(activeDaysCount)}{' '}
+                সক্রিয় দিন)
+              </p>
+            </div>
+          </div>
+          <ChevronRight
+            className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+            style={{ color: 'var(--text-muted)' }}
+          />
+        </button>
+      </section>
+
+      {/* Reading Environment & Typography */}
       <section
-        className="rounded-3xl border p-5 space-y-5"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
+        className="pt-6 border-t space-y-6"
+        style={{ borderColor: 'var(--border-subtle)' }}
       >
-        <h2 className="text-sm font-semibold">পড়ার পরিবেশ ও টাইপোগ্রাফি</h2>
+        <h2
+          className="text-xs font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          পড়ার পরিবেশ ও টাইপোগ্রাফি
+        </h2>
 
         <ThemePicker
           value={settings.theme}
@@ -155,10 +201,10 @@ export function SettingsView({
           }}
         />
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between text-xs">
             <span className="font-medium">ইন্দো-পাক ফন্ট সাইজ</span>
-            <span className="font-semibold" style={{ color: 'var(--accent)' }}>
+            <span className="font-semibold tabular-nums" style={{ color: 'var(--accent)' }}>
               {toBanglaDigits(settings.fontSize)}px
             </span>
           </div>
@@ -175,9 +221,8 @@ export function SettingsView({
             style={{ accentColor: 'var(--accent)' }}
           />
           <div
-            className="rounded-2xl border px-4 py-3 text-center font-indopak"
+            className="py-3 text-center font-indopak border-y"
             style={{
-              backgroundColor: 'var(--bg-page)',
               borderColor: 'var(--border-subtle)',
               fontSize: `${settings.fontSize}px`,
               lineHeight: 1.95,
@@ -187,11 +232,11 @@ export function SettingsView({
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-1">
-          <div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
             <div className="text-xs font-medium">তিলাওয়াতের সময় স্ক্রিন চালু রাখুন</div>
-            <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              Screen Wake Lock API ব্যবহার করে স্ক্রিন বন্ধ হওয়া রোধ করে
+            <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Screen Wake Lock ব্যবহার করে স্ক্রিন বন্ধ হওয়া রোধ করে
             </div>
           </div>
           <button
@@ -223,14 +268,19 @@ export function SettingsView({
         </div>
 
         {/* Auto-Scroll Speed */}
-        <div className="space-y-2 pt-1">
-          <div className="flex items-center justify-between">
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium">অটো-স্ক্রল গতি</span>
             <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
               স্পর্শ করলে স্বয়ংক্রিয়ভাবে বিরতি নেয়
             </span>
           </div>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div
+            className="grid grid-cols-5 gap-1 p-1 rounded-2xl"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+            }}
+          >
             {AUTO_SCROLL_SPEEDS.map((sp) => {
               const active = settings.autoScrollSpeed === sp.value;
               return (
@@ -245,10 +295,9 @@ export function SettingsView({
                         : `অটো-স্ক্রল গতি: ${sp.label}`
                     );
                   }}
-                  className="py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer"
+                  className="py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer"
                   style={{
-                    backgroundColor: active ? 'var(--accent)' : 'var(--bg-page)',
-                    borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
                     color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                   }}
                 >
@@ -262,20 +311,19 @@ export function SettingsView({
 
       {/* Offline Quran Storage */}
       <section
-        className="rounded-3xl border p-5 space-y-4"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
+        className="pt-6 border-t space-y-4"
+        style={{ borderColor: 'var(--border-subtle)' }}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <HardDrive className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            <h2
+              className="text-xs font-semibold uppercase tracking-wide"
+              style={{ color: 'var(--text-secondary)' }}
+            >
               অফলাইন কুরআন সংরক্ষণ
             </h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-              {toBanglaDigits(cachedCount)} / ১১৪ সূরা ({toBanglaDigits(offlinePercent)}%)
+            <p className="text-xs mt-1" style={{ color: 'var(--text-primary)' }}>
+              {toBanglaDigits(cachedCount)} / ১১৪ সূরা সংরক্ষিত ({toBanglaDigits(offlinePercent)}%)
             </p>
           </div>
           {cachedCount >= 114 && (
@@ -293,8 +341,10 @@ export function SettingsView({
         </div>
 
         <div
-          className="h-2 rounded-full overflow-hidden"
-          style={{ backgroundColor: 'var(--bg-surface)' }}
+          className="h-1.5 rounded-full overflow-hidden"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--text-primary) 7%, transparent)',
+          }}
         >
           <div
             className="h-full rounded-full transition-all duration-300"
@@ -324,9 +374,9 @@ export function SettingsView({
             <button
               type="button"
               onClick={handleCancelDownload}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer"
               style={{
-                backgroundColor: 'var(--bg-page)',
+                backgroundColor: 'transparent',
                 borderColor: 'var(--border-subtle)',
               }}
             >
@@ -338,7 +388,7 @@ export function SettingsView({
               <button
                 type="button"
                 onClick={handleDownloadAll}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
                 style={{
                   backgroundColor: 'var(--accent)',
                   color: 'var(--accent-text)',
@@ -358,9 +408,9 @@ export function SettingsView({
             <button
               type="button"
               onClick={handleClearCache}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-medium border cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium border cursor-pointer"
               style={{
-                backgroundColor: 'var(--bg-page)',
+                backgroundColor: 'transparent',
                 borderColor: 'var(--border-subtle)',
                 color: 'var(--text-secondary)',
               }}
@@ -372,47 +422,30 @@ export function SettingsView({
         </div>
       </section>
 
-      {/* Reading Summary & JSON Export/Import */}
+      {/* Data Portability & Backup */}
       <section
-        className="rounded-3xl border p-5 space-y-4"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
+        className="pt-6 border-t space-y-4"
+        style={{ borderColor: 'var(--border-subtle)' }}
       >
         <div>
-          <h2 className="text-sm font-semibold">ডেটা পোর্টেবিলিটি ও ব্যাকআপ</h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            সর্বমোট: {toBanglaDigits(totalDhikir)} জিকির •{' '}
-            {toBanglaDigits(totalDuas)} দুআ • {toBanglaDigits(totalAyahsRead)} আয়াত (
-            {toBanglaDigits(activeDaysCount)} সক্রিয় দিন)
+          <h2
+            className="text-xs font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            ডেটা পোর্টেবিলিটি ও ব্যাকআপ
+          </h2>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            আপনার রুটিন, পরিসংখ্যান ও সব ডেটা ডিভাইসেই সুরক্ষিত। চাইলে JSON ফাইল হিসেবে ব্যাকআপ বা রিস্টোর করুন।
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={onOpenStats}
-          className="w-full flex items-center justify-between gap-2 py-2.5 px-3.5 rounded-xl border text-xs font-semibold transition-colors active:scale-[0.99] cursor-pointer"
-          style={{
-            backgroundColor: 'var(--accent-soft)',
-            borderColor: 'color-mix(in srgb, var(--accent) 30%, var(--border-subtle))',
-            color: 'var(--accent)',
-          }}
-        >
-          <span className="inline-flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" />
-            সাপ্তাহিক, মাসিক ও বাৎসরিক পরিসংখ্যান দেখুন
-          </span>
-          <ArrowRight className="w-4 h-4 shrink-0" />
-        </button>
 
         <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
             onClick={handleExportJson}
-            className="inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold transition-colors active:scale-[0.99] cursor-pointer"
             style={{
-              backgroundColor: 'var(--bg-page)',
+              backgroundColor: 'transparent',
               borderColor: 'var(--border-subtle)',
             }}
           >
@@ -423,9 +456,9 @@ export function SettingsView({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold transition-colors active:scale-[0.99] cursor-pointer"
             style={{
-              backgroundColor: 'var(--bg-page)',
+              backgroundColor: 'transparent',
               borderColor: 'var(--border-subtle)',
             }}
           >
@@ -442,22 +475,19 @@ export function SettingsView({
         </div>
       </section>
 
-      {/* PWA Install Card */}
+      {/* PWA Install */}
       <section
-        className="rounded-3xl border p-5 flex items-center justify-between gap-4"
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          borderColor: 'var(--border-subtle)',
-        }}
+        className="pt-6 border-t flex items-center justify-between gap-4"
+        style={{ borderColor: 'var(--border-subtle)' }}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 min-w-0">
           <Smartphone
-            className="w-5 h-5 mt-0.5 shrink-0"
+            className="w-4 h-4 mt-0.5 shrink-0"
             style={{ color: 'var(--accent)' }}
           />
           <div>
-            <h2 className="text-sm font-semibold">অ্যাপ হিসেবে ইনস্টল করুন</h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            <h2 className="text-xs font-semibold">অ্যাপ হিসেবে ইনস্টল করুন</h2>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
               {isInstalled
                 ? 'সুকূন আপনার ডিভাইসে ইনস্টল করা আছে।'
                 : canInstall

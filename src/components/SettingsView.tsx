@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BarChart3,
+  Check,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CloudDownload,
   Download,
   Loader2,
   LocateFixed,
+  MapPin,
   Smartphone,
   Trash2,
   Upload,
@@ -34,12 +37,155 @@ import {
   FASTING_CALCULATION_METHODS,
   PRESET_FASTING_LOCATIONS,
   type FastingCalculationMethod,
+  type FastingLocation,
 } from '../utils/fasting';
 import { clampHijriOffsetDays } from '../utils/hijri';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 import { getRecordDuaTotal } from '../utils/stats';
-import { TabHeader, ThemePicker } from './NavigationChrome';
+import { TabHeader, ThemePicker, useBottomSheet } from './NavigationChrome';
 import { useToast } from './ToastProvider';
+
+interface LocationPickerSheetProps {
+  open: boolean;
+  onClose: () => void;
+  selectedId: string;
+  onSelect: (location: FastingLocation) => void;
+}
+
+function LocationPickerSheet({
+  open,
+  onClose,
+  selectedId,
+  onSelect,
+}: LocationPickerSheetProps) {
+  const {
+    mounted,
+    visible,
+    dragging,
+    panelRef,
+    backdropStyle,
+    panelTransform,
+    dragHandleProps,
+  } = useBottomSheet(open, onClose);
+
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, onClose]);
+
+  if (!mounted) return null;
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:px-4 sukoon-sheet-backdrop ${
+        visible ? '' : 'pointer-events-none'
+      }`}
+      style={backdropStyle}
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="অবস্থান নির্বাচন"
+        className={`w-full sm:max-w-md rounded-t-[28px] border-t border-x max-h-[75dvh] flex flex-col overflow-hidden sukoon-sheet-panel safe-bottom ${
+          dragging ? 'sukoon-sheet-panel--dragging' : ''
+        }`}
+        style={{
+          backgroundColor: 'var(--bg-page)',
+          borderColor: 'var(--border-subtle)',
+          transform: panelTransform,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          {...dragHandleProps}
+          className="px-5 pt-2.5 pb-3 border-b select-none shrink-0"
+          style={{
+            borderColor: 'var(--border-subtle)',
+            touchAction: 'none',
+          }}
+        >
+          <div
+            className="w-9 h-1 rounded-full mx-auto mb-3 opacity-45"
+            style={{ backgroundColor: 'var(--text-muted)' }}
+          />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <h2 className="font-bold text-base">অবস্থান নির্বাচন</h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="বন্ধ করুন"
+              className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-colors active:scale-95"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto px-3 py-2 divide-y divide-[var(--border-subtle)]">
+          {PRESET_FASTING_LOCATIONS.map((loc) => {
+            const active = loc.id === selectedId;
+            return (
+              <button
+                key={loc.id}
+                type="button"
+                onClick={() => {
+                  onSelect(loc);
+                  onClose();
+                }}
+                className="w-full px-3 py-3 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer rounded-xl"
+                style={{
+                  backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
+                }}
+              >
+                <div className="min-w-0">
+                  <div
+                    className="text-sm font-medium"
+                    style={{
+                      color: active ? 'var(--accent)' : 'var(--text-primary)',
+                    }}
+                  >
+                    {loc.nameBn}
+                  </div>
+                  <div
+                    className="text-[11px] tabular-nums mt-0.5"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {toBanglaDigits(Number(loc.latitude.toFixed(2)))}°,{' '}
+                    {toBanglaDigits(Number(loc.longitude.toFixed(2)))}°
+                  </div>
+                </div>
+                {active && (
+                  <Check
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--accent)' }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface SettingsViewProps {
   settings: Settings;
@@ -61,6 +207,7 @@ export function SettingsView({
   const { downloading, progress: downloadProgress } = useOfflineSync();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
+  const [locationSheetOpen, setLocationSheetOpen] = useState(false);
 
   const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const fastingMethod = settings.fastingMethod ?? 'karachi';
@@ -379,37 +526,29 @@ export function SettingsView({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <button
+              type="button"
               aria-label="অবস্থান নির্বাচন"
-              value={
-                PRESET_FASTING_LOCATIONS.some((loc) => loc.id === fastingLocation.id)
-                  ? fastingLocation.id
-                  : 'custom'
-              }
-              onChange={async (e) => {
-                const selected = PRESET_FASTING_LOCATIONS.find(
-                  (loc) => loc.id === e.target.value
-                );
-                if (!selected) return;
-                await onUpdateSettings({ fastingLocation: selected });
-                toast.success(`অবস্থান নির্ধারিত হয়েছে: ${selected.nameBn}`);
-              }}
-              className="flex-1 min-w-0 px-3 py-2 rounded-xl border text-xs font-medium cursor-pointer"
+              aria-haspopup="dialog"
+              aria-expanded={locationSheetOpen}
+              onClick={() => setLocationSheetOpen(true)}
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl border text-xs font-medium flex items-center justify-between gap-2 cursor-pointer transition-colors active:scale-[0.99]"
               style={{
                 backgroundColor: 'var(--bg-elevated)',
                 borderColor: 'var(--border-subtle)',
                 color: 'var(--text-primary)',
               }}
             >
-              {PRESET_FASTING_LOCATIONS.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.nameBn}
-                </option>
-              ))}
-              {fastingLocation.id === 'custom' && (
-                <option value="custom">বর্তমান অবস্থান (GPS)</option>
-              )}
-            </select>
+              <span className="truncate">
+                {fastingLocation.id === 'custom'
+                  ? 'বর্তমান অবস্থান (GPS)'
+                  : fastingLocation.nameBn}
+              </span>
+              <ChevronDown
+                className="w-4 h-4 shrink-0"
+                style={{ color: 'var(--text-muted)' }}
+              />
+            </button>
 
             <button
               type="button"
@@ -754,6 +893,16 @@ export function SettingsView({
           </button>
         )}
       </section>
+
+      <LocationPickerSheet
+        open={locationSheetOpen}
+        onClose={() => setLocationSheetOpen(false)}
+        selectedId={fastingLocation.id}
+        onSelect={async (selected) => {
+          await onUpdateSettings({ fastingLocation: selected });
+          toast.success(`অবস্থান নির্ধারিত হয়েছে: ${selected.nameBn}`);
+        }}
+      />
     </div>
   );
 }

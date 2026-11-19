@@ -62,7 +62,7 @@ export function LastReadSurahCard({
       <div className="text-right shrink-0">
         <div
           className="font-surah-names text-4xl leading-none select-none"
-          style={{ color: 'var(--gold)' }}
+          style={{ color: 'var(--accent)' }}
           aria-hidden="true"
         >
           {String(surah.id).padStart(3, '0')}

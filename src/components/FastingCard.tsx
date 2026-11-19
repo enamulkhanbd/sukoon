@@ -36,6 +36,7 @@ export function FastingCard({
   const isRamadan = hijri.isRamadan;
   const isWeeklyToday = weeklySunnah.isWeeklySunnah;
   const isMonthlyToday = hijri.isAyyamAlBid;
+  const isFastingDay = isRamadan || isWeeklyToday || isMonthlyToday;
 
   const cardStyle = isRamadan
     ? {
@@ -50,6 +51,75 @@ export function FastingCard({
 
   const highlightAccent = isRamadan ? 'var(--gold)' : 'var(--accent)';
   const highlightSoft = isRamadan ? 'var(--gold-soft)' : 'var(--accent-soft)';
+
+  if (!isFastingDay) {
+    return (
+      <section
+        role="button"
+        tabIndex={0}
+        aria-label="সাহরি, ইফতার ও পূর্ণ মাসিক রোজার সময়সূচি দেখুন"
+        onClick={onOpenSchedule}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenSchedule();
+          }
+        }}
+        className="rounded-3xl border px-4 py-3.5 space-y-2.5 transition-colors cursor-pointer active:scale-[0.995]"
+        style={cardStyle}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span
+            className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+            style={{
+              backgroundColor: 'var(--accent-soft)',
+              color: 'var(--accent)',
+            }}
+          >
+            <Sunrise className="w-3.5 h-3.5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-xs font-semibold truncate">সাহরি ও ইফতার</h2>
+            <p
+              className="text-[11px] truncate"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {formatHijriDateBn(hijri)} • {location.nameBn}
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="pt-2.5 border-t flex items-center justify-between gap-3 text-xs"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
+          <div className="inline-flex items-baseline gap-1.5">
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              সাহরি শেষ
+            </span>
+            <span
+              className="font-semibold tabular-nums"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {dailyTimes.sehriFormatted}
+            </span>
+          </div>
+
+          <div className="inline-flex items-baseline gap-1.5">
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              ইফতার
+            </span>
+            <span
+              className="font-semibold tabular-nums"
+              style={{ color: 'var(--accent)' }}
+            >
+              {dailyTimes.iftarFormatted}
+            </span>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

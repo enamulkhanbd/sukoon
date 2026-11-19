@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Moon, Sparkles } from 'lucide-react';
+import { Moon } from 'lucide-react';
 import type { Settings } from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
 import {
@@ -18,11 +18,17 @@ interface FastingScheduleViewProps {
   onBack: () => void;
 }
 
+type NonRamadanFilter = 'all' | 'sunnah';
+type RamadanAshraFilter = 'all' | 'rahmat' | 'magfirat' | 'najat';
+
 export function FastingScheduleView({
   settings,
   onBack,
 }: FastingScheduleViewProps) {
   const [now, setNow] = useState<Date>(() => getCurrentNow());
+  const [nonRamadanFilter, setNonRamadanFilter] =
+    useState<NonRamadanFilter>('all');
+  const [ashraFilter, setAshraFilter] = useState<RamadanAshraFilter>('all');
   const todayRowRef = useRef<HTMLDivElement | null>(null);
   const nowRef = useRef(now);
   nowRef.current = now;
@@ -68,7 +74,45 @@ export function FastingScheduleView({
     [islamicDateKey, location, method, timeFormat, hijriOffsetDays]
   );
 
+  const todayEntry = useMemo(
+    () => schedule.days.find((d) => d.isToday) ?? schedule.days[0],
+    [schedule.days]
+  );
+
+  const sunnahDaysCount = useMemo(
+    () =>
+      schedule.days.filter((d) => d.isWeeklySunnah || d.isMonthlySunnah).length,
+    [schedule.days]
+  );
+
+  const visibleDays = useMemo(() => {
+    if (schedule.isRamadan) {
+      if (ashraFilter === 'rahmat') {
+        return schedule.days.filter((d) => d.hijri.day <= 10);
+      }
+      if (ashraFilter === 'magfirat') {
+        return schedule.days.filter(
+          (d) => d.hijri.day >= 11 && d.hijri.day <= 20
+        );
+      }
+      if (ashraFilter === 'najat') {
+        return schedule.days.filter((d) => d.hijri.day >= 21);
+      }
+      return schedule.days;
+    }
+
+    if (nonRamadanFilter === 'sunnah') {
+      return schedule.days.filter((d) => d.isWeeklySunnah || d.isMonthlySunnah);
+    }
+    return schedule.days;
+  }, [schedule.days, schedule.isRamadan, ashraFilter, nonRamadanFilter]);
+
   useEffect(() => {
+    const isAllSelected = schedule.isRamadan
+      ? ashraFilter === 'all'
+      : nonRamadanFilter === 'all';
+    if (!isAllSelected) return;
+
     const raf = requestAnimationFrame(() => {
       const reducedMotion =
         typeof window !== 'undefined' &&
@@ -79,7 +123,7 @@ export function FastingScheduleView({
       });
     });
     return () => cancelAnimationFrame(raf);
-  }, [islamicDateKey]);
+  }, [islamicDateKey, schedule.isRamadan, ashraFilter, nonRamadanFilter]);
 
   const accentColor = schedule.isRamadan ? 'var(--gold)' : 'var(--accent)';
   const accentSoft = schedule.isRamadan ? 'var(--gold-soft)' : 'var(--accent-soft)';
@@ -105,138 +149,308 @@ export function FastingScheduleView({
             </span>
           ) : undefined
         }
-        subtitle={`${location.nameBn} • ${toBanglaDigits(schedule.days.length)} দিনের সাহরি ও ইফতার`}
+        subtitle={`${location.nameBn} • ${toBanglaDigits(schedule.days.length)} দিনের সময়সূচি`}
       />
 
-      <main className="max-w-2xl mx-auto px-5 pt-4">
-        {/* Legend Strip */}
-        <div
-          className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pb-4 text-[11px]"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: 'var(--accent)' }}
-            />
-            সাপ্তাহিক সুন্নাহ (সোম ও বৃহঃ)
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: 'var(--gold)' }}
-            />
-            আইয়ামে বীজ (১৩–১৫ হিজরি)
-          </span>
-        </div>
-
-        {/* Column Header */}
-        <div
-          className="grid grid-cols-[1.45fr_1fr_1fr] gap-2 py-2.5 border-y text-[11px] font-semibold uppercase tracking-wide"
-          style={{
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-secondary)',
-          }}
-        >
-          <div>তারিখ</div>
-          <div className="text-right">সাহরি শেষ</div>
-          <div className="text-right">ইফতার</div>
-        </div>
-
-        {/* Full-Month Hairline Schedule List */}
-        <div className="divide-y divide-[var(--border-subtle)]">
-          {schedule.days.map((day) => {
-            const gregorianText = `${toBanglaDigits(day.gregorianDate.getDate())} ${
-              MONTH_SHORT_BN[day.gregorianDate.getMonth()]
-            }`;
-
-            return (
-              <div
-                key={day.dateKey}
-                ref={day.isToday ? todayRowRef : undefined}
-                className="py-3.5 px-2 -mx-2 rounded-xl grid grid-cols-[1.45fr_1fr_1fr] gap-2 items-center scroll-mt-28"
-                style={
-                  day.isToday
-                    ? { backgroundColor: accentSoft }
-                    : undefined
-                }
-              >
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs sm:text-sm font-semibold tabular-nums">
-                      {toBanglaDigits(day.hijri.day)} {schedule.hijriMonthNameBn}
-                    </span>
-                    <span
-                      className="text-[11px]"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      ({day.weekdayShortBn})
-                    </span>
-                    {day.isToday && (
-                      <span
-                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
-                        style={{
-                          backgroundColor: accentColor,
-                          color: 'var(--accent-text)',
-                        }}
-                      >
-                        আজ
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span
-                      className="text-[11px] tabular-nums"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {gregorianText}
-                    </span>
-                    {day.isWeeklySunnah && (
-                      <span
-                        className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: 'var(--accent-soft)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        {day.weeklySunnahType === 'monday'
-                          ? 'সোম সুন্নাহ'
-                          : 'বৃহঃ সুন্নাহ'}
-                      </span>
-                    )}
-                    {day.isMonthlySunnah && (
-                      <span
-                        className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: 'var(--gold-soft)',
-                          color: 'var(--gold)',
-                        }}
-                      >
-                        <Sparkles className="w-2.5 h-2.5" />
-                        আইয়ামে বীজ
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div
-                  className="text-right text-xs sm:text-sm font-medium tabular-nums"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {day.sehriFormatted}
-                </div>
-
-                <div
-                  className="text-right text-xs sm:text-sm font-semibold tabular-nums"
+      <main className="max-w-2xl mx-auto px-5 pt-4 space-y-5">
+        {/* Today's At-a-Glance Strip (Open Editorial Style) */}
+        {todayEntry && (
+          <section className="space-y-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="flex items-baseline gap-2 min-w-0">
+                <span
+                  className="text-xl font-bold tabular-nums tracking-tight"
                   style={{ color: accentColor }}
                 >
-                  {day.iftarFormatted}
+                  {toBanglaDigits(todayEntry.hijri.day)} {schedule.hijriMonthNameBn}
+                </span>
+                <span
+                  className="text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  আজ • {toBanglaDigits(todayEntry.gregorianDate.getDate())}{' '}
+                  {MONTH_SHORT_BN[todayEntry.gregorianDate.getMonth()]} (
+                  {todayEntry.weekdayShortBn})
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="grid grid-cols-2 divide-x divide-[var(--border-subtle)] py-2.5 border-y"
+              style={{ borderColor: 'var(--border-subtle)' }}
+            >
+              <div className="pr-4">
+                <div
+                  className="text-[11px]"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  আজকের সাহরি শেষ
+                </div>
+                <div className="text-base font-bold tabular-nums mt-0.5">
+                  {todayEntry.sehriFormatted}
                 </div>
               </div>
-            );
-          })}
-        </div>
+              <div className="pl-4">
+                <div
+                  className="text-[11px]"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  আজকের ইফতার
+                </div>
+                <div
+                  className="text-base font-bold tabular-nums mt-0.5"
+                  style={{ color: accentColor }}
+                >
+                  {todayEntry.iftarFormatted}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Meaningful Underline Filter Tabs */}
+        <section className="space-y-2.5">
+          {schedule.isRamadan ? (
+            <div
+              className="grid grid-cols-4 border-b"
+              style={{ borderColor: 'var(--border-subtle)' }}
+              role="tablist"
+              aria-label="আশরা নির্বাচন"
+            >
+              {(
+                [
+                  { id: 'all', label: 'সব দিন' },
+                  { id: 'rahmat', label: 'রহমত' },
+                  { id: 'magfirat', label: 'মাগফিরাত' },
+                  { id: 'najat', label: 'নাজাত' },
+                ] as const
+              ).map((tab) => {
+                const active = ashraFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setAshraFilter(tab.id)}
+                    className="relative py-2 text-xs font-semibold transition-colors cursor-pointer"
+                    style={{
+                      color: active ? accentColor : 'var(--text-muted)',
+                    }}
+                  >
+                    {tab.label}
+                    {active && (
+                      <span
+                        className="absolute inset-x-3 bottom-0 h-[2px] rounded-full"
+                        style={{ backgroundColor: accentColor }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div
+              className="grid grid-cols-2 border-b"
+              style={{ borderColor: 'var(--border-subtle)' }}
+              role="tablist"
+              aria-label="দিন ফিল্টার"
+            >
+              {(
+                [
+                  {
+                    id: 'all',
+                    label: `সব দিন (${toBanglaDigits(schedule.days.length)})`,
+                  },
+                  {
+                    id: 'sunnah',
+                    label: `সুন্নাহ রোজা (${toBanglaDigits(sunnahDaysCount)})`,
+                  },
+                ] as const
+              ).map((tab) => {
+                const active = nonRamadanFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setNonRamadanFilter(tab.id)}
+                    className="relative py-2 text-xs font-semibold transition-colors cursor-pointer"
+                    style={{
+                      color: active ? accentColor : 'var(--text-muted)',
+                    }}
+                  >
+                    {tab.label}
+                    {active && (
+                      <span
+                        className="absolute inset-x-8 bottom-0 h-[2px] rounded-full"
+                        style={{ backgroundColor: accentColor }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Quiet Legend */}
+          <div
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: 'var(--accent)' }}
+              />
+              সোম ও বৃহঃ সুন্নাহ
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: 'var(--gold)' }}
+              />
+              আইয়ামে বীজ (১৩–১৫)
+            </span>
+          </div>
+        </section>
+
+        {/* Clean Tabular Schedule */}
+        <section>
+          <div
+            className="grid grid-cols-[2.25rem_1fr_auto_auto] gap-x-3 pb-2 border-b text-[11px] font-medium"
+            style={{
+              borderColor: 'var(--border-subtle)',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <div className="text-center">দিন</div>
+            <div>তারিখ</div>
+            <div className="text-right w-[4.75rem]">সাহরি শেষ</div>
+            <div className="text-right w-[4.75rem]">ইফতার</div>
+          </div>
+
+          <div className="pt-1.5 space-y-1">
+            {visibleDays.map((day, index) => {
+              const isPast = day.dateKey < islamicDateKey;
+              const nextDay = visibleDays[index + 1];
+              const showDivider =
+                index < visibleDays.length - 1 && !day.isToday && !nextDay?.isToday;
+              const gregorianText = `${toBanglaDigits(day.gregorianDate.getDate())} ${
+                MONTH_SHORT_BN[day.gregorianDate.getMonth()]
+              }`;
+              const sunnahNote = day.isMonthlySunnah
+                ? day.isWeeklySunnah
+                  ? 'আইয়ামে বীজ • সুন্নাহ'
+                  : 'আইয়ামে বীজ'
+                : day.isWeeklySunnah
+                  ? 'সুন্নাহ রোজা'
+                  : null;
+
+              const dotColor = day.isMonthlySunnah
+                ? 'var(--gold)'
+                : day.isWeeklySunnah
+                  ? 'var(--accent)'
+                  : null;
+
+              return (
+                <div key={day.dateKey} ref={day.isToday ? todayRowRef : undefined} className="scroll-mt-28">
+                  <div
+                    className={`grid grid-cols-[2.25rem_1fr_auto_auto] gap-x-3 items-center py-3 transition-colors ${
+                      day.isToday ? 'px-3 -mx-3 rounded-2xl' : 'px-0.5'
+                    }`}
+                    style={{
+                      backgroundColor: day.isToday ? accentSoft : undefined,
+                      opacity: isPast ? 0.52 : 1,
+                    }}
+                  >
+                    {/* Hijri Day Number */}
+                    <div className="flex flex-col items-center justify-center">
+                      <span
+                        className="text-sm font-bold tabular-nums leading-none"
+                        style={{
+                          color: day.isToday
+                            ? accentColor
+                            : dotColor ?? 'var(--text-primary)',
+                        }}
+                      >
+                        {day.hijri.day < 10
+                          ? `০${toBanglaDigits(day.hijri.day)}`
+                          : toBanglaDigits(day.hijri.day)}
+                      </span>
+                      {dotColor && (
+                        <span
+                          className="w-1 h-1 rounded-full mt-1"
+                          style={{ backgroundColor: dotColor }}
+                          aria-hidden="true"
+                        />
+                      )}
+                    </div>
+
+                    {/* Gregorian Date + Weekday + Quiet Sunnah Note */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium tabular-nums truncate">
+                          {gregorianText} • {day.weekdayShortBn}
+                        </span>
+                        {day.isToday && (
+                          <span
+                            className="text-[10px] font-semibold px-1.5 py-[1px] rounded-full shrink-0"
+                            style={{
+                              backgroundColor: accentColor,
+                              color: 'var(--accent-text)',
+                            }}
+                          >
+                            আজ
+                          </span>
+                        )}
+                      </div>
+                      {sunnahNote && (
+                        <div
+                          className="text-[10px] mt-0.5 truncate"
+                          style={{
+                            color: day.isMonthlySunnah
+                              ? 'var(--gold)'
+                              : 'var(--accent)',
+                          }}
+                        >
+                          {sunnahNote}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sehri */}
+                    <div
+                      className="text-right text-xs font-medium tabular-nums w-[4.75rem]"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {day.sehriFormatted}
+                    </div>
+
+                    {/* Iftar */}
+                    <div
+                      className="text-right text-xs font-semibold tabular-nums w-[4.75rem]"
+                      style={{ color: accentColor }}
+                    >
+                      {day.iftarFormatted}
+                    </div>
+                  </div>
+
+                  {showDivider && (
+                    <div
+                      className="h-px w-full"
+                      style={{
+                        backgroundColor:
+                          'color-mix(in srgb, var(--border-subtle) 65%, transparent)',
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </main>
     </div>
   );

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -339,6 +346,171 @@ export function ThemePicker({
   );
 }
 
+const FONT_SIZE_STOPS = [
+  { size: 16, pos: 0 },
+  { size: 20, pos: 8 },
+  { size: 24, pos: 16 },
+  { size: 28, pos: 28 },
+  { size: 32, pos: 40 },
+  { size: 40, pos: 58 },
+  { size: 56, pos: 78 },
+  { size: 72, pos: 100 },
+] as const;
+
+function snapByFontSize(rawSize: number) {
+  let nearest: (typeof FONT_SIZE_STOPS)[number] = FONT_SIZE_STOPS[0];
+  let minDiff = Math.abs(rawSize - nearest.size);
+  for (const stop of FONT_SIZE_STOPS) {
+    const diff = Math.abs(rawSize - stop.size);
+    if (diff < minDiff) {
+      nearest = stop;
+      minDiff = diff;
+    }
+  }
+  return nearest;
+}
+
+function snapByTrackPosition(rawPos: number) {
+  let nearest: (typeof FONT_SIZE_STOPS)[number] = FONT_SIZE_STOPS[0];
+  let minDiff = Math.abs(rawPos - nearest.pos);
+  for (const stop of FONT_SIZE_STOPS) {
+    const diff = Math.abs(rawPos - stop.pos);
+    if (diff < minDiff) {
+      nearest = stop;
+      minDiff = diff;
+    }
+  }
+  return nearest;
+}
+
+interface FontSizeControlProps {
+  value: number;
+  onChange: (size: number) => void;
+  label?: string;
+}
+
+/**
+ * Grouped-distribution font-size slider that magnetically snaps to discrete presets
+ * (closer spacing for 16–24, medium spacing for 28–32, wide spacing for 40–72).
+ */
+export function FontSizeControl({
+  value,
+  onChange,
+  label = 'আরবি অক্ষরের আকার',
+}: FontSizeControlProps) {
+  const activeStop = snapByFontSize(value);
+  const stopIndex = FONT_SIZE_STOPS.findIndex(
+    (s) => s.size === activeStop.size
+  );
+  const percent = activeStop.pos;
+
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next =
+        FONT_SIZE_STOPS[Math.min(FONT_SIZE_STOPS.length - 1, stopIndex + 1)];
+      if (next.size !== activeStop.size) onChange(next.size);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const prev = FONT_SIZE_STOPS[Math.max(0, stopIndex - 1)];
+      if (prev.size !== activeStop.size) onChange(prev.size);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      onChange(FONT_SIZE_STOPS[0].size);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      onChange(FONT_SIZE_STOPS[FONT_SIZE_STOPS.length - 1].size);
+    }
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium">{label}</span>
+        <span
+          className="font-semibold tabular-nums"
+          style={{ color: 'var(--accent)' }}
+        >
+          {toBanglaDigits(activeStop.size)} px
+        </span>
+      </div>
+
+      {/* Custom Track + Elevated Thumb with Snapping Native Range Overlay */}
+      <div className="relative h-7 flex items-center select-none">
+        <div className="relative w-full mx-2.5 h-1.5 rounded-full overflow-visible">
+          {/* Base Track */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+            }}
+          />
+          {/* Filled Track */}
+          <div
+            className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-150"
+            style={{
+              width: `${percent}%`,
+              backgroundColor: 'var(--accent)',
+            }}
+          />
+          {/* Elevated Circular Thumb */}
+          <span
+            aria-hidden="true"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full border shadow-sm transition-[left] duration-150 pointer-events-none"
+            style={{
+              left: `${percent}%`,
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor:
+                'color-mix(in srgb, var(--accent) 45%, var(--border-subtle))',
+            }}
+          />
+        </div>
+
+        {/* Accessible Native Range Input mapped 0..100% along visual track */}
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={percent}
+          aria-label={label}
+          aria-valuetext={`${toBanglaDigits(activeStop.size)} px`}
+          onKeyDown={handleKeyDown}
+          onChange={(e) => {
+            const next = snapByTrackPosition(Number(e.target.value));
+            if (next.size !== activeStop.size) onChange(next.size);
+          }}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0"
+        />
+      </div>
+
+      {/* Clickable Grouped-Spacing Preset Stop Labels */}
+      <div className="relative h-6 mx-2.5">
+        {FONT_SIZE_STOPS.map((stop) => {
+          const active = activeStop.size === stop.size;
+          return (
+            <button
+              key={stop.size}
+              type="button"
+              onClick={() => onChange(stop.size)}
+              aria-pressed={active}
+              className="absolute top-0 -translate-x-1/2 px-0.5 py-0.5 text-[11px] tabular-nums transition-colors cursor-pointer"
+              style={{
+                left: `${stop.pos}%`,
+                color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontWeight: active ? 700 : 400,
+              }}
+            >
+              {toBanglaDigits(stop.size)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface ReaderQuickSettingsSheetProps {
   open: boolean;
   onClose: () => void;
@@ -432,27 +604,11 @@ export function ReaderQuickSettingsSheet({
           />
         </div>
 
-        {/* Font Size Slider */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold">আরবি অক্ষরের আকার</span>
-            <span style={{ color: 'var(--accent)' }}>
-              {toBanglaDigits(settings.fontSize)}px
-            </span>
-          </div>
-          <input
-            type="range"
-            min={24}
-            max={44}
-            step={2}
-            value={settings.fontSize}
-            onChange={(e) =>
-              onUpdateSettings({ fontSize: Number(e.target.value) })
-            }
-            className="w-full cursor-pointer"
-            style={{ accentColor: 'var(--accent)' }}
-          />
-        </div>
+        {/* Font Size Control */}
+        <FontSizeControl
+          value={settings.fontSize}
+          onChange={(fontSize) => onUpdateSettings({ fontSize })}
+        />
 
         {/* Keep Screen Awake */}
         <div

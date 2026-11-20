@@ -340,7 +340,7 @@ export function DuaReaderView({
     onClose();
   };
 
-  const arabicFontSize = Math.min(44, Math.max(24, settings.fontSize));
+  const arabicFontSize = Math.min(72, Math.max(16, settings.fontSize));
   const wakeLockSubtitle = !wakeLockSupported
     ? 'এই ব্রাউজারে ওয়েক-লক সমর্থিত নয়'
     : wakeLockActive

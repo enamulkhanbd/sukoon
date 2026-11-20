@@ -46,7 +46,12 @@ import { clampHijriOffsetDays } from '../utils/hijri';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 import { getRecordDuaTotal } from '../utils/stats';
 import { DailyGoalSheet } from './DailyGoalSheet';
-import { TabHeader, ThemePicker, useBottomSheet } from './NavigationChrome';
+import {
+  FontSizeControl,
+  TabHeader,
+  ThemePicker,
+  useBottomSheet,
+} from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface LocationPickerSheetProps {
@@ -430,26 +435,10 @@ export function SettingsView({
           />
         </div>
 
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">আরবি অক্ষরের আকার</span>
-            <span className="font-semibold tabular-nums" style={{ color: 'var(--accent)' }}>
-              {toBanglaDigits(settings.fontSize)}px
-            </span>
-          </div>
-          <input
-            type="range"
-            min={24}
-            max={44}
-            step={2}
-            value={settings.fontSize}
-            onChange={(e) =>
-              onUpdateSettings({ fontSize: Number(e.target.value) })
-            }
-            className="w-full cursor-pointer"
-            style={{ accentColor: 'var(--accent)' }}
-          />
-        </div>
+        <FontSizeControl
+          value={settings.fontSize}
+          onChange={(fontSize) => onUpdateSettings({ fontSize })}
+        />
 
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">

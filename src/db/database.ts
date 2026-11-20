@@ -1128,7 +1128,14 @@ export async function importUserData(raw: unknown): Promise<{
 
   await db.transaction(
     'rw',
-    [db.routines, db.routineProgress, db.globalLastRead, db.readingHistory, db.settings],
+    [
+      db.routines,
+      db.routineProgress,
+      db.globalLastRead,
+      db.readingHistory,
+      db.cachedSurahs,
+      db.settings,
+    ],
     async () => {
       await db.routines.clear();
       await db.routineProgress.clear();

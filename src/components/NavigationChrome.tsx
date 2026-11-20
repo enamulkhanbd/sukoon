@@ -146,19 +146,21 @@ export function TabHeader({
   return (
     <header className="space-y-1.5">
       {badge}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight truncate">{title}</h1>
-          {subtitle && (
-            <p
-              className="text-xs mt-0.5 leading-relaxed"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {subtitle}
-            </p>
-          )}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight truncate min-w-0 flex items-center">
+            {title}
+          </h1>
+          {rightAction && <div className="shrink-0">{rightAction}</div>}
         </div>
-        {rightAction && <div className="shrink-0">{rightAction}</div>}
+        {subtitle && (
+          <p
+            className="text-xs leading-relaxed"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {subtitle}
+          </p>
+        )}
       </div>
     </header>
   );

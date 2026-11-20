@@ -31,7 +31,7 @@ export const DUA_CHAPTERS: DuaChapter[] = [
   {
     id: 2,
     titleBangla: 'পবিত্রতা, সালাত ও ইবাদত সংক্রান্ত দুআ',
-    subtitleBangla: 'দ্বিতীয় অধ্যায় • ওযু, মসজিদ, সালাত, জানাজা ও হজ',
+    subtitleBangla: 'দ্বিতীয় অধ্যায় • ওযু, আযান, মসজিদ, সালাত, জানাজা ও হজ',
   },
   {
     id: 3,

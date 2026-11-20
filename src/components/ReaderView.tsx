@@ -198,7 +198,7 @@ export function ReaderView({
         routineId: routine?.id,
         routineItemIndex,
         incrementTodayAyahs: increment,
-      }).catch(() => {});
+      }).catch(() => { });
 
       if (explicit) {
         toast.success(
@@ -323,8 +323,8 @@ export function ReaderView({
       indexed && !isDuaRoutineItem(indexed) && indexed.surahId === surahId
         ? routineItemIndex!
         : routineItems.findIndex(
-            (it) => !isDuaRoutineItem(it) && it.surahId === surahId
-          );
+          (it) => !isDuaRoutineItem(it) && it.surahId === surahId
+        );
     if (idx === -1) return null;
     const nextItem =
       idx + 1 < routineItems.length ? routineItems[idx + 1] : null;
@@ -417,7 +417,6 @@ export function ReaderView({
     <div className="min-h-dvh paper-frame relative">
       <TopBar
         mode="fixed"
-        surface="tinted"
         visible={chromeVisible}
         onBack={onClose}
         backLabel="ফিরুন"
@@ -447,12 +446,21 @@ export function ReaderView({
         }
       />
 
-      {/* Full-Bleed Tinted Surah Title Band */}
-      <section
-        className="w-full pt-16 sm:pt-18"
-        style={{ backgroundColor: 'var(--bg-surface)' }}
+      {/* Main Recitation Canvas */}
+      <main
+        className="max-w-2xl mx-auto px-5 sm:px-8 pt-20 pb-28"
+        onClick={(e) => {
+          // Toggle distraction-free chrome on background/text tap (ignore interactive elements)
+          const target = e.target as HTMLElement;
+          if (target.closest('button, a, input, [data-ayah-marker]')) return;
+          setChromeVisible((v) => !v);
+        }}
       >
-        <div className="max-w-2xl mx-auto px-5 sm:px-8 pt-4 pb-6 space-y-2.5">
+        {/* Borderless Tonal Surah Title Header */}
+        <div
+          className="rounded-2xl px-5 py-5 sm:px-6 sm:py-6 mb-7 space-y-2.5"
+          style={{ backgroundColor: 'var(--bg-surface)' }}
+        >
           {routine && (
             <div className="text-center">
               <span
@@ -495,27 +503,15 @@ export function ReaderView({
           >
             {meta.revelationPlace === 'makkah' ? 'মক্কায় অবতীর্ণ' : 'মদীনায় অবতীর্ণ'} •{' '}
             {activeRoutineItem &&
-            (activeRoutineItem.startAyah > 1 ||
-              activeRoutineItem.endAyah < meta.versesCount)
+              (activeRoutineItem.startAyah > 1 ||
+                activeRoutineItem.endAyah < meta.versesCount)
               ? `আয়াত ${toBanglaDigits(activeRoutineItem.startAyah)}–${toBanglaDigits(
-                  activeRoutineItem.endAyah
-                )} (${toBanglaDigits(meta.versesCount)} আয়াত)`
+                activeRoutineItem.endAyah
+              )} (${toBanglaDigits(meta.versesCount)} আয়াত)`
               : `${toBanglaDigits(meta.versesCount)} আয়াত`}{' '}
             • পৃষ্ঠা {toBanglaDigits(meta.pages[0])}–{toBanglaDigits(meta.pages[1])}
           </div>
         </div>
-      </section>
-
-      {/* Open Pure Book-Page Recitation Canvas */}
-      <main
-        className="max-w-2xl mx-auto px-5 sm:px-8 pt-7 pb-28"
-        onClick={(e) => {
-          // Toggle distraction-free chrome on background/text tap (ignore interactive elements)
-          const target = e.target as HTMLElement;
-          if (target.closest('button, a, input, [data-ayah-marker]')) return;
-          setChromeVisible((v) => !v);
-        }}
-      >
 
         {/* Loading / Error / Verses */}
         {loading ? (
@@ -641,14 +637,14 @@ export function ReaderView({
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {activeRoutineItem &&
-                (activeRoutineItem.startAyah > 1 ||
-                  activeRoutineItem.endAyah < meta.versesCount)
+                  (activeRoutineItem.startAyah > 1 ||
+                    activeRoutineItem.endAyah < meta.versesCount)
                   ? `সূরা ${meta.nameBangla} (আয়াত ${toBanglaDigits(
-                      activeRoutineItem.startAyah
-                    )}–${toBanglaDigits(activeRoutineItem.endAyah)}) সমাপ্ত হয়েছে`
+                    activeRoutineItem.startAyah
+                  )}–${toBanglaDigits(activeRoutineItem.endAyah)}) সমাপ্ত হয়েছে`
                   : `সূরা ${meta.nameBangla} সমাপ্ত হয়েছে (${toBanglaDigits(
-                      meta.versesCount
-                    )} আয়াত)`}
+                    meta.versesCount
+                  )} আয়াত)`}
               </p>
 
               {routineNav ? (
@@ -664,28 +660,28 @@ export function ReaderView({
                   onNext={
                     routineNav.nextItem
                       ? async () => {
-                          const next = routineNav.nextItem!;
-                          if (onAdvanceRoutineItem) {
-                            if (displayedVerses.length > 0) {
-                              const last = displayedVerses[displayedVerses.length - 1];
-                              await updateReadingProgress({
-                                surahId,
-                                ayahNumber: last.verse_number,
-                                pageNumber: last.page_number,
-                                routineId: routine?.id,
-                                routineItemIndex,
-                                markItemCompleted: true,
-                              });
-                            }
-                            onAdvanceRoutineItem(routineNav.nextIndex);
-                          } else if (next.kind === 'surah') {
-                            await handleFinishSurahAndNext(
-                              next.surahId,
-                              next.startAyah,
-                              routineNav.nextIndex
-                            );
+                        const next = routineNav.nextItem!;
+                        if (onAdvanceRoutineItem) {
+                          if (displayedVerses.length > 0) {
+                            const last = displayedVerses[displayedVerses.length - 1];
+                            await updateReadingProgress({
+                              surahId,
+                              ayahNumber: last.verse_number,
+                              pageNumber: last.page_number,
+                              routineId: routine?.id,
+                              routineItemIndex,
+                              markItemCompleted: true,
+                            });
                           }
+                          onAdvanceRoutineItem(routineNav.nextIndex);
+                        } else if (next.kind === 'surah') {
+                          await handleFinishSurahAndNext(
+                            next.surahId,
+                            next.startAyah,
+                            routineNav.nextIndex
+                          );
                         }
+                      }
                       : undefined
                   }
                   onComplete={handleCompleteRoutine}
@@ -719,32 +715,32 @@ export function ReaderView({
         !loading &&
         !error &&
         (chromeVisible || autoScrollPaused) && (
-        <div className="fixed bottom-5 right-4 z-30 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAutoScrollPaused((p) => !p)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full shadow-md text-xs font-semibold cursor-pointer outline-none"
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              color: 'var(--accent)',
-            }}
-          >
-            {autoScrollPaused ? (
-              <Play className="w-3.5 h-3.5" />
-            ) : (
-              <Pause className="w-3.5 h-3.5" />
-            )}
-            <span>
-              অটো-স্ক্রল{' '}
-              {
-                AUTO_SCROLL_SPEEDS.find(
-                  (s) => s.value === settings.autoScrollSpeed
-                )?.label
-              }
-            </span>
-          </button>
-        </div>
-      )}
+          <div className="fixed bottom-5 right-4 z-30 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAutoScrollPaused((p) => !p)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full shadow-md text-xs font-semibold cursor-pointer outline-none"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--accent)',
+              }}
+            >
+              {autoScrollPaused ? (
+                <Play className="w-3.5 h-3.5" />
+              ) : (
+                <Pause className="w-3.5 h-3.5" />
+              )}
+              <span>
+                অটো-স্ক্রল{' '}
+                {
+                  AUTO_SCROLL_SPEEDS.find(
+                    (s) => s.value === settings.autoScrollSpeed
+                  )?.label
+                }
+              </span>
+            </button>
+          </div>
+        )}
 
       <ReaderQuickSettingsSheet
         open={settingsOpen}

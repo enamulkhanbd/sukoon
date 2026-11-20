@@ -161,25 +161,29 @@ export function GlobalSearchOverlay({
       aria-label="অনুসন্ধান"
       className="fixed inset-0 z-50 paper-frame flex flex-col safe-top safe-bottom"
     >
-      {/* Top Search Bar */}
+      {/* Full-Bleed Tinted Top Search Band */}
       <div
-        className="border-b shrink-0"
-        style={{ borderColor: 'var(--border-subtle)' }}
+        className="shrink-0"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        <div className="max-w-2xl mx-auto px-3 py-2.5 flex items-center gap-2">
+        <div className="max-w-2xl mx-auto px-5 py-3 flex items-center gap-2.5">
           <button
             type="button"
             onClick={onClose}
             aria-label="ফিরে যান"
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-opacity active:opacity-70"
-            style={{ color: 'var(--text-primary)' }}
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-colors active:scale-95"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 6%, transparent)',
+              color: 'var(--text-primary)',
+            }}
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
           <div className="relative flex-1 min-w-0">
             <Search
-              className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
               style={{ color: 'var(--text-muted)' }}
             />
             <input
@@ -188,9 +192,9 @@ export function GlobalSearchOverlay({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="সূরা, ২:২৫৫, দুআ বা রুটিন খুঁজুন..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl text-sm outline-none"
+              className="w-full pl-11 pr-9 py-2.5 rounded-full text-sm outline-none"
               style={{
-                backgroundColor: 'var(--bg-surface)',
+                backgroundColor: 'var(--bg-elevated)',
                 color: 'var(--text-primary)',
               }}
             />
@@ -202,7 +206,7 @@ export function GlobalSearchOverlay({
                   inputRef.current?.focus();
                 }}
                 aria-label="মুছুন"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer"
                 style={{ color: 'var(--text-muted)' }}
               >
                 <X className="w-3.5 h-3.5" />
@@ -212,9 +216,9 @@ export function GlobalSearchOverlay({
         </div>
       </div>
 
-      {/* Results Area */}
+      {/* Plain Unboxed Results Canvas */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 py-4 space-y-5">
+        <div className="max-w-2xl mx-auto px-5 py-6 space-y-7">
           {!trimmed ? (
             <p
               className="text-xs text-center py-10 leading-relaxed"
@@ -244,12 +248,8 @@ export function GlobalSearchOverlay({
                       results.ayahJump!.ayah
                     );
                   }}
-                  className="w-full rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 text-left transition-colors active:scale-[0.995] cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor:
-                      'color-mix(in srgb, var(--accent) 30%, var(--border-subtle))',
-                  }}
+                  className="w-full rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-80 cursor-pointer"
+                  style={{ backgroundColor: 'var(--bg-surface)' }}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <BookOpen
@@ -278,17 +278,14 @@ export function GlobalSearchOverlay({
 
               {/* Routines */}
               {results.routines.length > 0 && (
-                <section className="space-y-1.5">
+                <section className="space-y-2">
                   <h2
-                    className="text-[11px] font-semibold uppercase tracking-wide px-1"
-                    style={{ color: 'var(--text-muted)' }}
+                    className="text-xs font-semibold"
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     রুটিন
                   </h2>
-                  <div
-                    className="divide-y"
-                    style={{ borderColor: 'var(--border-subtle)' }}
-                  >
+                  <div className="space-y-1">
                     {results.routines.map((routine) => (
                       <button
                         key={routine.id}
@@ -297,8 +294,7 @@ export function GlobalSearchOverlay({
                           onClose();
                           onOpenRoutineDetails(routine);
                         }}
-                        className="w-full py-2.5 px-1 flex items-center justify-between gap-3 text-left cursor-pointer active:opacity-75"
-                        style={{ borderColor: 'var(--border-subtle)' }}
+                        className="w-full py-2.5 flex items-center justify-between gap-3 text-left cursor-pointer transition-opacity active:opacity-70"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <CalendarCheck2
@@ -321,17 +317,14 @@ export function GlobalSearchOverlay({
 
               {/* Surahs */}
               {results.surahs.length > 0 && (
-                <section className="space-y-1.5">
+                <section className="space-y-2">
                   <h2
-                    className="text-[11px] font-semibold uppercase tracking-wide px-1"
-                    style={{ color: 'var(--text-muted)' }}
+                    className="text-xs font-semibold"
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     সূরা
                   </h2>
-                  <div
-                    className="divide-y"
-                    style={{ borderColor: 'var(--border-subtle)' }}
-                  >
+                  <div className="space-y-1">
                     {results.surahs.map((surah) => (
                       <button
                         key={surah.id}
@@ -340,10 +333,9 @@ export function GlobalSearchOverlay({
                           onClose();
                           onOpenSurah(surah.id, 1);
                         }}
-                        className="w-full py-2.5 px-1 flex items-center justify-between gap-3 text-left cursor-pointer active:opacity-75"
-                        style={{ borderColor: 'var(--border-subtle)' }}
+                        className="w-full py-2.5 flex items-center justify-between gap-3 text-left cursor-pointer transition-opacity active:opacity-70"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
                           <span
                             className="w-7 text-xs font-semibold tabular-nums shrink-0"
                             style={{ color: 'var(--accent)' }}
@@ -383,17 +375,14 @@ export function GlobalSearchOverlay({
 
               {/* Duas */}
               {results.duas.length > 0 && (
-                <section className="space-y-1.5">
+                <section className="space-y-2">
                   <h2
-                    className="text-[11px] font-semibold uppercase tracking-wide px-1"
-                    style={{ color: 'var(--text-muted)' }}
+                    className="text-xs font-semibold"
+                    style={{ color: 'var(--text-secondary)' }}
                   >
                     দুআ
                   </h2>
-                  <div
-                    className="divide-y"
-                    style={{ borderColor: 'var(--border-subtle)' }}
-                  >
+                  <div className="space-y-1">
                     {results.duas.map((dua) => {
                       const chapter = DUA_CHAPTER_MAP[dua.chapterId];
                       return (
@@ -404,8 +393,7 @@ export function GlobalSearchOverlay({
                             onClose();
                             onOpenDua(dua);
                           }}
-                          className="w-full py-2.5 px-1 flex items-center justify-between gap-3 text-left cursor-pointer active:opacity-75"
-                          style={{ borderColor: 'var(--border-subtle)' }}
+                          className="w-full py-2.5 flex items-center justify-between gap-3 text-left cursor-pointer transition-opacity active:opacity-70"
                         >
                           <div className="flex items-start gap-2.5 min-w-0">
                             <Sparkles

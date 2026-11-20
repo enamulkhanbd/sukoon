@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Search,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
@@ -174,7 +175,7 @@ interface TopBarIconButtonProps {
 }
 
 /**
- * Unified 36px circular action button for TopBar right slots.
+ * Minimal borderless circular icon button for TopBar & TabHeader slots.
  */
 export function TopBarIconButton({
   onClick,
@@ -188,10 +189,11 @@ export function TopBarIconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
+      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
       style={{
-        backgroundColor: active ? 'var(--accent-soft)' : 'var(--bg-elevated)',
-        borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
+        backgroundColor: active
+          ? 'var(--accent-soft)'
+          : 'color-mix(in srgb, var(--text-primary) 6%, transparent)',
         color: active ? 'var(--accent)' : 'var(--text-primary)',
       }}
     >
@@ -200,9 +202,131 @@ export function TopBarIconButton({
   );
 }
 
+export interface UnderlineTabOption<T extends string> {
+  id: T;
+  label: string;
+  count?: string;
+}
+
+interface UnderlineTabsProps<T extends string> {
+  tabs: ReadonlyArray<UnderlineTabOption<T>>;
+  value: T;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+  accentColor?: string;
+}
+
+/**
+ * Plain, minimal editorial underline tab bar (zero box/pill clutter).
+ */
+export function UnderlineTabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+  ariaLabel,
+  accentColor = 'var(--accent)',
+}: UnderlineTabsProps<T>) {
+  return (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+      }}
+      role="tablist"
+      aria-label={ariaLabel}
+    >
+      {tabs.map((tab) => {
+        const active = value === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.id)}
+            className="relative py-2.5 px-1 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 min-w-0"
+            style={{
+              color: active ? accentColor : 'var(--text-muted)',
+            }}
+          >
+            <span className="truncate">{tab.label}</span>
+            {tab.count !== undefined && (
+              <span className="text-[10px] font-medium tabular-nums opacity-70 shrink-0">
+                {tab.count}
+              </span>
+            )}
+            {active && (
+              <span
+                className="absolute inset-x-4 bottom-0 h-[2px] rounded-full"
+                style={{ backgroundColor: accentColor }}
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface SoftSearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+  compact?: boolean;
+  elevated?: boolean;
+}
+
+/**
+ * Clean pill search field — uses --bg-elevated inside tinted top bands and --bg-surface on page canvas.
+ */
+export function SoftSearchInput({
+  value,
+  onChange,
+  placeholder,
+  autoFocus = false,
+  compact = false,
+  elevated = false,
+}: SoftSearchInputProps) {
+  return (
+    <div className="relative">
+      <Search
+        className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ color: 'var(--text-muted)' }}
+      />
+      <input
+        type="text"
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full pl-11 pr-9 rounded-full outline-none transition-colors ${
+          compact ? 'py-2 text-xs' : 'py-2.5 text-sm'
+        }`}
+        style={{
+          backgroundColor: elevated ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+          color: 'var(--text-primary)',
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="অনুসন্ধান মুছুন"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer transition-opacity active:opacity-70"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface TopBarProps {
   mode?: 'sticky' | 'fixed';
   visible?: boolean;
+  surface?: 'page' | 'tinted';
   onBack: () => void;
   backLabel?: string;
   title: string;
@@ -218,6 +342,7 @@ interface TopBarProps {
 export function TopBar({
   mode = 'sticky',
   visible = true,
+  surface = 'page',
   onBack,
   backLabel = 'ফিরে যান',
   title,
@@ -237,22 +362,24 @@ export function TopBar({
 
   return (
     <header
-      className={`${positionClass} border-b backdrop-blur-md safe-top`}
+      className={`${positionClass} backdrop-blur-md safe-top`}
       style={{
-        backgroundColor: 'color-mix(in srgb, var(--bg-page) 92%, transparent)',
-        borderColor: 'var(--border-subtle)',
+        backgroundColor:
+          surface === 'tinted'
+            ? 'color-mix(in srgb, var(--bg-surface) 94%, transparent)'
+            : 'color-mix(in srgb, var(--bg-page) 92%, transparent)',
       }}
     >
-      <div className="max-w-2xl mx-auto px-3 py-2 flex items-center gap-2.5 min-h-[3.25rem]">
+      <div className="max-w-2xl mx-auto px-5 py-2.5 flex items-center gap-3 min-h-[3.5rem]">
         <button
           type="button"
           onClick={onBack}
           aria-label={backLabel}
           title={backLabel}
-          className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
           style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
+            backgroundColor:
+              'color-mix(in srgb, var(--text-primary) 6%, transparent)',
             color: 'var(--text-primary)',
           }}
         >
@@ -279,7 +406,7 @@ export function TopBar({
         )}
       </div>
       {subRow && (
-        <div className="max-w-2xl mx-auto px-3 pb-2.5">{subRow}</div>
+        <div className="max-w-2xl mx-auto px-5 pb-2.5">{subRow}</div>
       )}
     </header>
   );
@@ -555,12 +682,11 @@ export function ReaderQuickSettingsSheet({
     >
       <div
         ref={panelRef}
-        className={`w-full sm:max-w-md rounded-t-[28px] border-t border-x space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-md rounded-t-[28px] space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
           dragging ? 'sukoon-sheet-panel--dragging' : ''
         }`}
         style={{
           backgroundColor: 'var(--bg-page)',
-          borderColor: 'var(--border-subtle)',
           transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -614,21 +740,18 @@ export function ReaderQuickSettingsSheet({
 
         {/* Keep Screen Awake */}
         <div
-          className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-          }}
+          className="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl"
+          style={{ backgroundColor: 'var(--bg-surface)' }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             {settings.keepScreenAwake ? (
-              <Eye className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <Eye className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
             ) : (
-              <EyeOff className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+              <EyeOff className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
             )}
-            <div>
-              <div className="text-xs font-semibold">স্ক্রিন চালু রাখুন</div>
-              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            <div className="min-w-0">
+              <div className="text-xs font-medium">স্ক্রিন চালু রাখুন</div>
+              <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                 {wakeLockSubtitle}
               </div>
             </div>
@@ -644,7 +767,7 @@ export function ReaderQuickSettingsSheet({
             style={{
               backgroundColor: settings.keepScreenAwake
                 ? 'var(--accent)'
-                : 'var(--border-subtle)',
+                : 'color-mix(in srgb, var(--text-primary) 16%, transparent)',
             }}
           >
             <span
@@ -669,6 +792,7 @@ interface ReaderFreePagerProps {
   nextTitle?: string | null;
   nextLabel: string;
   onNext?: () => void;
+  elevated?: boolean;
 }
 
 /**
@@ -681,17 +805,18 @@ export function ReaderFreePager({
   nextTitle,
   nextLabel,
   onNext,
+  elevated = false,
 }: ReaderFreePagerProps) {
+  const neutralBg = elevated ? 'var(--bg-elevated)' : 'var(--bg-surface)';
   return (
-    <div className="grid grid-cols-2 gap-2.5 pt-2">
+    <div className="grid grid-cols-2 gap-2.5">
       <button
         type="button"
         disabled={!onPrev}
         onClick={onPrev}
-        className="flex items-center gap-2 px-3.5 py-3 rounded-2xl border text-left transition-colors disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
+        className="flex items-center gap-2 px-3.5 py-3 rounded-2xl text-left transition-opacity active:opacity-80 disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
         style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
+          backgroundColor: neutralBg,
           color: 'var(--text-secondary)',
         }}
       >
@@ -712,10 +837,9 @@ export function ReaderFreePager({
         type="button"
         disabled={!onNext}
         onClick={onNext}
-        className="flex items-center justify-end gap-2 px-3.5 py-3 rounded-2xl border text-right transition-colors disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
+        className="flex items-center justify-end gap-2 px-3.5 py-3 rounded-2xl text-right transition-opacity active:opacity-80 disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
         style={{
-          backgroundColor: onNext ? 'var(--accent-soft)' : 'var(--bg-elevated)',
-          borderColor: onNext ? 'var(--accent)' : 'var(--border-subtle)',
+          backgroundColor: onNext ? 'var(--accent-soft)' : neutralBg,
           color: onNext ? 'var(--accent)' : 'var(--text-secondary)',
         }}
       >
@@ -768,10 +892,9 @@ export function ReaderRoutinePager({
           <button
             type="button"
             onClick={onPrev}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-xs font-medium cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-medium transition-opacity active:opacity-80 cursor-pointer"
             style={{
               backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
               color: 'var(--text-secondary)',
             }}
           >
@@ -784,7 +907,7 @@ export function ReaderRoutinePager({
           <button
             type="button"
             onClick={onNext}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold transition-opacity active:opacity-85 cursor-pointer"
             style={{
               backgroundColor: 'var(--accent)',
               color: 'var(--accent-text)',
@@ -797,7 +920,7 @@ export function ReaderRoutinePager({
           <button
             type="button"
             onClick={onComplete}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold transition-opacity active:opacity-85 cursor-pointer"
             style={{
               backgroundColor: 'var(--accent)',
               color: 'var(--accent-text)',

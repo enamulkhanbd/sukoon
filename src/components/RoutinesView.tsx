@@ -9,7 +9,6 @@ import {
   Edit3,
   Plus,
   RotateCcw,
-  Search,
   Sparkles,
   Trash2,
   X,
@@ -47,7 +46,12 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
-import { TabHeader, useBottomSheet } from './NavigationChrome';
+import {
+  SoftSearchInput,
+  TabHeader,
+  UnderlineTabs,
+  useBottomSheet,
+} from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface DraftSurahItem {
@@ -673,44 +677,48 @@ export function RoutinesView({
   );
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-5">
-      <TabHeader
-        title="তিলাওয়াত রুটিন"
-        subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
-        rightAction={
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold shadow-sm cursor-pointer shrink-0"
-            style={{
-              backgroundColor: 'var(--accent)',
-              color: 'var(--accent-text)',
-            }}
-          >
-            <Plus className="w-4 h-4" />
-            নতুন রুটিন
-          </button>
-        }
-      />
+    <div className="pb-28">
+      {/* Full-Bleed Tinted Top Band */}
+      <section
+        className="w-full safe-top"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
+      >
+        <div className="max-w-2xl mx-auto px-5 pt-5 pb-6">
+          <TabHeader
+            title="তিলাওয়াত রুটিন"
+            subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
+            rightAction={
+              <button
+                type="button"
+                onClick={openCreateModal}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity active:opacity-85 cursor-pointer shrink-0"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  color: 'var(--accent-text)',
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                নতুন রুটিন
+              </button>
+            }
+          />
+        </div>
+      </section>
 
-      {/* Routine List */}
-      <div className="space-y-3">
+      {/* Open Editorial Canvas Below (Zero Boxes) */}
+      <div className="max-w-2xl mx-auto px-5 pt-6">
         {(routines ?? []).length === 0 ? (
-          <div
-            className="rounded-2xl border p-8 text-center space-y-3"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-            }}
-          >
-            <p className="text-sm font-medium">এখনো কোনো রুটিন তৈরি করা হয়নি</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              যেমন: জুমুআ রুটিন (সূরা কাহফ), বা দৈনিক রাতের আমল (সাজদাহ ও মুলক)।
-            </p>
+          <div className="py-12 text-center space-y-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold">এখনো কোনো রুটিন তৈরি করা হয়নি</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                যেমন: জুমুআ রুটিন (সূরা কাহফ), বা দৈনিক রাতের আমল (সাজদাহ ও মুলক)।
+              </p>
+            </div>
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -721,166 +729,155 @@ export function RoutinesView({
             </button>
           </div>
         ) : (
-          (routines ?? []).map((routine) => {
-            const prog = progressMap.get(routine.id);
-            const routineItems = getRoutineItems(routine);
-            const summary = getRoutineSummaryCounts(routine);
-            const total =
-              prog?.totalAyahsCount ?? computeRoutineTotalAyahs(routine);
-            const completed = prog?.completedAyahsCount ?? 0;
-            const percentage = prog?.percentage ?? 0;
+          <div className="space-y-7">
+            {(routines ?? []).map((routine) => {
+              const prog = progressMap.get(routine.id);
+              const routineItems = getRoutineItems(routine);
+              const summary = getRoutineSummaryCounts(routine);
+              const total =
+                prog?.totalAyahsCount ?? computeRoutineTotalAyahs(routine);
+              const completed = prog?.completedAyahsCount ?? 0;
+              const percentage = prog?.percentage ?? 0;
+              const itemLabels = routineItems
+                .map((item) => formatNormalizedRoutineItemLabel(item))
+                .filter(Boolean);
 
-            return (
-              <div
-                key={routine.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onOpenRoutineDetails(routine)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onOpenRoutineDetails(routine);
-                  }
-                }}
-                className="rounded-2xl border p-4 space-y-3 cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="font-semibold text-base truncate">{routine.title}</h2>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                      {routine.assignedDays.length === 7
-                        ? 'প্রতিদিন'
-                        : routine.assignedDays.length === 0
-                          ? 'ম্যানুয়াল রুটিন'
-                          : routine.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
-                      {' • '}
-                      মোট {formatRoutineSummaryBn(summary)}
-                    </p>
-                  </div>
+              return (
+                <div
+                  key={routine.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenRoutineDetails(routine)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onOpenRoutineDetails(routine);
+                    }
+                  }}
+                  className="space-y-2.5 transition-opacity active:opacity-75 cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-base tracking-tight truncate">
+                        {routine.title}
+                      </h2>
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {routine.assignedDays.length === 7
+                          ? 'প্রতিদিন'
+                          : routine.assignedDays.length === 0
+                            ? 'ম্যানুয়াল রুটিন'
+                            : routine.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
+                        {' • '}
+                        মোট {formatRoutineSummaryBn(summary)}
+                      </p>
+                    </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    {prog && prog.completedAyahsCount > 0 && (
+                    <div className="flex items-center gap-0.5 shrink-0 -mr-1.5">
+                      {prog && prog.completedAyahsCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleResetProgress(routine);
+                          }}
+                          title="অগ্রগতি রিসেট করুন"
+                          aria-label="অগ্রগতি রিসেট করুন"
+                          className="p-2 rounded-full transition-opacity active:opacity-60 cursor-pointer"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void handleResetProgress(routine);
+                          openEditModal(routine);
                         }}
-                        title="অগ্রগতি রিসেট করুন"
-                        className="p-2 rounded-lg transition-colors cursor-pointer"
+                        title="সম্পাদনা করুন"
+                        aria-label="সম্পাদনা করুন"
+                        className="p-2 rounded-full transition-opacity active:opacity-60 cursor-pointer"
                         style={{ color: 'var(--text-muted)' }}
                       >
-                        <RotateCcw className="w-4 h-4" />
+                        <Edit3 className="w-4 h-4" />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditModal(routine);
-                      }}
-                      title="সম্পাদনা করুন"
-                      className="p-2 rounded-lg transition-colors cursor-pointer"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDelete(routine);
-                      }}
-                      title="মুছে ফেলুন"
-                      className="p-2 rounded-lg transition-colors cursor-pointer"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDelete(routine);
+                        }}
+                        title="মুছে ফেলুন"
+                        aria-label="মুছে ফেলুন"
+                        className="p-2 rounded-full transition-opacity active:opacity-60 cursor-pointer"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Ordered Surah / Dua chips */}
-                <div className="flex flex-wrap gap-1.5">
-                  {routineItems.map((item, idx) => {
-                    const label = formatNormalizedRoutineItemLabel(item);
-                    if (!label) return null;
-                    return (
-                      <span
-                        key={`${item.kind === 'dua' ? item.duaId : item.surahId}-${idx}`}
-                        className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border"
+                  {/* Clean prose preview of routine items */}
+                  {itemLabels.length > 0 && (
+                    <p
+                      className="text-xs leading-relaxed line-clamp-2"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {itemLabels.join(' • ')}
+                    </p>
+                  )}
+
+                  {/* Slim Editorial Progress + Inline Action */}
+                  <div className="flex items-center justify-between gap-4 pt-1">
+                    <div className="flex-1 space-y-1.5">
+                      <div
+                        className="flex justify-between text-[11px] tabular-nums"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        <span>অগ্রগতি</span>
+                        <span>
+                          {toBanglaDigits(completed)}/{toBanglaDigits(total)} (
+                          {toBanglaDigits(percentage)}%)
+                        </span>
+                      </div>
+                      <div
+                        className="h-[2.5px] rounded-full overflow-hidden"
                         style={{
                           backgroundColor:
-                            item.kind === 'dua'
-                              ? 'var(--bg-surface)'
-                              : 'var(--bg-page)',
-                          borderColor: 'var(--border-subtle)',
-                          color: 'var(--text-secondary)',
+                            'color-mix(in srgb, var(--text-primary) 7%, transparent)',
                         }}
                       >
-                        {item.kind === 'dua' && (
-                          <Sparkles
-                            className="w-3 h-3 shrink-0"
-                            style={{ color: 'var(--accent)' }}
-                          />
-                        )}
-                        {label}
-                      </span>
-                    );
-                  })}
-                </div>
-
-                {/* Progress + Read button */}
-                <div className="flex items-center justify-between gap-4 pt-1">
-                  <div className="flex-1 space-y-1">
-                    <div
-                      className="flex justify-between text-[11px]"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      <span>অগ্রগতি</span>
-                      <span>
-                        {toBanglaDigits(completed)}/{toBanglaDigits(total)} (
-                        {toBanglaDigits(percentage)}%)
-                      </span>
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${percentage}%`,
+                            backgroundColor: 'var(--accent)',
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div
-                      className="h-1.5 rounded-full overflow-hidden"
-                      style={{ backgroundColor: 'var(--bg-surface)' }}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenRoutineDetails(routine);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold shrink-0 transition-opacity active:opacity-70 cursor-pointer"
+                      style={{ color: 'var(--accent)' }}
                     >
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${percentage}%`,
-                          backgroundColor: 'var(--accent)',
-                        }}
-                      />
-                    </div>
+                      {prog && prog.percentage > 0 && prog.percentage < 100
+                        ? 'চালিয়ে যান'
+                        : 'শুরু করুন'}
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenRoutineDetails(routine);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold shrink-0 cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--accent-soft)',
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    {prog && prog.percentage > 0 && prog.percentage < 100
-                      ? 'চালিয়ে যান'
-                      : 'শুরু করুন'}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -898,12 +895,11 @@ export function RoutinesView({
             role="dialog"
             aria-modal="true"
             aria-labelledby="routine-sheet-title"
-            className={`w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] border-t border-x shadow-2xl flex flex-col overflow-hidden sukoon-sheet-panel ${
+            className={`w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] shadow-2xl flex flex-col overflow-hidden sukoon-sheet-panel ${
               sheetDragging ? 'sukoon-sheet-panel--dragging' : ''
             }`}
             style={{
               backgroundColor: 'var(--bg-page)',
-              borderColor: 'var(--border-subtle)',
               transform: sheetTransform,
             }}
             onClick={(e) => e.stopPropagation()}
@@ -960,16 +956,16 @@ export function RoutinesView({
                   <div className="px-5 pt-2 pb-4 space-y-5">
               {/* Title */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold">রুটিনের নাম</label>
+                <label className="block text-xs font-medium">রুটিনের নাম</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="যেমন: জুমুআ রুটিন, দৈনিক মাগরিব..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-2xl text-sm outline-none"
                   style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
+                    backgroundColor: 'var(--bg-surface)',
+                    color: 'var(--text-primary)',
                   }}
                 />
               </div>
@@ -977,12 +973,12 @@ export function RoutinesView({
               {/* Days of week */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold">সাপ্তাহিক দিন</label>
-                  <div className="flex gap-2 text-[11px]">
+                  <label className="text-xs font-medium">সাপ্তাহিক দিন</label>
+                  <div className="flex gap-2.5 text-[11px] font-medium">
                     <button
                       type="button"
                       onClick={() => setAssignedDays([0, 1, 2, 3, 4, 5, 6])}
-                      className="underline cursor-pointer"
+                      className="cursor-pointer transition-opacity active:opacity-70"
                       style={{ color: 'var(--accent)' }}
                     >
                       প্রতিদিন
@@ -990,7 +986,7 @@ export function RoutinesView({
                     <button
                       type="button"
                       onClick={() => setAssignedDays([5])}
-                      className="underline cursor-pointer"
+                      className="cursor-pointer transition-opacity active:opacity-70"
                       style={{ color: 'var(--accent)' }}
                     >
                       শুক্রবার
@@ -998,14 +994,17 @@ export function RoutinesView({
                     <button
                       type="button"
                       onClick={() => setAssignedDays([])}
-                      className="underline cursor-pointer"
+                      className="cursor-pointer transition-opacity active:opacity-70"
                       style={{ color: 'var(--text-muted)' }}
                     >
                       ম্যানুয়াল
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-7 gap-1.5">
+                <div
+                  className="grid grid-cols-7 gap-1 p-1 rounded-2xl"
+                  style={{ backgroundColor: 'var(--bg-surface)' }}
+                >
                   {DAY_SHORT_BN.map((dayLabel, idx) => {
                     const active = assignedDays.includes(idx);
                     return (
@@ -1013,14 +1012,11 @@ export function RoutinesView({
                         key={dayLabel}
                         type="button"
                         onClick={() => toggleDay(idx)}
-                        className="py-2 rounded-xl text-xs font-medium border transition-colors cursor-pointer"
+                        className="py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer"
                         style={{
                           backgroundColor: active
                             ? 'var(--accent)'
-                            : 'var(--bg-elevated)',
-                          borderColor: active
-                            ? 'var(--accent)'
-                            : 'var(--border-subtle)',
+                            : 'transparent',
                           color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                         }}
                       >
@@ -1037,7 +1033,10 @@ export function RoutinesView({
               {/* Selected Surahs & Duas */}
               {items.length > 0 && (
                 <div className="space-y-2">
-                  <label className="block text-xs font-semibold">
+                  <label
+                    className="block text-xs font-semibold"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
                     নির্বাচিত অংশ ({toBanglaDigits(items.length)}টি •{' '}
                     {formatRoutineSummaryBn(draftSummary)})
                   </label>
@@ -1050,11 +1049,8 @@ export function RoutinesView({
                         return (
                           <div
                             key={item.uid}
-                            className="px-3 py-2.5 rounded-xl border text-xs space-y-2"
-                            style={{
-                              backgroundColor: 'var(--bg-surface)',
-                              borderColor: 'var(--border-subtle)',
-                            }}
+                            className="rounded-2xl px-3.5 py-2.5 text-xs space-y-2"
+                            style={{ backgroundColor: 'var(--bg-surface)' }}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-semibold truncate inline-flex items-center gap-1.5 min-w-0">
@@ -1112,11 +1108,8 @@ export function RoutinesView({
                                   }
                                   onBlur={() => normalizeDuaCountOnBlur(idx)}
                                   aria-label="পড়ার সংখ্যা"
-                                  className="w-14 px-2 py-1 rounded-lg border text-center outline-none"
-                                  style={{
-                                    backgroundColor: 'var(--bg-elevated)',
-                                    borderColor: 'var(--border-subtle)',
-                                  }}
+                                  className="w-14 px-2 py-1 rounded-lg text-center outline-none tabular-nums"
+                                  style={{ backgroundColor: 'var(--bg-elevated)' }}
                                 />
                                 <span>বার</span>
                               </div>
@@ -1133,11 +1126,8 @@ export function RoutinesView({
                       return (
                         <div
                           key={item.uid}
-                          className="px-3 py-2.5 rounded-xl border text-xs space-y-2"
-                          style={{
-                            backgroundColor: 'var(--bg-surface)',
-                            borderColor: 'var(--border-subtle)',
-                          }}
+                          className="rounded-2xl px-3.5 py-2.5 text-xs space-y-2"
+                          style={{ backgroundColor: 'var(--bg-surface)' }}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-semibold truncate">
@@ -1182,14 +1172,11 @@ export function RoutinesView({
                             <button
                               type="button"
                               onClick={() => setItemFullSurah(idx)}
-                              className="px-2 py-1 rounded-lg border text-[11px] font-medium cursor-pointer"
+                              className="px-2.5 py-1 rounded-xl text-[11px] font-medium cursor-pointer transition-colors"
                               style={{
                                 backgroundColor: isFullSurah
                                   ? 'var(--accent)'
                                   : 'var(--bg-elevated)',
-                                borderColor: isFullSurah
-                                  ? 'var(--accent)'
-                                  : 'var(--border-subtle)',
                                 color: isFullSurah
                                   ? 'var(--accent-text)'
                                   : 'var(--text-secondary)',
@@ -1209,11 +1196,8 @@ export function RoutinesView({
                                 }
                                 onBlur={() => normalizeItemRangeOnBlur(idx)}
                                 aria-label="শুরুর আয়াত"
-                                className="w-14 px-2 py-1 rounded-lg border text-center outline-none"
-                                style={{
-                                  backgroundColor: 'var(--bg-elevated)',
-                                  borderColor: 'var(--border-subtle)',
-                                }}
+                                className="w-14 px-2 py-1 rounded-lg text-center outline-none tabular-nums"
+                                style={{ backgroundColor: 'var(--bg-elevated)' }}
                               />
                               <span>–</span>
                               <input
@@ -1225,11 +1209,8 @@ export function RoutinesView({
                                 }
                                 onBlur={() => normalizeItemRangeOnBlur(idx)}
                                 aria-label="শেষ আয়াত"
-                                className="w-14 px-2 py-1 rounded-lg border text-center outline-none"
-                                style={{
-                                  backgroundColor: 'var(--bg-elevated)',
-                                  borderColor: 'var(--border-subtle)',
-                                }}
+                                className="w-14 px-2 py-1 rounded-lg text-center outline-none tabular-nums"
+                                style={{ backgroundColor: 'var(--bg-elevated)' }}
                               />
                             </div>
                           </div>
@@ -1240,84 +1221,40 @@ export function RoutinesView({
                 </div>
               )}
 
-              {/* Surah / Dua Segmented Picker Header */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <label className="block text-xs font-semibold">
-                    সূরা বা দুআ যুক্ত করুন
-                  </label>
-                  <div
-                    className="inline-flex p-0.5 rounded-xl border text-[11px] font-semibold"
-                    style={{
-                      backgroundColor: 'var(--bg-surface)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setPickerTab('surah')}
-                      className="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor:
-                          pickerTab === 'surah' ? 'var(--accent)' : 'transparent',
-                        color:
-                          pickerTab === 'surah'
-                            ? 'var(--accent-text)'
-                            : 'var(--text-secondary)',
-                      }}
-                    >
-                      সূরা ({toBanglaDigits(SURAHS.length)})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPickerTab('dua')}
-                      className="px-3 py-1 rounded-lg transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor:
-                          pickerTab === 'dua' ? 'var(--accent)' : 'transparent',
-                        color:
-                          pickerTab === 'dua'
-                            ? 'var(--accent-text)'
-                            : 'var(--text-secondary)',
-                      }}
-                    >
-                      দুআ ও জিকির ({toBanglaDigits(DUAS.length)})
-                    </button>
-                  </div>
-                </div>
+              {/* Surah / Dua Tonal Picker Header */}
+              <div className="space-y-3">
+                <label
+                  className="block text-xs font-semibold"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  সূরা বা দুআ যুক্ত করুন
+                </label>
 
-                <div className="relative">
-                  <Search
-                    className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2"
-                    style={{ color: 'var(--text-muted)' }}
-                  />
-                  <input
-                    type="text"
-                    value={pickerQuery}
-                    onChange={(e) => setPickerQuery(e.target.value)}
-                    placeholder={
-                      pickerTab === 'surah'
-                        ? 'সূরা খুঁজুন (যুক্ত করার পর উপরে আয়াত রেঞ্জ সেট করুন)...'
-                        : 'দুআ বা অধ্যায় খুঁজুন (সাইয়েদুল ইস্তেগফার, ঘুম, রুকইয়া, দরুদ)...'
-                    }
-                    className="w-full pl-9 pr-3 py-2 rounded-xl border text-xs outline-none"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  />
-                </div>
+                <UnderlineTabs
+                  value={pickerTab}
+                  onChange={setPickerTab}
+                  ariaLabel="সূরা বা দুআ নির্বাচন"
+                  tabs={[
+                    { id: 'surah', label: 'সূরা', count: toBanglaDigits(SURAHS.length) },
+                    { id: 'dua', label: 'দুআ ও জিকির', count: toBanglaDigits(DUAS.length) },
+                  ]}
+                />
+
+                <SoftSearchInput
+                  compact
+                  value={pickerQuery}
+                  onChange={setPickerQuery}
+                  placeholder={
+                    pickerTab === 'surah'
+                      ? 'সূরা খুঁজুন (যুক্ত করার পর উপরে আয়াত রেঞ্জ সেট করুন)...'
+                      : 'দুআ বা অধ্যায় খুঁজুন (সাইয়েদুল ইস্তেগফার, ঘুম, রুকইয়া, দরুদ)...'
+                  }
+                />
               </div>
             </div>
 
-                {/* Edge-to-edge Surah / Dua Picker List flush to footer */}
-                <div
-                  className="flex-1 border-t sm:border-x divide-y divide-[var(--border-subtle)]"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
+                {/* Borderless Tonal Picker List */}
+                <div className="flex-1 px-5 pb-4 space-y-1.5">
                   {pickerTab === 'surah' ? (
                     filteredSurahs.map((s) => {
                       const countInList = items.filter(
@@ -1326,11 +1263,10 @@ export function RoutinesView({
                       return (
                         <div
                           key={s.id}
-                          className="w-full flex items-center justify-between px-4 sm:px-5 py-2.5 text-left text-xs transition-colors"
+                          className="w-full rounded-2xl flex items-center justify-between px-3.5 py-2.5 text-left text-xs transition-colors"
                           style={{
                             backgroundColor:
-                              countInList > 0 ? 'var(--accent-soft)' : 'transparent',
-                            borderColor: 'var(--border-subtle)',
+                              countInList > 0 ? 'var(--accent-soft)' : 'var(--bg-surface)',
                           }}
                         >
                           <button
@@ -1358,10 +1294,9 @@ export function RoutinesView({
                                 type="button"
                                 onClick={() => addSurahItem(s.id)}
                                 title="একই সূরার আরেকটি আয়াত অংশ যোগ করুন"
-                                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full border cursor-pointer"
+                                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-pointer"
                                 style={{
                                   backgroundColor: 'var(--bg-elevated)',
-                                  borderColor: 'var(--accent)',
                                   color: 'var(--accent)',
                                 }}
                               >
@@ -1416,7 +1351,8 @@ export function RoutinesView({
                       return (
                         <div
                           key={chapter.id}
-                          style={{ borderColor: 'var(--border-subtle)' }}
+                          className="rounded-2xl overflow-hidden"
+                          style={{ backgroundColor: 'var(--bg-surface)' }}
                         >
                           <button
                             type="button"
@@ -1426,12 +1362,7 @@ export function RoutinesView({
                               )
                             }
                             aria-expanded={isExpanded}
-                            className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3 text-left cursor-pointer transition-colors"
-                            style={{
-                              backgroundColor: isExpanded
-                                ? 'color-mix(in srgb, var(--bg-surface) 75%, var(--bg-elevated))'
-                                : 'var(--bg-elevated)',
-                            }}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer transition-colors"
                           >
                             <div className="min-w-0 flex-1">
                               <div className="text-xs font-semibold leading-snug">
@@ -1462,48 +1393,30 @@ export function RoutinesView({
                           </button>
 
                           {isExpanded && (
-                            <div
-                              className="divide-y divide-[var(--border-subtle)] border-t"
-                              style={{ borderColor: 'var(--border-subtle)' }}
-                            >
+                            <div className="px-2.5 pb-2.5 space-y-1.5">
                               {chapter.id === 10 && !isSearching && (
-                                <div
-                                  className="px-4 sm:px-5 py-2"
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    addBulkDuas(
+                                      RUQYAH_QURAN_ITEM_IDS,
+                                      'রুকইয়া অংশ',
+                                      'সব রুকইয়া আয়াত ইতিমধ্যে তালিকায় রয়েছে'
+                                    )
+                                  }
+                                  className="w-full py-2 px-3 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                                   style={{
-                                    backgroundColor: 'var(--bg-page)',
-                                    borderColor: 'var(--border-subtle)',
+                                    backgroundColor: 'var(--accent-soft)',
+                                    color: 'var(--accent)',
                                   }}
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      addBulkDuas(
-                                        RUQYAH_QURAN_ITEM_IDS,
-                                        'রুকইয়া অংশ',
-                                        'সব রুকইয়া আয়াত ইতিমধ্যে তালিকায় রয়েছে'
-                                      )
-                                    }
-                                    className="w-full py-2 px-3 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
-                                    style={{
-                                      backgroundColor: 'var(--accent-soft)',
-                                      borderColor: 'var(--accent)',
-                                      color: 'var(--accent)',
-                                    }}
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    সব রুকইয়া আয়াত একসাথে যুক্ত করুন (২০টি)
-                                  </button>
-                                </div>
+                                  <Plus className="w-3.5 h-3.5" />
+                                  সব রুকইয়া আয়াত একসাথে যুক্ত করুন (২০টি)
+                                </button>
                               )}
 
                               {chapter.id === 13 && !isSearching && (
-                                <div
-                                  className="px-4 sm:px-5 py-2 flex flex-wrap gap-1.5"
-                                  style={{
-                                    backgroundColor: 'var(--bg-page)',
-                                    borderColor: 'var(--border-subtle)',
-                                  }}
-                                >
+                                <div className="flex flex-wrap gap-1.5">
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -1513,10 +1426,9 @@ export function RoutinesView({
                                         'সব সাধারণ আমল ইতিমধ্যে তালিকায় রয়েছে'
                                       )
                                     }
-                                    className="flex-1 min-w-[140px] py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    className="flex-1 min-w-[140px] py-2 px-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--accent-soft)',
-                                      borderColor: 'var(--accent)',
                                       color: 'var(--accent)',
                                     }}
                                   >
@@ -1532,10 +1444,9 @@ export function RoutinesView({
                                         'ফজরের বিশেষ আমলগুলো ইতিমধ্যে তালিকায় রয়েছে'
                                       )
                                     }
-                                    className="py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    className="py-2 px-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--bg-elevated)',
-                                      borderColor: 'var(--border-subtle)',
                                       color: 'var(--accent)',
                                     }}
                                   >
@@ -1551,10 +1462,9 @@ export function RoutinesView({
                                         'মাগরিবের বিশেষ আমলগুলো ইতিমধ্যে তালিকায় রয়েছে'
                                       )
                                     }
-                                    className="py-2 px-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    className="py-2 px-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--bg-elevated)',
-                                      borderColor: 'var(--border-subtle)',
                                       color: 'var(--accent)',
                                     }}
                                   >
@@ -1571,13 +1481,12 @@ export function RoutinesView({
                                 return (
                                   <div
                                     key={dua.id}
-                                    className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-2.5 text-left text-xs transition-colors"
+                                    className="w-full rounded-xl flex items-center justify-between gap-3 px-3 py-2.5 text-left text-xs transition-colors"
                                     style={{
                                       backgroundColor:
                                         countInList > 0
                                           ? 'var(--accent-soft)'
-                                          : 'var(--bg-page)',
-                                      borderColor: 'var(--border-subtle)',
+                                          : 'var(--bg-elevated)',
                                     }}
                                   >
                                     <button
@@ -1637,10 +1546,9 @@ export function RoutinesView({
 
               {formError && (
                 <div
-                  className="border-t px-5 py-2 text-xs font-medium text-red-600 shrink-0"
+                  className="mx-5 mb-2 px-3.5 py-2 rounded-xl text-xs font-medium text-red-600 shrink-0"
                   style={{
-                    borderColor: 'var(--border-subtle)',
-                    backgroundColor: 'var(--bg-page)',
+                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
                   }}
                 >
                   {formError}
@@ -1649,27 +1557,24 @@ export function RoutinesView({
 
               {/* Sticky Footer */}
               <div
-                className="border-t shrink-0 safe-bottom"
-                style={{
-                  borderColor: 'var(--border-subtle)',
-                  backgroundColor: 'var(--bg-page)',
-                }}
+                className="shrink-0 safe-bottom"
+                style={{ backgroundColor: 'var(--bg-page)' }}
               >
                 <div className="px-5 py-3 flex gap-2.5">
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold border cursor-pointer"
+                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold transition-opacity active:opacity-80 cursor-pointer"
                     style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
+                      backgroundColor: 'var(--bg-surface)',
+                      color: 'var(--text-secondary)',
                     }}
                   >
                     বাতিল
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold cursor-pointer"
+                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold transition-opacity active:opacity-85 cursor-pointer"
                     style={{
                       backgroundColor: 'var(--accent)',
                       color: 'var(--accent-text)',

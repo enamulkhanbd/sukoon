@@ -417,6 +417,7 @@ export function ReaderView({
     <div className="min-h-dvh paper-frame relative">
       <TopBar
         mode="fixed"
+        surface="tinted"
         visible={chromeVisible}
         onBack={onClose}
         backLabel="ফিরুন"
@@ -446,28 +447,16 @@ export function ReaderView({
         }
       />
 
-      {/* Main Recitation Canvas */}
-      <main
-        className="max-w-2xl mx-auto px-5 sm:px-8 pt-20 pb-28"
-        onClick={(e) => {
-          // Toggle distraction-free chrome on background/text tap (ignore interactive elements)
-          const target = e.target as HTMLElement;
-          if (target.closest('button, a, input, [data-ayah-marker]')) return;
-          setChromeVisible((v) => !v);
-        }}
+      {/* Full-Bleed Tinted Surah Title Band */}
+      <section
+        className="w-full pt-16 sm:pt-18"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        {/* Surah Name Card */}
-        <div
-          className="rounded-3xl border px-5 py-5 sm:px-7 sm:py-6 mb-7 space-y-3"
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: 'var(--border-subtle)',
-          }}
-        >
+        <div className="max-w-2xl mx-auto px-5 sm:px-8 pt-4 pb-6 space-y-2.5">
           {routine && (
             <div className="text-center">
               <span
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-0.5 rounded-full"
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
                 style={{
                   backgroundColor: 'var(--accent-soft)',
                   color: 'var(--accent)',
@@ -501,8 +490,8 @@ export function ReaderView({
             </div>
           </div>
           <div
-            className="text-xs text-center leading-relaxed"
-            style={{ color: 'var(--text-secondary)' }}
+            className="text-xs text-center leading-relaxed tabular-nums"
+            style={{ color: 'var(--text-muted)' }}
           >
             {meta.revelationPlace === 'makkah' ? 'মক্কায় অবতীর্ণ' : 'মদীনায় অবতীর্ণ'} •{' '}
             {activeRoutineItem &&
@@ -515,6 +504,18 @@ export function ReaderView({
             • পৃষ্ঠা {toBanglaDigits(meta.pages[0])}–{toBanglaDigits(meta.pages[1])}
           </div>
         </div>
+      </section>
+
+      {/* Open Pure Book-Page Recitation Canvas */}
+      <main
+        className="max-w-2xl mx-auto px-5 sm:px-8 pt-7 pb-28"
+        onClick={(e) => {
+          // Toggle distraction-free chrome on background/text tap (ignore interactive elements)
+          const target = e.target as HTMLElement;
+          if (target.closest('button, a, input, [data-ayah-marker]')) return;
+          setChromeVisible((v) => !v);
+        }}
+      >
 
         {/* Loading / Error / Verses */}
         {loading ? (
@@ -528,22 +529,16 @@ export function ReaderView({
             </p>
           </div>
         ) : error ? (
-          <div
-            className="rounded-2xl border p-6 text-center space-y-3 my-8"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-            }}
-          >
+          <div className="py-12 text-center space-y-3 my-4">
             <WifiOff className="w-7 h-7 mx-auto" style={{ color: 'var(--gold)' }} />
             <h2 className="font-semibold text-sm">অফলাইনে পাওয়া যায়নি</h2>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-xs max-w-xs mx-auto leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               {error}
             </p>
             <button
               type="button"
               onClick={() => loadSurah()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -579,11 +574,11 @@ export function ReaderView({
                   <span key={verse.id}>
                     {pageChanged && (
                       <span
-                        className="block my-5 py-1.5 text-center border-y text-xs font-sans tracking-normal"
+                        className="block my-6 py-1.5 px-3 rounded-xl text-center text-xs font-sans tracking-normal"
                         dir="ltr"
                         style={{
                           fontFamily: '"Noto Sans Bengali", sans-serif',
-                          borderColor: 'var(--border-subtle)',
+                          backgroundColor: 'var(--bg-surface)',
                           color: 'var(--text-muted)',
                         }}
                       >
@@ -633,13 +628,10 @@ export function ReaderView({
               })}
             </div>
 
-            {/* End of Surah / Routine Progression Card */}
+            {/* Borderless Tonal End-of-Surah Footer */}
             <div
-              className="mt-12 rounded-3xl border p-6 text-center space-y-4"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
-              }}
+              className="mt-12 rounded-2xl p-6 text-center space-y-4"
+              style={{ backgroundColor: 'var(--bg-surface)' }}
             >
               <div
                 className="font-indopak text-2xl"
@@ -700,6 +692,7 @@ export function ReaderView({
                 />
               ) : (
                 <ReaderFreePager
+                  elevated
                   prevLabel="পূর্ববর্তী সূরা"
                   prevTitle={prevSurah?.nameBangla ?? null}
                   onPrev={
@@ -730,10 +723,9 @@ export function ReaderView({
           <button
             type="button"
             onClick={() => setAutoScrollPaused((p) => !p)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border shadow-md text-xs font-semibold cursor-pointer outline-none"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full shadow-md text-xs font-semibold cursor-pointer outline-none"
             style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
+              backgroundColor: 'var(--bg-surface)',
               color: 'var(--accent)',
             }}
           >
@@ -762,9 +754,12 @@ export function ReaderView({
         wakeLockSubtitle={wakeLockSubtitle}
       >
         {/* Auto-Scroll Speed */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold">অটো-স্ক্রল গতি</label>
-          <div className="grid grid-cols-5 gap-1.5">
+        <div className="space-y-2.5">
+          <label className="block text-xs font-medium">অটো-স্ক্রল গতি</label>
+          <div
+            className="grid grid-cols-5 gap-1 p-1 rounded-2xl"
+            style={{ backgroundColor: 'var(--bg-surface)' }}
+          >
             {AUTO_SCROLL_SPEEDS.map((sp) => {
               const active = settings.autoScrollSpeed === sp.value;
               return (
@@ -775,14 +770,9 @@ export function ReaderView({
                     setAutoScrollPaused(false);
                     onUpdateSettings({ autoScrollSpeed: sp.value });
                   }}
-                  className="py-2 rounded-xl text-xs font-medium border cursor-pointer"
+                  className="py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer"
                   style={{
-                    backgroundColor: active
-                      ? 'var(--accent)'
-                      : 'var(--bg-elevated)',
-                    borderColor: active
-                      ? 'var(--accent)'
-                      : 'var(--border-subtle)',
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
                     color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                   }}
                 >
@@ -796,7 +786,7 @@ export function ReaderView({
         {/* Jump to Ayah */}
         {surahData && (
           <form onSubmit={handleJumpToAyah} className="space-y-2">
-            <label className="block text-xs font-semibold">
+            <label className="block text-xs font-medium">
               নির্দিষ্ট আয়াতে যান ({toBanglaDigits(activeRoutineItem?.startAyah ?? 1)} –{' '}
               {toBanglaDigits(activeRoutineItem?.endAyah ?? surahData.totalVerses)})
             </label>
@@ -808,15 +798,15 @@ export function ReaderView({
                 value={jumpAyahInput}
                 onChange={(e) => setJumpAyahInput(e.target.value)}
                 placeholder={`আয়াত নম্বর (বর্তমান: ${activeAyah})`}
-                className="flex-1 px-3 py-2 rounded-xl border text-xs outline-none"
+                className="flex-1 px-3.5 py-2 rounded-xl text-xs outline-none"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
                 }}
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
                 style={{
                   backgroundColor: 'var(--accent)',
                   color: 'var(--accent-text)',

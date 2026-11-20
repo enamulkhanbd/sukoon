@@ -153,14 +153,11 @@ export function TasbihCounterSheet({
     >
       <div
         ref={panelRef}
-        className={`w-full sm:max-w-2xl h-[50dvh] min-h-[300px] max-h-[460px] rounded-t-[28px] border-t border-x flex flex-col overflow-hidden sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-2xl h-[50dvh] min-h-[300px] max-h-[460px] rounded-t-[28px] flex flex-col overflow-hidden sukoon-sheet-panel safe-bottom ${
           visible ? 'pointer-events-auto' : 'pointer-events-none'
         } ${dragging ? 'sukoon-sheet-panel--dragging' : ''}`}
         style={{
           backgroundColor: 'var(--bg-page)',
-          borderColor: done
-            ? 'color-mix(in srgb, var(--accent) 45%, var(--border-subtle))'
-            : 'var(--border-subtle)',
           boxShadow: '0 -12px 36px rgba(0, 0, 0, 0.14)',
           transform: panelTransform,
         }}
@@ -196,10 +193,9 @@ export function TasbihCounterSheet({
                 disabled={count === 0}
                 aria-label="একটি কমান"
                 title="একটি কমান (-১)"
-                className="h-8 px-2.5 rounded-full border flex items-center justify-center gap-0.5 text-xs font-semibold transition-colors active:scale-95 cursor-pointer disabled:opacity-35 disabled:cursor-default"
+                className="h-8 px-2.5 rounded-full flex items-center justify-center gap-0.5 text-xs font-semibold transition-colors active:scale-95 cursor-pointer disabled:opacity-35 disabled:cursor-default"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
                   color: 'var(--text-secondary)',
                 }}
               >
@@ -213,10 +209,9 @@ export function TasbihCounterSheet({
                 disabled={count === 0}
                 aria-label="গণনা রিসেট"
                 title="রিসেট"
-                className="w-8 h-8 rounded-full border flex items-center justify-center transition-colors active:scale-95 cursor-pointer disabled:opacity-35 disabled:cursor-default"
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer disabled:opacity-35 disabled:cursor-default"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
                   color: 'var(--text-secondary)',
                 }}
               >
@@ -240,18 +235,17 @@ export function TasbihCounterSheet({
           </div>
         </div>
 
-        {/* Large interactive tap surface */}
+        {/* Large interactive tonal tap surface */}
         <div className="px-4 pb-2 flex-1 flex flex-col gap-2.5 min-h-0">
           <button
             ref={tapZoneRef}
             type="button"
             onClick={handleTapClick}
             aria-label={`জিকির গণনা +১, বর্তমান ${toBanglaDigits(count)} বার`}
-            className="w-full flex-1 min-h-0 rounded-3xl border relative overflow-hidden flex flex-col items-center justify-center gap-2 select-none cursor-pointer transition-colors active:scale-[0.992]"
+            className="w-full flex-1 min-h-0 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center gap-2 select-none cursor-pointer transition-colors active:scale-[0.992]"
             style={{
               touchAction: 'manipulation',
-              backgroundColor: done ? 'var(--accent-soft)' : 'var(--bg-elevated)',
-              borderColor: done ? 'var(--accent)' : 'var(--border-subtle)',
+              backgroundColor: done ? 'var(--accent-soft)' : 'var(--bg-surface)',
             }}
           >
             {/* Tap ripples */}

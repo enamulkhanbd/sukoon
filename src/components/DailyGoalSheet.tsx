@@ -114,12 +114,11 @@ export function DailyGoalSheet({
         role="dialog"
         aria-modal="true"
         aria-label="দৈনিক তিলাওয়াত লক্ষ্য নির্ধারণ"
-        className={`w-full sm:max-w-md rounded-t-[28px] border-t border-x max-h-[85dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-md rounded-t-[28px] max-h-[85dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
           dragging ? 'sukoon-sheet-panel--dragging' : ''
         }`}
         style={{
           backgroundColor: 'var(--bg-page)',
-          borderColor: 'var(--border-subtle)',
           transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -127,11 +126,8 @@ export function DailyGoalSheet({
         {/* Grabber & Header */}
         <div
           {...dragHandleProps}
-          className="px-5 pt-2.5 pb-3 border-b select-none"
-          style={{
-            borderColor: 'var(--border-subtle)',
-            touchAction: 'none',
-          }}
+          className="px-5 pt-2.5 pb-2 select-none"
+          style={{ touchAction: 'none' }}
         >
           <div
             className="w-9 h-1 rounded-full mx-auto mb-3 opacity-45"
@@ -164,7 +160,7 @@ export function DailyGoalSheet({
 
           {/* Preset Minute Options */}
           <div className="space-y-2">
-            <span className="text-xs font-semibold block">দ্রুত নির্বাচন</span>
+            <span className="text-xs font-medium block">দ্রুত নির্বাচন</span>
             <div className="grid grid-cols-3 gap-2">
               {DAILY_GOAL_PRESETS.map((mins) => {
                 const active =
@@ -178,14 +174,11 @@ export function DailyGoalSheet({
                       setCustomInput('');
                       setError(null);
                     }}
-                    className="py-2.5 px-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                    className="py-2.5 px-3 rounded-2xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
                     style={{
                       backgroundColor: active
                         ? 'var(--accent)'
-                        : 'var(--bg-elevated)',
-                      borderColor: active
-                        ? 'var(--accent)'
-                        : 'var(--border-subtle)',
+                        : 'var(--bg-surface)',
                       color: active ? 'var(--accent-text)' : 'var(--text-primary)',
                     }}
                   >
@@ -201,7 +194,7 @@ export function DailyGoalSheet({
           <div className="space-y-1.5">
             <label
               htmlFor="custom-goal-minutes"
-              className="text-xs font-semibold block"
+              className="text-xs font-medium block"
             >
               অথবা নিজের পছন্দমতো মিনিট লিখুন
             </label>
@@ -216,10 +209,10 @@ export function DailyGoalSheet({
                   setError(null);
                 }}
                 placeholder="যেমন: ২৫ বা ৯০"
-                className="flex-1 px-3.5 py-2.5 rounded-xl border text-xs outline-none"
+                className="flex-1 px-3.5 py-2.5 rounded-2xl text-xs outline-none"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: error ? '#dc2626' : 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
+                  boxShadow: error ? 'inset 0 0 0 1px #dc2626' : undefined,
                   color: 'var(--text-primary)',
                 }}
               />
@@ -238,10 +231,9 @@ export function DailyGoalSheet({
               <button
                 type="button"
                 onClick={handleDisable}
-                className="px-4 py-2.5 rounded-xl border text-xs font-medium cursor-pointer"
+                className="px-4 py-2.5 rounded-2xl text-xs font-medium cursor-pointer transition-opacity active:opacity-80"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
                   color: 'var(--text-secondary)',
                 }}
               >
@@ -251,7 +243,7 @@ export function DailyGoalSheet({
             <button
               type="button"
               onClick={handleConfirm}
-              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold shadow-sm cursor-pointer active:scale-[0.99]"
+              className="flex-1 py-2.5 px-4 rounded-2xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',

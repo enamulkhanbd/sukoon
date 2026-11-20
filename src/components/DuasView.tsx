@@ -3,7 +3,6 @@ import {
   Bookmark,
   ChevronRight,
   Search,
-  Sparkles,
   X,
 } from 'lucide-react';
 import {
@@ -15,7 +14,13 @@ import {
 } from '../data/duas';
 import type { Settings } from '../db/database';
 import { normalizeIndoPakText, toBanglaDigits } from '../utils/formatters';
-import { TabHeader, TopBar, TopBarIconButton } from './NavigationChrome';
+import {
+  SoftSearchInput,
+  TabHeader,
+  TopBar,
+  TopBarIconButton,
+  UnderlineTabs,
+} from './NavigationChrome';
 
 interface DuasViewProps {
   settings: Settings;
@@ -134,22 +139,15 @@ export function DuasView({
             onOpenDua(dua);
           }
         }}
-        className="w-full rounded-2xl border p-3.5 sm:p-4 space-y-2.5 transition-colors cursor-pointer active:scale-[0.995]"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
+        className="w-full py-3.5 space-y-2 transition-opacity active:opacity-70 cursor-pointer group"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5 min-w-0">
             <span
-              className="w-7 h-7 rounded-xl flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--accent)',
-              }}
+              className="w-6 text-xs font-semibold tabular-nums shrink-0 pt-0.5"
+              style={{ color: 'var(--accent)' }}
             >
-              {toBanglaDigits(dua.order)}
+              {toBanglaDigits(dua.order)}.
             </span>
             <div className="min-w-0 space-y-1">
               <h3 className="font-semibold text-sm leading-snug">
@@ -179,7 +177,7 @@ export function DuasView({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               type="button"
               onClick={(e) => {
@@ -187,7 +185,7 @@ export function DuasView({
                 onToggleBookmark(dua.id);
               }}
               aria-label="সংরক্ষণ করুন"
-              className="p-1.5 rounded-lg cursor-pointer"
+              className="p-1.5 rounded-full cursor-pointer transition-opacity active:opacity-70"
               style={{
                 color: isBookmarked ? 'var(--accent)' : 'var(--text-muted)',
               }}
@@ -198,7 +196,7 @@ export function DuasView({
               />
             </button>
             <ChevronRight
-              className="w-4 h-4"
+              className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
               style={{ color: 'var(--text-muted)' }}
             />
           </div>
@@ -207,7 +205,7 @@ export function DuasView({
         <p
           dir="rtl"
           lang="ar"
-          className="font-indopak text-right text-lg leading-loose line-clamp-1 opacity-90"
+          className="font-indopak text-right text-[1.15rem] leading-[1.8] line-clamp-1 opacity-85 pl-8"
           style={{ color: 'var(--text-primary)' }}
         >
           {normalizeIndoPakText(dua.arabic)}
@@ -218,9 +216,10 @@ export function DuasView({
 
   if (activeChapter) {
     return (
-      <div className="min-h-dvh paper-frame pb-16">
+      <div className="min-h-dvh paper-frame pb-20">
         <TopBar
           mode="sticky"
+          surface="tinted"
           onBack={() => setSelectedChapterId(null)}
           backLabel="অধ্যায় সমূহে ফিরুন"
           title={activeChapter.titleBangla}
@@ -245,54 +244,30 @@ export function DuasView({
           }
           subRow={
             chapterSearchOpen ? (
-              <div className="relative">
-                <Search
-                  className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ color: 'var(--text-muted)' }}
-                />
-                <input
-                  type="text"
-                  autoFocus
-                  value={chapterQuery}
-                  onChange={(e) => setChapterQuery(e.target.value)}
-                  placeholder="এই অধ্যায়ে খুঁজুন..."
-                  className="w-full pl-10 pr-9 py-2 rounded-xl border text-xs outline-none transition-colors"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-                {chapterQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setChapterQuery('')}
-                    aria-label="অনুসন্ধান মুছুন"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              <SoftSearchInput
+                autoFocus
+                compact
+                elevated
+                value={chapterQuery}
+                onChange={setChapterQuery}
+                placeholder="এই অধ্যায়ে খুঁজুন..."
+              />
             ) : undefined
           }
         />
 
-        <div className="max-w-2xl mx-auto px-4 pt-4 space-y-2.5">
+        <div className="max-w-2xl mx-auto px-5 pt-4">
           {matchingDuas.length === 0 ? (
             <div
-              className="rounded-2xl border p-8 text-center text-sm"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-muted)',
-              }}
+              className="py-12 text-center text-xs"
+              style={{ color: 'var(--text-muted)' }}
             >
               এই অধ্যায়ে কোনো দুআ পাওয়া যায়নি।
             </div>
           ) : (
-            matchingDuas.map((dua) => renderDuaRow(dua, false))
+            <div className="space-y-2">
+              {matchingDuas.map((dua) => renderDuaRow(dua, false))}
+            </div>
           )}
         </div>
       </div>
@@ -300,159 +275,131 @@ export function DuasView({
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-4">
-      <TabHeader
-        title="দুআ ও জিকির"
-        subtitle={`${toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট ${toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া`}
-      />
+    <div className="pb-28">
+      {/* Full-Bleed Tinted Top Band */}
+      <section
+        className="w-full safe-top"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
+      >
+        <div className="max-w-2xl mx-auto px-5 pt-5 pb-6 space-y-4">
+          <TabHeader
+            title="দুআ ও জিকির"
+            subtitle={`${toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট ${toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া`}
+          />
 
-      {/* Search bar */}
-      <div className="relative">
-        <Search
-          className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-          style={{ color: 'var(--text-muted)' }}
-        />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="দুআ বা অধ্যায় খুঁজুন (যেমন: সাইয়েদুল, ঘুম, সফর, রুকইয়া, দরুদ)..."
-          className="w-full pl-10 pr-9 py-2.5 rounded-2xl border text-sm outline-none transition-colors"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-primary)',
-          }}
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            aria-label="অনুসন্ধান মুছুন"
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer"
+          <SoftSearchInput
+            elevated
+            value={query}
+            onChange={setQuery}
+            placeholder="দুআ বা অধ্যায় খুঁজুন (যেমন: সাইয়েদুল, ঘুম, সফর, রুকইয়া, দরুদ)..."
+          />
+        </div>
+      </section>
+
+      {/* Open Editorial Canvas Below (Zero Boxes) */}
+      <div className="max-w-2xl mx-auto px-5 pt-4 space-y-4">
+        {!normalizedQuery && (
+          <UnderlineTabs
+            value={filter}
+            onChange={(next) => {
+              setSelectedChapterId(null);
+              setFilter(next);
+            }}
+            ariaLabel="দুআ বিভাগ নির্বাচন"
+            tabs={[
+              {
+                id: 'chapters',
+                label: 'অধ্যায় সমূহ',
+                count: toBanglaDigits(DUA_CHAPTERS.length),
+              },
+              {
+                id: 'all',
+                label: 'সব দুআ',
+                count: toBanglaDigits(DUAS.length),
+              },
+              {
+                id: 'saved',
+                label: 'সংরক্ষিত',
+                count: toBanglaDigits(bookmarkedSet.size),
+              },
+            ]}
+          />
+        )}
+
+        {/* Plain Editorial Chapter Directory vs Dua List */}
+        {!showDuaList ? (
+          <div className="space-y-1">
+            {DUA_CHAPTERS.map((ch) => {
+              const count = DUAS_BY_CHAPTER[ch.id]?.length ?? 0;
+              return (
+                <button
+                  key={ch.id}
+                  type="button"
+                  onClick={() => setSelectedChapterId(ch.id)}
+                  className="w-full py-3.5 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-70 cursor-pointer group"
+                >
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <span
+                      className="w-6 text-xs font-semibold tabular-nums shrink-0 pt-0.5"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      {ch.id < 10 ? `০${toBanglaDigits(ch.id)}` : toBanglaDigits(ch.id)}
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-sm leading-snug">
+                        {ch.titleBangla}
+                      </h2>
+                      <p
+                        className="text-[11px] mt-0.5 line-clamp-1"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {ch.subtitleBangla}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span
+                      className="text-[11px] font-medium tabular-nums"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {toBanglaDigits(count)}টি
+                    </span>
+                    <ChevronRight
+                      className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                      style={{ color: 'var(--text-muted)' }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : matchingDuas.length === 0 ? (
+          <div
+            className="py-12 text-center text-xs space-y-1.5"
             style={{ color: 'var(--text-muted)' }}
           >
-            <X className="w-3.5 h-3.5" />
-          </button>
+            <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>
+              {filter === 'saved' && !normalizedQuery
+                ? 'এখনো কোনো দুআ সংরক্ষণ করা হয়নি।'
+                : 'কোনো দুআ পাওয়া যায়নি।'}
+            </p>
+            {filter === 'saved' && !normalizedQuery && (
+              <p className="text-[11px]">
+                যেকোনো দুআর পাশে থাকা বুকমার্ক আইকনে ট্যাপ করে এখানে সংরক্ষণ করুন।
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {matchingDuas.map((dua) =>
+              renderDuaRow(
+                dua,
+                Boolean(normalizedQuery) || selectedChapterId === null
+              )
+            )}
+          </div>
         )}
       </div>
-
-      {/* Mode / Filter Pills */}
-      {!normalizedQuery && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {(
-            [
-              ['chapters', `অধ্যায় সমূহ (${toBanglaDigits(DUA_CHAPTERS.length)})`],
-              ['all', `সব দুআ (${toBanglaDigits(DUAS.length)})`],
-              ['saved', `সংরক্ষিত (${toBanglaDigits(bookmarkedSet.size)})`],
-            ] as const
-          ).map(([id, label]) => {
-            const active = selectedChapterId === null && filter === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setSelectedChapterId(null);
-                  setFilter(id);
-                }}
-                className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer"
-                style={{
-                  backgroundColor: active
-                    ? 'var(--accent)'
-                    : 'var(--bg-elevated)',
-                  borderColor: active
-                    ? 'var(--accent)'
-                    : 'var(--border-subtle)',
-                  color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Chapter Directory Grid vs Dua List */}
-      {!showDuaList ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {DUA_CHAPTERS.map((ch) => {
-            const count = DUAS_BY_CHAPTER[ch.id]?.length ?? 0;
-            return (
-              <button
-                key={ch.id}
-                type="button"
-                onClick={() => setSelectedChapterId(ch.id)}
-                className="text-left rounded-2xl border p-4 space-y-2 transition-colors cursor-pointer active:scale-[0.995]"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-                    style={{
-                      backgroundColor: 'var(--accent-soft)',
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    অধ্যায় {toBanglaDigits(ch.id)}
-                  </span>
-                  <span
-                    className="text-[11px] font-medium"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {toBanglaDigits(count)}টি
-                  </span>
-                </div>
-                <div>
-                  <h2 className="font-semibold text-sm leading-snug">
-                    {ch.titleBangla}
-                  </h2>
-                  <p
-                    className="text-[11px] mt-0.5 line-clamp-1"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {ch.subtitleBangla}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      ) : matchingDuas.length === 0 ? (
-        <div
-          className="rounded-2xl border p-8 text-center text-sm space-y-1"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-muted)',
-          }}
-        >
-          <p>
-            {filter === 'saved' && !normalizedQuery
-              ? 'এখনো কোনো দুআ সংরক্ষণ করা হয়নি।'
-              : 'কোনো দুআ পাওয়া যায়নি।'}
-          </p>
-          {filter === 'saved' && !normalizedQuery && (
-            <p className="text-xs">
-              যেকোনো দুআর পাশে থাকা বুকমার্ক আইকনে ট্যাপ করে এখানে সংরক্ষণ করুন।
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {matchingDuas.map((dua) =>
-            renderDuaRow(
-              dua,
-              Boolean(normalizedQuery) || selectedChapterId === null
-            )
-          )}
-        </div>
-      )}
     </div>
   );
 }

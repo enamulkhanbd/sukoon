@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
@@ -11,7 +11,6 @@ import {
   Flame,
   Plus,
   Sparkles,
-  Target,
 } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
 import {
@@ -32,24 +31,18 @@ import {
   DAY_SHORT_BN,
   toBanglaDigits,
 } from '../utils/formatters';
-import { formatReadingDurationBn } from '../utils/islamicTime';
 import {
-  addDays,
   buildDayMetrics,
   buildHistoryMap,
   computeStreaks,
-  formatDateKey,
 } from '../utils/stats';
-import { DailyGoalSheet } from './DailyGoalSheet';
 import { FastingCard } from './FastingCard';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import { TabHeader } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
-import { useToast } from './ToastProvider';
 
 interface HomeViewProps {
   settings: Settings;
-  onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   onOpenStats: () => void;
@@ -60,7 +53,6 @@ interface HomeViewProps {
 
 export function HomeView({
   settings,
-  onUpdateSettings,
   onOpenSurah,
   onOpenRoutineDetails,
   onOpenStats,
@@ -68,9 +60,6 @@ export function HomeView({
   onGoToRoutines,
   onGoToSurahs,
 }: HomeViewProps) {
-  const toast = useToast();
-  const [goalSheetOpen, setGoalSheetOpen] = useState(false);
-
   const clock = useIslamicClock(settings);
   const now = clock.now;
   const todayIndex = clock.islamicWeekday;
@@ -92,19 +81,9 @@ export function HomeView({
   const cachedCount = useLiveQuery(() => countCompleteCachedSurahs(), []);
   const historyRows = useLiveQuery(() => db.readingHistory.toArray(), []);
 
-  const { todayMetrics, streaks, recentSevenDays } = useMemo(() => {
+  const { todayMetrics, streaks } = useMemo(() => {
     const map = buildHistoryMap(historyRows ?? []);
     const todayKey = clock.islamicDayKey;
-    const recent = Array.from({ length: 7 }, (_, i) => {
-      const d = addDays(clock.islamicDate, i - 6);
-      const key = formatDateKey(d);
-      const metrics = buildDayMetrics(d, map.get(key), todayKey);
-      return {
-        key,
-        weekdayShort: DAY_SHORT_BN[d.getDay()],
-        metrics,
-      };
-    });
     return {
       todayMetrics: buildDayMetrics(
         clock.islamicDate,
@@ -112,7 +91,6 @@ export function HomeView({
         todayKey
       ),
       streaks: computeStreaks(map, clock.islamicDate),
-      recentSevenDays: recent,
     };
   }, [historyRows, clock.islamicDate, clock.islamicDayKey]);
 
@@ -152,31 +130,14 @@ export function HomeView({
     goalTargetSeconds > 0
       ? Math.min(100, Math.round((todayReadingSeconds / goalTargetSeconds) * 100))
       : 0;
-  const goalCompleted = dailyGoalMinutes > 0 && todayReadingSeconds >= goalTargetSeconds;
-  const remainingGoalMinutes =
-    dailyGoalMinutes > 0
-      ? Math.max(0, Math.ceil((goalTargetSeconds - todayReadingSeconds) / 60))
-      : 0;
-
-  const ringRadius = 18;
-  const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringDashOffset =
-    ringCircumference * (1 - (dailyGoalMinutes > 0 ? goalPercent / 100 : 0));
+  const goalCompleted =
+    dailyGoalMinutes > 0 && todayReadingSeconds >= goalTargetSeconds;
 
   const todayFormatted = new Intl.DateTimeFormat('bn-BD', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   }).format(clock.gregorianDate);
-
-  const handleSaveDailyGoal = async (minutes: number) => {
-    await onUpdateSettings({ dailyGoalMinutes: minutes });
-    toast.success(
-      minutes > 0
-        ? `দৈনিক তিলাওয়াত লক্ষ্য ${toBanglaDigits(minutes)} মিনিট নির্ধারিত হয়েছে`
-        : 'দৈনিক তিলাওয়াত লক্ষ্য বন্ধ করা হয়েছে'
-    );
-  };
 
   /** Compact fixed-height routine card for Home page (full details live on RoutineDetailView). */
   const renderRoutineCard = (routine: Routine, isToday: boolean) => {
@@ -293,17 +254,6 @@ export function HomeView({
             <span>
               {DAY_NAMES_BN[todayIndex]} • {todayFormatted}
             </span>
-            {clock.isAfterMaghrib && (
-              <span
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: 'var(--accent-soft)',
-                  color: 'var(--accent)',
-                }}
-              >
-                মাগরিবের পর
-              </span>
-            )}
           </div>
         }
       />
@@ -410,151 +360,76 @@ export function HomeView({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {streaks.currentStreak > 0 && (
-              <span
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                style={{
-                  backgroundColor: 'var(--gold-soft)',
-                  color: 'var(--gold)',
-                }}
-              >
-                <Flame className="w-3 h-3" />
-                {toBanglaDigits(streaks.currentStreak)} দিন
-              </span>
-            )}
-            <ChevronRight
-              className="w-4 h-4"
-              style={{ color: 'var(--text-muted)' }}
-            />
-          </div>
+          {streaks.currentStreak > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+              style={{
+                backgroundColor: 'var(--gold-soft)',
+                color: 'var(--gold)',
+              }}
+            >
+              <Flame className="w-3 h-3" />
+              {toBanglaDigits(streaks.currentStreak)} দিন
+            </span>
+          )}
         </div>
 
-        {/* Daily Quran Recitation Goal Row (Ring + Status + Edit CTA) */}
-        <div
-          className="rounded-2xl border px-3.5 py-2.5 flex items-center justify-between gap-3"
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: goalCompleted
-              ? 'color-mix(in srgb, var(--accent) 36%, var(--border-subtle))'
-              : 'var(--border-subtle)',
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setGoalSheetOpen(true);
-          }}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Circular Progress Ring */}
-            <div className="relative w-11 h-11 shrink-0 flex items-center justify-center">
-              <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
-                <circle
-                  cx="22"
-                  cy="22"
-                  r={ringRadius}
-                  fill="none"
-                  stroke="var(--border-subtle)"
-                  strokeWidth="3.5"
-                />
-                {dailyGoalMinutes > 0 && (
-                  <circle
-                    cx="22"
-                    cy="22"
-                    r={ringRadius}
-                    fill="none"
-                    stroke={goalCompleted ? 'var(--accent)' : 'var(--gold)'}
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    strokeDasharray={ringCircumference}
-                    strokeDashoffset={ringDashOffset}
-                    className="transition-all duration-500"
-                  />
-                )}
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center">
-                {dailyGoalMinutes <= 0 ? (
-                  <Target className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-                ) : goalCompleted ? (
-                  <Check
-                    className="w-4 h-4 stroke-[2.75]"
-                    style={{ color: 'var(--accent)' }}
-                  />
-                ) : (
-                  <span
-                    className="text-[10px] font-bold tabular-nums"
+        {/* Minimal unboxed Daily Quran Goal progress bar (only visible when goal is configured) */}
+        {dailyGoalMinutes > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span
+                  className="font-medium truncate"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  দৈনিক তিলাওয়াত •{' '}
+                  <strong
+                    className="tabular-nums"
                     style={{ color: 'var(--text-primary)' }}
                   >
-                    {toBanglaDigits(goalPercent)}%
+                    {toBanglaDigits(todayReadingMinutes)} /{' '}
+                    {toBanglaDigits(dailyGoalMinutes)} মি.
+                  </strong>
+                </span>
+                {goalCompleted && (
+                  <span
+                    className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: 'var(--accent-soft)',
+                      color: 'var(--accent)',
+                    }}
+                  >
+                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    লক্ষ্য পূর্ণ
                   </span>
                 )}
+              </div>
+              <span
+                className="font-semibold tabular-nums shrink-0"
+                style={{
+                  color: goalCompleted ? 'var(--accent)' : 'var(--gold)',
+                }}
+              >
+                {toBanglaDigits(goalPercent)}%
               </span>
             </div>
-
-            {/* Goal Details */}
-            <div className="min-w-0">
-              {dailyGoalMinutes > 0 ? (
-                <>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-semibold tabular-nums">
-                      তিলাওয়াত: {toBanglaDigits(todayReadingMinutes)} /{' '}
-                      {toBanglaDigits(dailyGoalMinutes)} মি.
-                    </span>
-                    {goalCompleted && (
-                      <span
-                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: 'var(--accent-soft)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        লক্ষ্য পূর্ণ
-                      </span>
-                    )}
-                  </div>
-                  <p
-                    className="text-[11px] mt-0.5 truncate"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {goalCompleted
-                      ? `মাশাআল্লাহ! আজ ${formatReadingDurationBn(todayReadingSeconds)} তিলাওয়াত হয়েছে`
-                      : `লক্ষ্য পূরণে আর ${toBanglaDigits(remainingGoalMinutes)} মিনিট বাকি`}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="text-xs font-semibold">
-                    দৈনিক কুরআন তিলাওয়াত লক্ষ্য
-                  </div>
-                  <p
-                    className="text-[11px] mt-0.5 truncate"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {todayReadingSeconds > 0
-                      ? `আজ ${formatReadingDurationBn(todayReadingSeconds)} পড়া হয়েছে • লক্ষ্য নির্ধারণ করুন`
-                      : 'প্রতিদিনের সময় লক্ষ্য সেট করুন'}
-                  </p>
-                </>
-              )}
+            <div
+              className="h-1.5 w-full rounded-full overflow-hidden"
+              style={{ backgroundColor: 'var(--bg-surface)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${goalPercent}%`,
+                  backgroundColor: goalCompleted
+                    ? 'var(--accent)'
+                    : 'var(--gold)',
+                }}
+              />
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setGoalSheetOpen(true);
-            }}
-            className="shrink-0 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold cursor-pointer active:scale-95 transition-transform"
-            style={{
-              backgroundColor:
-                dailyGoalMinutes > 0 ? 'var(--bg-elevated)' : 'var(--accent)',
-              color:
-                dailyGoalMinutes > 0 ? 'var(--accent)' : 'var(--accent-text)',
-            }}
-          >
-            {dailyGoalMinutes > 0 ? 'পরিবর্তন' : 'সেট করুন'}
-          </button>
-        </div>
+        )}
 
         {/* 4 Core Ibadah Metrics */}
         <div
@@ -596,79 +471,6 @@ export function HomeView({
               </div>
             </div>
           ))}
-        </div>
-
-        {/* 7-Day Islamic-Day Consistency Strip */}
-        <div
-          className="pt-2.5 border-t flex items-center justify-between gap-2"
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
-          <span
-            className="text-[10px] font-medium shrink-0"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ৭ দিনের ধারা
-          </span>
-          <div className="flex items-center gap-1.5">
-            {recentSevenDays.map(({ key, weekdayShort, metrics }) => {
-              const goalTargetSec =
-                (metrics.record?.goalMinutesTarget ?? dailyGoalMinutes) * 60;
-              const metGoal =
-                goalTargetSec > 0 && metrics.readingSeconds >= goalTargetSec;
-              const hasRoutine = metrics.routines > 0;
-              const strong = metGoal || hasRoutine;
-              const partial = !strong && metrics.isActive;
-              return (
-                <div
-                  key={key}
-                  className="flex flex-col items-center gap-1"
-                  title={`${weekdayShort}: ${toBanglaDigits(metrics.routines)} রুটিন, ${formatReadingDurationBn(metrics.readingSeconds)}`}
-                >
-                  <span
-                    className="w-5 h-5 rounded-full border flex items-center justify-center text-[9px] font-bold"
-                    style={{
-                      backgroundColor: strong
-                        ? 'var(--accent)'
-                        : partial
-                          ? 'var(--gold-soft)'
-                          : 'transparent',
-                      borderColor: metrics.isToday
-                        ? 'var(--accent)'
-                        : strong
-                          ? 'var(--accent)'
-                          : partial
-                            ? 'var(--gold)'
-                            : 'var(--border-subtle)',
-                      color: strong
-                        ? 'var(--accent-text)'
-                        : partial
-                          ? 'var(--gold)'
-                          : 'var(--text-muted)',
-                    }}
-                  >
-                    {strong ? (
-                      <Check className="w-2.5 h-2.5 stroke-[3]" />
-                    ) : partial ? (
-                      '•'
-                    ) : (
-                      ''
-                    )}
-                  </span>
-                  <span
-                    className="text-[9px] leading-none"
-                    style={{
-                      color: metrics.isToday
-                        ? 'var(--accent)'
-                        : 'var(--text-muted)',
-                      fontWeight: metrics.isToday ? 600 : 400,
-                    }}
-                  >
-                    {weekdayShort}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </section>
 
@@ -742,13 +544,6 @@ export function HomeView({
           </span>
         </div>
       )}
-
-      <DailyGoalSheet
-        open={goalSheetOpen}
-        onClose={() => setGoalSheetOpen(false)}
-        currentGoalMinutes={dailyGoalMinutes}
-        onSave={handleSaveDailyGoal}
-      />
     </div>
   );
 }

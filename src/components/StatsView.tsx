@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Flame,
+  Target,
 } from 'lucide-react';
 import { DUA_MAP } from '../data/duas';
 import { db, type Routine, type Settings } from '../db/database';
@@ -11,6 +13,7 @@ import { useIslamicClock } from '../hooks/useIslamicClock';
 import { toBanglaDigits } from '../utils/formatters';
 import { formatReadingDurationBn } from '../utils/islamicTime';
 import {
+  buildDayMetrics,
   buildHistoryMap,
   buildMonthlyStats,
   buildWeeklyStats,
@@ -26,10 +29,13 @@ import {
   type StatsPeriod,
   type YearMonthBucket,
 } from '../utils/stats';
+import { DailyGoalSheet } from './DailyGoalSheet';
 import { TopBar } from './NavigationChrome';
+import { useToast } from './ToastProvider';
 
 interface StatsViewProps {
   settings: Settings;
+  onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
   onBack: () => void;
 }
 
@@ -80,8 +86,14 @@ function getHeatmapCellColors(level: 0 | 1 | 2 | 3 | 4): {
   }
 }
 
-export function StatsView({ settings, onBack }: StatsViewProps) {
+export function StatsView({
+  settings,
+  onUpdateSettings,
+  onBack,
+}: StatsViewProps) {
+  const toast = useToast();
   const clock = useIslamicClock(settings);
+  const [goalSheetOpen, setGoalSheetOpen] = useState(false);
   const [period, setPeriod] = useState<StatsPeriod>('weekly');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -415,6 +427,31 @@ export function StatsView({ settings, onBack }: StatsViewProps) {
     </div>
   );
 
+  const dailyGoalMinutes = Math.max(
+    0,
+    Math.floor(settings.dailyGoalMinutes ?? 0)
+  );
+  const todayStats = useMemo(
+    () =>
+      buildDayMetrics(
+        clock.islamicDate,
+        historyMap.get(clock.islamicDayKey),
+        clock.islamicDayKey
+      ),
+    [historyMap, clock.islamicDate, clock.islamicDayKey]
+  );
+  const todayReadingMinutes = Math.floor(todayStats.readingSeconds / 60);
+  const goalTargetSeconds = dailyGoalMinutes * 60;
+  const goalPercent =
+    goalTargetSeconds > 0
+      ? Math.min(
+          100,
+          Math.round((todayStats.readingSeconds / goalTargetSeconds) * 100)
+        )
+      : 0;
+  const goalCompleted =
+    dailyGoalMinutes > 0 && todayStats.readingSeconds >= goalTargetSeconds;
+
   const hasAnyPeriodActivity = activeTotals.activeDays > 0;
   const maxTopDuaScore = topBreakdowns.topDuas[0]?.score ?? 1;
   const maxTopRoutineCount = topBreakdowns.topRoutines[0]?.count ?? 1;
@@ -430,6 +467,78 @@ export function StatsView({ settings, onBack }: StatsViewProps) {
       />
 
       <main className="max-w-2xl mx-auto px-5 pt-4 space-y-8">
+        {/* Quiet Unboxed Daily Recitation Goal Strip */}
+        <section
+          className="pb-4 border-b space-y-2"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Target
+                className="w-4 h-4 shrink-0"
+                style={{ color: 'var(--accent)' }}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap text-xs font-semibold">
+                  <span>দৈনিক কুরআন তিলাওয়াত লক্ষ্য</span>
+                  {goalCompleted && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      সম্পন্ন
+                    </span>
+                  )}
+                </div>
+                <p
+                  className="text-[11px] mt-0.5 tabular-nums"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {dailyGoalMinutes > 0
+                    ? `আজ ${toBanglaDigits(todayReadingMinutes)} / ${toBanglaDigits(dailyGoalMinutes)} মিনিট (${toBanglaDigits(goalPercent)}%)`
+                    : todayStats.readingSeconds > 0
+                      ? `আজ ${formatReadingDurationBn(todayStats.readingSeconds)} পড়া হয়েছে • কোনো লক্ষ্য সেট করা নেই`
+                      : 'প্রতিদিনের তিলাওয়াতের সময়-লক্ষ্য নির্ধারণ করুন'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setGoalSheetOpen(true)}
+              className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-xl cursor-pointer transition-opacity active:opacity-75"
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                color: 'var(--accent)',
+              }}
+            >
+              {dailyGoalMinutes > 0 ? 'পরিবর্তন' : 'লক্ষ্য সেট'}
+            </button>
+          </div>
+          {dailyGoalMinutes > 0 && (
+            <div
+              className="h-1.5 w-full rounded-full overflow-hidden"
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--text-primary) 7%, transparent)',
+              }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${goalPercent}%`,
+                  backgroundColor: goalCompleted
+                    ? 'var(--accent)'
+                    : 'var(--gold)',
+                }}
+              />
+            </div>
+          )}
+        </section>
+
         {/* Minimal Underline Period Tabs + Clean Date Navigator (Unboxed) */}
         <section className="space-y-4">
           <div
@@ -1179,6 +1288,20 @@ export function StatsView({ settings, onBack }: StatsViewProps) {
           )}
         </section>
       </main>
+
+      <DailyGoalSheet
+        open={goalSheetOpen}
+        onClose={() => setGoalSheetOpen(false)}
+        currentGoalMinutes={dailyGoalMinutes}
+        onSave={async (minutes) => {
+          await onUpdateSettings({ dailyGoalMinutes: minutes });
+          toast.success(
+            minutes > 0
+              ? `দৈনিক তিলাওয়াত লক্ষ্য ${toBanglaDigits(minutes)} মিনিট নির্ধারিত হয়েছে`
+              : 'দৈনিক তিলাওয়াত লক্ষ্য বন্ধ করা হয়েছে'
+          );
+        }}
+      />
     </div>
   );
 }

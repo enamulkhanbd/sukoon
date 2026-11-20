@@ -14,7 +14,6 @@ import {
   MapPin,
   Smartphone,
   Target,
-  Trash2,
   Upload,
   X,
 } from 'lucide-react';
@@ -276,12 +275,6 @@ export function SettingsView({
     cancelOfflineSync();
   };
 
-  const handleClearCache = async () => {
-    await db.cachedSurahs.clear();
-    await onUpdateSettings({ offlineDownloaded: false });
-    toast.warning('ক্যাশ করা সূরা মুছে ফেলা হয়েছে। আপনার রুটিন ও ইতিহাস সুরক্ষিত আছে।');
-  };
-
   const handleExportJson = async () => {
     try {
       const payload = await exportUserData();
@@ -423,21 +416,23 @@ export function SettingsView({
           className="text-xs font-semibold uppercase tracking-wide"
           style={{ color: 'var(--text-secondary)' }}
         >
-          পড়ার পরিবেশ ও টাইপোগ্রাফি
+          পড়ার পরিবেশ
         </h2>
 
-        <ThemePicker
-          value={settings.theme}
-          showDescription
-          onSelect={async (theme, label) => {
-            await onUpdateSettings({ theme });
-            toast.success(`থিম পরিবর্তন হয়েছে: ${label}`);
-          }}
-        />
+        <div className="space-y-2">
+          <span className="text-xs font-medium block">থিম</span>
+          <ThemePicker
+            value={settings.theme}
+            onSelect={async (theme, label) => {
+              await onUpdateSettings({ theme });
+              toast.success(`থিম পরিবর্তন হয়েছে: ${label}`);
+            }}
+          />
+        </div>
 
         <div className="space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-medium">ইন্দো-পাক ফন্ট সাইজ</span>
+            <span className="font-medium">আরবি অক্ষরের আকার</span>
             <span className="font-semibold tabular-nums" style={{ color: 'var(--accent)' }}>
               {toBanglaDigits(settings.fontSize)}px
             </span>
@@ -454,16 +449,6 @@ export function SettingsView({
             className="w-full cursor-pointer"
             style={{ accentColor: 'var(--accent)' }}
           />
-          <div
-            className="py-3 text-center font-indopak border-y"
-            style={{
-              borderColor: 'var(--border-subtle)',
-              fontSize: `${settings.fontSize}px`,
-              lineHeight: 1.95,
-            }}
-          >
-            اَلْحَمْدُ لِلّٰهِ رَبِّ الْعٰلَمِیْنَ ۙ
-          </div>
         </div>
 
         <div className="flex items-center justify-between gap-4">
@@ -862,22 +847,22 @@ export function SettingsView({
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {downloading ? (
-            <button
-              type="button"
-              onClick={handleCancelDownload}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer"
-              style={{
-                backgroundColor: 'transparent',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <X className="w-4 h-4" />
-              স্থগিত করুন
-            </button>
-          ) : (
-            (cachedCount < 114 || outdatedCount > 0) && (
+        {(downloading || cachedCount < 114 || outdatedCount > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {downloading ? (
+              <button
+                type="button"
+                onClick={handleCancelDownload}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer"
+                style={{
+                  backgroundColor: 'transparent',
+                  borderColor: 'var(--border-subtle)',
+                }}
+              >
+                <X className="w-4 h-4" />
+                স্থগিত করুন
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={handleDownloadAll}
@@ -889,30 +874,14 @@ export function SettingsView({
               >
                 <CloudDownload className="w-4 h-4" />
                 {cachedCount >= 114
-                  ? 'ইন্দো-পাক স্ক্রিপ্ট আপডেট করুন'
+                  ? 'কুরআন টেক্সট আপডেট করুন'
                   : cachedCount > 0
                     ? 'বাকি সূরা ডাউনলোড করুন'
                     : 'সম্পূর্ণ কুরআন ডাউনলোড করুন'}
               </button>
-            )
-          )}
-
-          {cachedCount > 0 && !downloading && (
-            <button
-              type="button"
-              onClick={handleClearCache}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium border cursor-pointer"
-              style={{
-                backgroundColor: 'transparent',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              টেক্সট ক্যাশ মুছুন
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Data Portability & Backup */}

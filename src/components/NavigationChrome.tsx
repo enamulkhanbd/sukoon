@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -295,14 +294,19 @@ interface ThemePickerProps {
   showDescription?: boolean;
 }
 
-/** Tactile circular-swatch theme selector shared across Settings and Reader sheets. */
+/** Minimal segmented theme selector shared across Settings and Reader sheets. */
 export function ThemePicker({
   value,
   onSelect,
-  showDescription = false,
 }: ThemePickerProps) {
   return (
-    <div className="grid grid-cols-3 gap-2.5">
+    <div
+      className="grid grid-cols-3 gap-1 p-1 rounded-2xl"
+      style={{
+        backgroundColor:
+          'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+      }}
+    >
       {THEME_OPTIONS.map((t) => {
         const active = value === t.id;
         return (
@@ -311,52 +315,23 @@ export function ThemePicker({
             type="button"
             onClick={() => onSelect(t.id, t.label)}
             aria-pressed={active}
-            className="relative flex flex-col items-center gap-2 rounded-2xl border px-2.5 py-3 transition-colors cursor-pointer active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer active:scale-[0.98]"
             style={{
-              backgroundColor: active ? 'var(--bg-surface)' : 'var(--bg-page)',
-              borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
+              backgroundColor: active ? 'var(--accent)' : 'transparent',
+              color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
             }}
           >
             <span
-              className="w-9 h-9 rounded-full border flex items-center justify-center font-indopak text-base leading-none"
+              className="w-3.5 h-3.5 rounded-full border shrink-0"
               style={{
                 backgroundColor: t.swatch,
-                color: t.ink,
                 borderColor: active
-                  ? 'var(--accent)'
-                  : 'color-mix(in srgb, var(--text-primary) 16%, transparent)',
+                  ? 'color-mix(in srgb, var(--accent-text) 55%, transparent)'
+                  : 'color-mix(in srgb, var(--text-primary) 22%, transparent)',
               }}
               aria-hidden="true"
-            >
-              ع
-            </span>
-            <div className="text-center leading-tight">
-              <div
-                className="text-xs font-semibold"
-                style={{ color: active ? 'var(--accent)' : 'var(--text-primary)' }}
-              >
-                {t.label}
-              </div>
-              {showDescription && (
-                <div
-                  className="text-[10px] mt-0.5"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  {t.desc}
-                </div>
-              )}
-            </div>
-            {active && (
-              <span
-                className="absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                <Check className="w-2.5 h-2.5 stroke-[3]" />
-              </span>
-            )}
+            />
+            <span>{t.label}</span>
           </button>
         );
       })}

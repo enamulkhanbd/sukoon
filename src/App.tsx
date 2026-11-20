@@ -498,7 +498,13 @@ export function App() {
   }
 
   if (route.type === 'stats') {
-    return <StatsView settings={settings} onBack={closeSubView} />;
+    return (
+      <StatsView
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+        onBack={closeSubView}
+      />
+    );
   }
 
   if (route.type === 'ramadan') {
@@ -528,7 +534,6 @@ export function App() {
       {activeTab === 'home' && (
         <HomeView
           settings={settings}
-          onUpdateSettings={handleUpdateSettings}
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}

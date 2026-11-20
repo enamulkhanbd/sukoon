@@ -6,12 +6,14 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   CloudDownload,
   Download,
   Loader2,
   LocateFixed,
   MapPin,
   Smartphone,
+  Target,
   Trash2,
   Upload,
   X,
@@ -22,6 +24,7 @@ import {
   importUserData,
   type Settings,
 } from '../db/database';
+import { useIslamicClock } from '../hooks/useIslamicClock';
 import { usePwaInstall } from '../hooks/usePwaInstall';
 import {
   cancelOfflineSync,
@@ -35,6 +38,7 @@ import {
 import {
   DEFAULT_FASTING_LOCATION,
   FASTING_CALCULATION_METHODS,
+  formatPrayerTimeBn,
   PRESET_FASTING_LOCATIONS,
   type FastingCalculationMethod,
   type FastingLocation,
@@ -42,6 +46,7 @@ import {
 import { clampHijriOffsetDays } from '../utils/hijri';
 import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 import { getRecordDuaTotal } from '../utils/stats';
+import { DailyGoalSheet } from './DailyGoalSheet';
 import { TabHeader, ThemePicker, useBottomSheet } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
@@ -208,11 +213,14 @@ export function SettingsView({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+  const [goalSheetOpen, setGoalSheetOpen] = useState(false);
 
+  const clock = useIslamicClock(settings);
   const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const fastingMethod = settings.fastingMethod ?? 'karachi';
   const fastingTimeFormat = settings.fastingTimeFormat ?? '12h';
   const hijriOffsetDays = clampHijriOffsetDays(settings.hijriOffsetDays ?? 0);
+  const dailyGoalMinutes = Math.max(0, Math.floor(settings.dailyGoalMinutes ?? 0));
 
   const handleUseBrowserLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -368,6 +376,42 @@ export function SettingsView({
             style={{ color: 'var(--text-muted)' }}
           />
         </button>
+
+        {/* Daily Quran Recitation Goal Row */}
+        <button
+          type="button"
+          onClick={() => setGoalSheetOpen(true)}
+          className="w-full flex items-center justify-between gap-3 py-2 text-left transition-opacity active:opacity-75 cursor-pointer group"
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <span
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+              style={{
+                backgroundColor: 'var(--gold-soft)',
+                color: 'var(--gold)',
+              }}
+            >
+              <Target className="w-4 h-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">
+                দৈনিক কুরআন তিলাওয়াত লক্ষ্য
+              </div>
+              <p
+                className="text-xs mt-0.5 leading-relaxed"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {dailyGoalMinutes > 0
+                  ? `প্রতিদিন ${toBanglaDigits(dailyGoalMinutes)} মিনিট তিলাওয়াতের লক্ষ্য সক্রিয়`
+                  : 'প্রতিদিন কত মিনিট তিলাওয়াত করবেন তা নির্ধারণ করুন'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight
+            className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+            style={{ color: 'var(--text-muted)' }}
+          />
+        </button>
       </section>
 
       {/* Reading Environment & Typography */}
@@ -509,11 +553,80 @@ export function SettingsView({
             className="text-xs font-semibold uppercase tracking-wide"
             style={{ color: 'var(--text-secondary)' }}
           >
-            রোজা, সাহরি ও ইফতারের সময়সূচি
+            নামাজ, রোজা ও ইসলামী দিনের সময়সূচি
           </h2>
           <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-            অবস্থান ও হিসাবের পদ্ধতি অনুযায়ী সম্পূর্ণ অফলাইনে সময় নির্ণয় হয়।
+            অবস্থান ও হিসাবের পদ্ধতি অনুযায়ী সম্পূর্ণ অফলাইনে ৫ ওয়াক্ত, মাগরিব রুটিন রিসেট ও রোজার সময় নির্ণয় হয়।
           </p>
+        </div>
+
+        {/* Today's 5 Waqts Preview */}
+        <div
+          className="rounded-2xl border p-3 space-y-2"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border-subtle)',
+          }}
+        >
+          <div className="flex items-center justify-between text-[11px]">
+            <span
+              className="inline-flex items-center gap-1 font-semibold"
+              style={{ color: 'var(--accent)' }}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              আজকের ওয়াক্ত ({fastingLocation.nameBn})
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              মাগরিবে রুটিন রিসেট
+            </span>
+          </div>
+          <div className="grid grid-cols-5 gap-1 text-center">
+            {(
+              [
+                { id: 'fajr', label: 'ফজর', time: clock.todayWaqts.fajr },
+                { id: 'dhuhr', label: 'যোহর', time: clock.todayWaqts.dhuhr },
+                { id: 'asr', label: 'আসর', time: clock.todayWaqts.asr },
+                { id: 'maghrib', label: 'মাগরিব', time: clock.todayWaqts.maghrib },
+                { id: 'isha', label: 'এশা', time: clock.todayWaqts.isha },
+              ] as const
+            ).map((w) => {
+              const active = clock.currentWaqt === w.id;
+              return (
+                <div
+                  key={w.id}
+                  className="rounded-xl py-1.5 px-1"
+                  style={{
+                    backgroundColor: active
+                      ? 'var(--accent-soft)'
+                      : 'transparent',
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-medium"
+                    style={{
+                      color: active ? 'var(--accent)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {w.label}
+                  </div>
+                  <div
+                    className="text-[10px] font-semibold tabular-nums mt-0.5 leading-tight"
+                    style={{
+                      color: active
+                        ? 'var(--accent)'
+                        : 'var(--text-primary)',
+                    }}
+                  >
+                    {formatPrayerTimeBn(
+                      w.time,
+                      fastingTimeFormat,
+                      fastingLocation.timeZone
+                    ).replace(/^(ভোর|সকাল|দুপুর|বিকাল|সন্ধ্যা|রাত)\s+/, '')}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Location Preset + GPS */}
@@ -901,6 +1014,20 @@ export function SettingsView({
         onSelect={async (selected) => {
           await onUpdateSettings({ fastingLocation: selected });
           toast.success(`অবস্থান নির্ধারিত হয়েছে: ${selected.nameBn}`);
+        }}
+      />
+
+      <DailyGoalSheet
+        open={goalSheetOpen}
+        onClose={() => setGoalSheetOpen(false)}
+        currentGoalMinutes={dailyGoalMinutes}
+        onSave={async (minutes) => {
+          await onUpdateSettings({ dailyGoalMinutes: minutes });
+          toast.success(
+            minutes > 0
+              ? `দৈনিক তিলাওয়াত লক্ষ্য ${toBanglaDigits(minutes)} মিনিট নির্ধারিত হয়েছে`
+              : 'দৈনিক তিলাওয়াত লক্ষ্য বন্ধ করা হয়েছে'
+          );
         }}
       />
     </div>

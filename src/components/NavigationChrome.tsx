@@ -122,7 +122,7 @@ export function useBottomSheet(open: boolean, onClose: () => void) {
 }
 
 interface TabHeaderProps {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   badge?: ReactNode;
   rightAction?: ReactNode;

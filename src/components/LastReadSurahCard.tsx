@@ -1,3 +1,4 @@
+import { BookOpenCheck } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
 import type { GlobalLastRead } from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
@@ -40,7 +41,17 @@ export function LastReadSurahCard({
         borderColor: 'var(--border-subtle)',
       }}
     >
-      <div className="min-w-0 space-y-1">
+      <div className="min-w-0 space-y-1.5">
+        <span
+          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+          style={{
+            backgroundColor: 'var(--accent-soft)',
+            color: 'var(--accent)',
+          }}
+        >
+          <BookOpenCheck className="w-3 h-3" />
+          সর্বশেষ পাঠ করা সূরা
+        </span>
         <div className="flex items-baseline gap-1.5 flex-wrap">
           <h2 className="text-lg font-bold tracking-tight truncate">
             {surah.nameBangla}

@@ -6,8 +6,10 @@ import {
   Flame,
 } from 'lucide-react';
 import { DUA_MAP } from '../data/duas';
-import { db, type Routine } from '../db/database';
+import { db, type Routine, type Settings } from '../db/database';
+import { useIslamicClock } from '../hooks/useIslamicClock';
 import { toBanglaDigits } from '../utils/formatters';
+import { formatReadingDurationBn } from '../utils/islamicTime';
 import {
   buildHistoryMap,
   buildMonthlyStats,
@@ -27,6 +29,7 @@ import {
 import { TopBar } from './NavigationChrome';
 
 interface StatsViewProps {
+  settings: Settings;
   onBack: () => void;
 }
 
@@ -77,7 +80,8 @@ function getHeatmapCellColors(level: 0 | 1 | 2 | 3 | 4): {
   }
 }
 
-export function StatsView({ onBack }: StatsViewProps) {
+export function StatsView({ settings, onBack }: StatsViewProps) {
+  const clock = useIslamicClock(settings);
   const [period, setPeriod] = useState<StatsPeriod>('weekly');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -102,19 +106,22 @@ export function StatsView({ onBack }: StatsViewProps) {
     [routines]
   );
 
-  const streaks = useMemo(() => computeStreaks(historyMap), [historyMap]);
+  const streaks = useMemo(
+    () => computeStreaks(historyMap, clock.islamicDate),
+    [historyMap, clock.islamicDate]
+  );
 
   const weekly = useMemo(
-    () => buildWeeklyStats(historyMap, weekOffset),
-    [historyMap, weekOffset]
+    () => buildWeeklyStats(historyMap, weekOffset, clock.islamicDate),
+    [historyMap, weekOffset, clock.islamicDate]
   );
   const monthly = useMemo(
-    () => buildMonthlyStats(historyMap, monthOffset),
-    [historyMap, monthOffset]
+    () => buildMonthlyStats(historyMap, monthOffset, clock.islamicDate),
+    [historyMap, monthOffset, clock.islamicDate]
   );
   const yearly = useMemo(
-    () => buildYearlyStats(historyMap, yearOffset),
-    [historyMap, yearOffset]
+    () => buildYearlyStats(historyMap, yearOffset, clock.islamicDate),
+    [historyMap, yearOffset, clock.islamicDate]
   );
 
   useEffect(() => {
@@ -343,6 +350,17 @@ export function StatsView({ onBack }: StatsViewProps) {
               <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
             </div>
           ))}
+          {day.readingSeconds > 0 && (
+            <div className="inline-flex items-baseline gap-1.5">
+              <span
+                className="font-bold tabular-nums text-sm"
+                style={{ color: 'var(--gold)' }}
+              >
+                {formatReadingDurationBn(day.readingSeconds)}
+              </span>
+              <span style={{ color: 'var(--text-secondary)' }}>তিলাওয়াত</span>
+            </div>
+          )}
         </div>
 
         {(completedRoutines.length > 0 || fallbackDuaIds.length > 0) && (
@@ -577,6 +595,17 @@ export function StatsView({ onBack }: StatsViewProps) {
                 {toBanglaDigits(activeTotals.activeDays)} দিন
               </strong>
             </span>
+            {activeTotals.readingSeconds > 0 && (
+              <>
+                <span className="opacity-30">•</span>
+                <span>
+                  তিলাওয়াত{' '}
+                  <strong style={{ color: 'var(--accent)' }}>
+                    {formatReadingDurationBn(activeTotals.readingSeconds)}
+                  </strong>
+                </span>
+              </>
+            )}
           </div>
         </section>
 

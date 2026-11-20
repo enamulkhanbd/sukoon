@@ -19,6 +19,10 @@ import {
   type Settings,
 } from '../db/database';
 import { useWakeLock } from '../hooks/useWakeLock';
+import {
+  formatGoalReachedToast,
+  useReadingTimer,
+} from '../hooks/useReadingTimer';
 import { getSurahOfflineFirst } from '../services/quranApi';
 import {
   AUTO_SCROLL_SPEEDS,
@@ -98,6 +102,16 @@ export function ReaderView({
   const { supported: wakeLockSupported, active: wakeLockActive } = useWakeLock(
     settings.keepScreenAwake
   );
+
+  useReadingTimer({
+    enabled: !loading && !error && Boolean(surahData),
+    autoScrollActive:
+      settings.autoScrollSpeed > 0 && !autoScrollPaused && !settingsOpen,
+    dailyGoalMinutes: settings.dailyGoalMinutes ?? 0,
+    onGoalReached: (goalMinutes) => {
+      toast.success(formatGoalReachedToast(goalMinutes));
+    },
+  });
 
   const visitedAyahsRef = useRef<Set<string>>(new Set());
   const saveTimerRef = useRef<number | null>(null);

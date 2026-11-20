@@ -19,10 +19,13 @@ import {
   ensureDatabaseInitialized,
   getCompletedItemIndexes,
   getRoutineItems,
+  resetStaleRoutineProgressIfNeeded,
+  syncIslamicClockSettings,
   type Routine,
   type RoutineProgress,
   type Settings,
 } from './db/database';
+import { useIslamicClock } from './hooks/useIslamicClock';
 import {
   buildPath,
   hidesBottomNav,
@@ -134,7 +137,27 @@ export function App() {
       rawSettings?.fastingTimeFormat ?? DEFAULT_SETTINGS.fastingTimeFormat,
     hijriOffsetDays:
       rawSettings?.hijriOffsetDays ?? DEFAULT_SETTINGS.hijriOffsetDays,
+    dailyGoalMinutes:
+      rawSettings?.dailyGoalMinutes ?? DEFAULT_SETTINGS.dailyGoalMinutes,
   };
+
+  const clock = useIslamicClock(settings);
+
+  // Sync prayer location/method to DB helper & reset stale routines at Maghrib rollover
+  useEffect(() => {
+    syncIslamicClockSettings(settings);
+    if (!dbReady) return;
+    void resetStaleRoutineProgressIfNeeded(
+      clock.islamicDayKey,
+      settings.fastingLocation,
+      settings.fastingMethod
+    );
+  }, [
+    dbReady,
+    clock.islamicDayKey,
+    settings.fastingLocation,
+    settings.fastingMethod,
+  ]);
 
   const routineReadId = route.type === 'routineRead' ? route.routineId : '';
   const activeRouteRoutineQuery = useLiveQuery(
@@ -475,7 +498,7 @@ export function App() {
   }
 
   if (route.type === 'stats') {
-    return <StatsView onBack={closeSubView} />;
+    return <StatsView settings={settings} onBack={closeSubView} />;
   }
 
   if (route.type === 'ramadan') {
@@ -487,6 +510,7 @@ export function App() {
       <RoutineDetailView
         key={route.routineId}
         routineId={route.routineId}
+        settings={settings}
         onBack={closeRoutineDetails}
         onStartItem={handleStartRoutineItem}
       />
@@ -504,6 +528,7 @@ export function App() {
       {activeTab === 'home' && (
         <HomeView
           settings={settings}
+          onUpdateSettings={handleUpdateSettings}
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
@@ -517,6 +542,7 @@ export function App() {
       )}
       {activeTab === 'surahs' && (
         <SurahListView
+          settings={settings}
           onOpenSurah={(id, initialAyah = 1) => handleOpenSurah(id, initialAyah)}
         />
       )}
@@ -536,6 +562,7 @@ export function App() {
       )}
       {activeTab === 'routines' && (
         <RoutinesView
+          settings={settings}
           onOpenRoutineDetails={openRoutineDetails}
           shouldOpenCreate={openCreateRoutine}
           onHandledCreate={() => setOpenCreateRoutine(false)}

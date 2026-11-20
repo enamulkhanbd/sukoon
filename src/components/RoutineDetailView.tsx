@@ -16,10 +16,13 @@ import {
   getCompletedItemIndexes,
   getRoutineItems,
   getRoutineSummaryCounts,
+  isRoutineProgressCurrent,
   toggleRoutineItemCompleted,
   type Routine,
   type RoutineProgress,
+  type Settings,
 } from '../db/database';
+import { useIslamicClock } from '../hooks/useIslamicClock';
 import {
   DAY_SHORT_BN,
   formatNormalizedRoutineItemLabel,
@@ -32,6 +35,7 @@ import { useToast } from './ToastProvider';
 
 interface RoutineDetailViewProps {
   routineId: string;
+  settings: Settings;
   onBack: () => void;
   onStartItem: (
     routine: Routine,
@@ -42,20 +46,30 @@ interface RoutineDetailViewProps {
 
 export function RoutineDetailView({
   routineId,
+  settings,
   onBack,
   onStartItem,
 }: RoutineDetailViewProps) {
   const toast = useToast();
+  const clock = useIslamicClock(settings);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
 
   const routine = useLiveQuery(
     async () => (await db.routines.get(routineId)) ?? null,
     [routineId]
   );
-  const progress = useLiveQuery(
+  const rawProgress = useLiveQuery(
     () => db.routineProgress.get(routineId),
     [routineId]
   );
+  const progress = isRoutineProgressCurrent(
+    rawProgress,
+    clock.islamicDayKey,
+    settings.fastingLocation,
+    settings.fastingMethod
+  )
+    ? rawProgress
+    : undefined;
 
   if (routine === undefined) {
     return (

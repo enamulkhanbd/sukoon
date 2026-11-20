@@ -3,9 +3,11 @@ import { DUA_MAP } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 import {
   DEFAULT_FASTING_LOCATION,
+  getCurrentNow,
   type FastingCalculationMethod,
   type FastingLocation,
 } from '../utils/fasting';
+import { getIslamicDayKeyForInstant } from '../utils/islamicTime';
 
 export interface SurahRoutineItem {
   kind?: 'surah';
@@ -56,6 +58,7 @@ export interface Routine {
 
 export interface RoutineProgress {
   routineId: string;
+  dayKey?: string; // Islamic day key (YYYY-MM-DD, Maghrib-to-Maghrib)
   lastReadSurah: number; // 0 when active item is a Dua
   lastReadAyah: number;
   lastReadDuaId?: string;
@@ -78,13 +81,15 @@ export interface GlobalLastRead {
 }
 
 export interface ReadingHistory {
-  date: string; // YYYY-MM-DD
+  date: string; // Islamic day key YYYY-MM-DD (Maghrib-to-Maghrib)
   ayahsCount: number;
   routinesCompleted: string[];
   dhikirCount?: number;
   dhikirByDua?: Record<string, number>;
   duasCompleted?: string[];
   duaCounts?: Record<string, number>;
+  readingSeconds?: number;
+  goalMinutesTarget?: number;
 }
 
 export interface CachedVerse {
@@ -119,6 +124,7 @@ export interface Settings {
   fastingMethod?: FastingCalculationMethod;
   fastingTimeFormat?: '12h' | '24h';
   hijriOffsetDays?: number;
+  dailyGoalMinutes?: number; // 0 = disabled, otherwise daily target minutes
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -134,6 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fastingMethod: 'karachi',
   fastingTimeFormat: '12h',
   hijriOffsetDays: 0,
+  dailyGoalMinutes: 0,
 };
 
 export class SukoonDatabase extends Dexie {
@@ -159,12 +166,94 @@ export class SukoonDatabase extends Dexie {
 
 export const db = new SukoonDatabase();
 
-export function getTodayDateKey(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+let activeIslamicLocation: FastingLocation = DEFAULT_FASTING_LOCATION;
+let activeIslamicMethod: FastingCalculationMethod = 'karachi';
+
+/** Keeps DB date-key calculations synced with the user's prayer location & method. */
+export function syncIslamicClockSettings(
+  settings?: Pick<Settings, 'fastingLocation' | 'fastingMethod'> | null
+): void {
+  activeIslamicLocation = settings?.fastingLocation ?? DEFAULT_FASTING_LOCATION;
+  activeIslamicMethod = settings?.fastingMethod ?? 'karachi';
+}
+
+/**
+ * Returns the active Islamic day key (YYYY-MM-DD, Maghrib-to-Maghrib).
+ * After Maghrib, this immediately advances to the next calendar date key.
+ */
+export function getTodayDateKey(
+  now: Date = getCurrentNow(),
+  location: FastingLocation = activeIslamicLocation,
+  method: FastingCalculationMethod = activeIslamicMethod
+): string {
+  return getIslamicDayKeyForInstant(now, location, method);
+}
+
+/** Checks whether a stored RoutineProgress belongs to the current Islamic day. */
+export function isRoutineProgressCurrent(
+  progress: RoutineProgress | undefined,
+  currentDayKey: string = getTodayDateKey(),
+  location: FastingLocation = activeIslamicLocation,
+  method: FastingCalculationMethod = activeIslamicMethod
+): boolean {
+  if (!progress) return false;
+  if (typeof progress.dayKey === 'string' && progress.dayKey.length > 0) {
+    return progress.dayKey === currentDayKey;
+  }
+  if (!Number.isFinite(progress.lastUpdated) || progress.lastUpdated <= 0) {
+    return false;
+  }
+  return (
+    getIslamicDayKeyForInstant(
+      new Date(progress.lastUpdated),
+      location,
+      method
+    ) === currentDayKey
+  );
+}
+
+/**
+ * Clears any routineProgress entries from previous Islamic days when Maghrib rolls over.
+ * Historical daily records in `readingHistory` remain untouched for statistics.
+ */
+export async function resetStaleRoutineProgressIfNeeded(
+  currentDayKey: string = getTodayDateKey(),
+  location: FastingLocation = activeIslamicLocation,
+  method: FastingCalculationMethod = activeIslamicMethod
+): Promise<number> {
+  const all = await db.routineProgress.toArray();
+  const staleIds = all
+    .filter((p) => !isRoutineProgressCurrent(p, currentDayKey, location, method))
+    .map((p) => p.routineId);
+
+  if (staleIds.length > 0) {
+    await db.routineProgress.bulkDelete(staleIds);
+  }
+  return staleIds.length;
+}
+
+/** Manually resets a single routine's progress for today and keeps today's history consistent. */
+export async function resetRoutineProgressForToday(
+  routineId: string,
+  todayKey: string = getTodayDateKey()
+): Promise<void> {
+  await db.transaction(
+    'rw',
+    [db.routineProgress, db.readingHistory],
+    async () => {
+      await db.routineProgress.delete(routineId);
+      const existingHistory = await db.readingHistory.get(todayKey);
+      if (existingHistory?.routinesCompleted?.includes(routineId)) {
+        const record = normalizeHistoryRecord(todayKey, existingHistory);
+        await db.readingHistory.put({
+          ...record,
+          routinesCompleted: record.routinesCompleted.filter(
+            (id) => id !== routineId
+          ),
+        });
+      }
+    }
+  );
 }
 
 function normalizeHistoryRecord(
@@ -219,7 +308,63 @@ function normalizeHistoryRecord(
     dhikirByDua: cleanDhikirByDua,
     duasCompleted: Object.keys(cleanDuaCounts),
     duaCounts: cleanDuaCounts,
+    readingSeconds:
+      typeof existing?.readingSeconds === 'number' &&
+      Number.isFinite(existing.readingSeconds)
+        ? Math.max(0, Math.floor(existing.readingSeconds))
+        : 0,
+    ...(typeof existing?.goalMinutesTarget === 'number' &&
+    Number.isFinite(existing.goalMinutesTarget) &&
+    existing.goalMinutesTarget > 0
+      ? { goalMinutesTarget: Math.floor(existing.goalMinutesTarget) }
+      : {}),
   };
+}
+
+/**
+ * Adds active Quran recitation seconds to the current Islamic day's history.
+ * Returns whether this increment caused the daily goal to be crossed for the first time today.
+ */
+export async function addReadingSeconds(params: {
+  deltaSeconds: number;
+  dailyGoalMinutes?: number;
+  dateKey?: string;
+}): Promise<{
+  totalSeconds: number;
+  justReachedGoal: boolean;
+}> {
+  const delta = Math.max(0, Math.floor(params.deltaSeconds));
+  const goalMinutes = Math.max(0, Math.floor(params.dailyGoalMinutes ?? 0));
+  const dateKey = params.dateKey ?? getTodayDateKey();
+  if (delta <= 0) {
+    return { totalSeconds: 0, justReachedGoal: false };
+  }
+
+  let totalSeconds = 0;
+  let justReachedGoal = false;
+
+  await db.transaction('rw', db.readingHistory, async () => {
+    const existing = await db.readingHistory.get(dateKey);
+    const record = normalizeHistoryRecord(dateKey, existing);
+    const prevSeconds = record.readingSeconds ?? 0;
+    const nextSeconds = prevSeconds + delta;
+    totalSeconds = nextSeconds;
+
+    if (goalMinutes > 0) {
+      const targetSec = goalMinutes * 60;
+      if (prevSeconds < targetSec && nextSeconds >= targetSec) {
+        justReachedGoal = true;
+      }
+    }
+
+    await db.readingHistory.put({
+      ...record,
+      readingSeconds: nextSeconds,
+      ...(goalMinutes > 0 ? { goalMinutesTarget: goalMinutes } : {}),
+    });
+  });
+
+  return { totalSeconds, justReachedGoal };
 }
 
 function applyDuaCountDelta(
@@ -563,7 +708,10 @@ export async function toggleRoutineItemCompleted(params: {
       const items = getRoutineItems(routine);
       if (itemIndex < 0 || itemIndex >= items.length) return;
 
-      const existing = await db.routineProgress.get(routineId);
+      const rawExisting = await db.routineProgress.get(routineId);
+      const existing = isRoutineProgressCurrent(rawExisting, todayKey)
+        ? rawExisting
+        : undefined;
       const completedSet = new Set(getCompletedItemIndexes(routine, existing));
       const wasCompleted = completedSet.has(itemIndex);
       if (completed) {
@@ -589,6 +737,7 @@ export async function toggleRoutineItemCompleted(params: {
 
       updated = {
         routineId,
+        dayKey: todayKey,
         lastReadSurah: clearedActive ? 0 : existing?.lastReadSurah ?? 0,
         lastReadAyah: clearedActive ? 0 : existing?.lastReadAyah ?? 0,
         lastReadDuaId: clearedActive ? undefined : existing?.lastReadDuaId,
@@ -656,7 +805,11 @@ export function ensureDatabaseInitialized(): Promise<void> {
       const existingSettings = await db.settings.get('app');
       if (!existingSettings) {
         await db.settings.put(DEFAULT_SETTINGS);
+        syncIslamicClockSettings(DEFAULT_SETTINGS);
+      } else {
+        syncIslamicClockSettings(existingSettings);
       }
+      await resetStaleRoutineProgressIfNeeded();
     })();
   }
   return initPromise;
@@ -724,7 +877,13 @@ export async function updateReadingProgress(params: {
 
         if (routine && resolvedIdx !== -1) {
           const matchedItem = items[resolvedIdx];
-          const existingProgress = await db.routineProgress.get(routineId);
+          const rawExistingProgress = await db.routineProgress.get(routineId);
+          const existingProgress = isRoutineProgressCurrent(
+            rawExistingProgress,
+            todayKey
+          )
+            ? rawExistingProgress
+            : undefined;
           const completedSet = new Set(
             getCompletedItemIndexes(routine, existingProgress)
           );
@@ -744,6 +903,7 @@ export async function updateReadingProgress(params: {
 
           await db.routineProgress.put({
             routineId,
+            dayKey: todayKey,
             lastReadSurah: surahId,
             lastReadAyah: ayahNumber,
             lastReadDuaId: undefined,
@@ -844,7 +1004,13 @@ export async function updateDuaRoutineProgress(params: {
 
       if (resolvedIdx === -1) return;
 
-      const existingProgress = await db.routineProgress.get(routineId);
+      const rawExistingProgress = await db.routineProgress.get(routineId);
+      const existingProgress = isRoutineProgressCurrent(
+        rawExistingProgress,
+        todayKey
+      )
+        ? rawExistingProgress
+        : undefined;
       const completedSet = new Set(
         getCompletedItemIndexes(routine, existingProgress)
       );
@@ -871,6 +1037,7 @@ export async function updateDuaRoutineProgress(params: {
 
       await db.routineProgress.put({
         routineId,
+        dayKey: todayKey,
         lastReadSurah: 0,
         lastReadAyah: 0,
         lastReadDuaId: duaId,

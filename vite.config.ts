@@ -18,10 +18,10 @@ export default defineConfig({
         'fonts/sura_names.woff2',
       ],
       manifest: {
-        name: 'সুকূন — Distraction-Free Quran',
+        name: 'সুকূন — হৃদয়ের প্রশান্তিতে কুরআন ও দুআর নিত্যসঙ্গী',
         short_name: 'সুকূন',
         description:
-          'অফলাইন-ফার্স্ট, বিজ্ঞাপন ও কোলাহলমুক্ত কুরআন তিলাওয়াত ও দৈনন্দিন রুটিন অ্যাপ।',
+          'সুকূন — হৃদয়ের প্রশান্তিতে কুরআন ও দুআর নিত্যসঙ্গী। অফলাইন-ফার্স্ট কুরআন তিলাওয়াত ও দৈনন্দিন রুটিন অ্যাপ।',
         theme_color: '#FAF6EE',
         background_color: '#FAF6EE',
         display: 'standalone',

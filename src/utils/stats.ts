@@ -60,6 +60,7 @@ export interface PeriodTotals {
   duas: number;
   routines: number;
   ayahs: number;
+  readingSeconds: number;
   activeDays: number;
 }
 
@@ -72,6 +73,7 @@ export interface DayMetrics {
   duas: number;
   routines: number;
   ayahs: number;
+  readingSeconds: number;
   activeScore: number;
   isActive: boolean;
   isToday: boolean;
@@ -92,6 +94,7 @@ export interface YearMonthBucket {
   duas: number;
   routines: number;
   ayahs: number;
+  readingSeconds: number;
   activeScore: number;
   activeDays: number;
   isCurrentMonth: boolean;
@@ -225,12 +228,14 @@ export function computeActiveScore(counts: {
   duas: number;
   routines: number;
   ayahs: number;
+  readingSeconds?: number;
 }): number {
   return (
     counts.dhikir +
     counts.duas * 8 +
     counts.routines * 20 +
-    counts.ayahs * 2
+    counts.ayahs * 2 +
+    Math.floor((counts.readingSeconds ?? 0) / 60) * 3
   );
 }
 
@@ -246,7 +251,14 @@ export function buildDayMetrics(
     ? record.routinesCompleted.length
     : 0;
   const ayahs = Math.max(0, Math.floor(record?.ayahsCount ?? 0));
-  const activeScore = computeActiveScore({ dhikir, duas, routines, ayahs });
+  const readingSeconds = Math.max(0, Math.floor(record?.readingSeconds ?? 0));
+  const activeScore = computeActiveScore({
+    dhikir,
+    duas,
+    routines,
+    ayahs,
+    readingSeconds,
+  });
 
   return {
     dateKey,
@@ -257,8 +269,14 @@ export function buildDayMetrics(
     duas,
     routines,
     ayahs,
+    readingSeconds,
     activeScore,
-    isActive: dhikir > 0 || duas > 0 || routines > 0 || ayahs > 0,
+    isActive:
+      dhikir > 0 ||
+      duas > 0 ||
+      routines > 0 ||
+      ayahs > 0 ||
+      readingSeconds >= 60,
     isToday: dateKey === todayKey,
     isFuture: dateKey > todayKey,
     record,
@@ -339,6 +357,7 @@ export function buildWeeklyStats(
     duas: 0,
     routines: 0,
     ayahs: 0,
+    readingSeconds: 0,
     activeDays: 0,
   };
 
@@ -353,6 +372,7 @@ export function buildWeeklyStats(
     totals.duas += metrics.duas;
     totals.routines += metrics.routines;
     totals.ayahs += metrics.ayahs;
+    totals.readingSeconds += metrics.readingSeconds;
     if (metrics.isActive) totals.activeDays += 1;
   }
 
@@ -410,6 +430,7 @@ export function buildMonthlyStats(
     duas: 0,
     routines: 0,
     ayahs: 0,
+    readingSeconds: 0,
     activeDays: 0,
   };
 
@@ -424,6 +445,7 @@ export function buildMonthlyStats(
     totals.duas += metrics.duas;
     totals.routines += metrics.routines;
     totals.ayahs += metrics.ayahs;
+    totals.readingSeconds += metrics.readingSeconds;
     if (metrics.isActive) totals.activeDays += 1;
   }
 
@@ -486,6 +508,7 @@ export function buildYearlyStats(
     duas: 0,
     routines: 0,
     ayahs: 0,
+    readingSeconds: 0,
     activeDays: 0,
   };
 
@@ -495,6 +518,7 @@ export function buildYearlyStats(
     let duas = 0;
     let routines = 0;
     let ayahs = 0;
+    let readingSeconds = 0;
     let activeDays = 0;
     const monthRecords: ReadingHistory[] = [];
 
@@ -511,10 +535,17 @@ export function buildYearlyStats(
       duas += dm.duas;
       routines += dm.routines;
       ayahs += dm.ayahs;
+      readingSeconds += dm.readingSeconds;
       if (dm.isActive) activeDays += 1;
     }
 
-    const activeScore = computeActiveScore({ dhikir, duas, routines, ayahs });
+    const activeScore = computeActiveScore({
+      dhikir,
+      duas,
+      routines,
+      ayahs,
+      readingSeconds,
+    });
     const isCurrentMonth =
       targetYear === today.getFullYear() && m === today.getMonth();
     const isFuture =
@@ -530,6 +561,7 @@ export function buildYearlyStats(
       duas,
       routines,
       ayahs,
+      readingSeconds,
       activeScore,
       activeDays,
       isCurrentMonth,
@@ -541,6 +573,7 @@ export function buildYearlyStats(
     totals.duas += duas;
     totals.routines += routines;
     totals.ayahs += ayahs;
+    totals.readingSeconds += readingSeconds;
     totals.activeDays += activeDays;
   }
 

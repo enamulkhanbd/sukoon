@@ -33,9 +33,14 @@ import {
   getRoutineItems,
   getRoutineSummaryCounts,
   isDuaRoutineItem,
+  isRoutineProgressCurrent,
+  resetRoutineProgressForToday,
   type Routine,
   type RoutineItem,
+  type RoutineProgress,
+  type Settings,
 } from '../db/database';
+import { useIslamicClock } from '../hooks/useIslamicClock';
 import {
   DAY_SHORT_BN,
   formatNormalizedRoutineItemLabel,
@@ -114,27 +119,47 @@ function createDraftDuaItem(duaId: string, targetCount: number): DraftDuaItem {
 }
 
 interface RoutinesViewProps {
+  settings: Settings;
   onOpenRoutineDetails: (routine: Routine) => void;
   shouldOpenCreate?: boolean;
   onHandledCreate?: () => void;
 }
 
 export function RoutinesView({
+  settings,
   onOpenRoutineDetails,
   shouldOpenCreate = false,
   onHandledCreate,
 }: RoutinesViewProps) {
   const toast = useToast();
+  const clock = useIslamicClock(settings);
   const routines = useLiveQuery(
     () => db.routines.orderBy('createdAt').toArray(),
     []
   );
   const progressList = useLiveQuery(() => db.routineProgress.toArray(), []);
 
-  const progressMap = useMemo(
-    () => new Map((progressList ?? []).map((p) => [p.routineId, p])),
-    [progressList]
-  );
+  const progressMap = useMemo(() => {
+    const map = new Map<string, RoutineProgress>();
+    for (const p of progressList ?? []) {
+      if (
+        isRoutineProgressCurrent(
+          p,
+          clock.islamicDayKey,
+          settings.fastingLocation,
+          settings.fastingMethod
+        )
+      ) {
+        map.set(p.routineId, p);
+      }
+    }
+    return map;
+  }, [
+    progressList,
+    clock.islamicDayKey,
+    settings.fastingLocation,
+    settings.fastingMethod,
+  ]);
 
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -583,7 +608,7 @@ export function RoutinesView({
   };
 
   const handleResetProgress = async (routine: Routine) => {
-    await db.routineProgress.delete(routine.id);
+    await resetRoutineProgressForToday(routine.id, clock.islamicDayKey);
     toast.info(`“${routine.title}”-এর অগ্রগতি রিসেট করা হয়েছে`);
   };
 

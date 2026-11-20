@@ -535,6 +535,7 @@ export function App() {
         <HomeView
           settings={settings}
           onOpenSurah={handleOpenSurah}
+          onOpenDua={handleOpenDua}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
           onOpenFastingSchedule={openRamadanSchedule}

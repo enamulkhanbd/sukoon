@@ -37,6 +37,7 @@ import {
 } from '../utils/stats';
 import { FastingCard } from './FastingCard';
 import { GlobalSearchOverlay } from './GlobalSearchOverlay';
+import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import { TopBarIconButton } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
@@ -249,7 +250,7 @@ export function HomeView({
 
         <div className="flex items-center gap-1 shrink-0">
           <span
-            className="text-xs font-semibold tabular-nums"
+            className="text-xs font-medium tabular-nums"
             style={{
               color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
             }}
@@ -274,7 +275,7 @@ export function HomeView({
         className="w-full safe-top"
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-6 space-y-5">
+        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-6 space-y-4">
           {/* Minimal Top Utility Bar */}
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />
@@ -286,37 +287,23 @@ export function HomeView({
             </TopBarIconButton>
           </div>
 
-          {/* Serene Calligraphic Centerpiece */}
-          <div className="text-center space-y-1.5 py-1">
-            <p
-              dir="rtl"
-              lang="ar"
-              className="font-indopak text-[1.75rem] sm:text-[2.15rem] leading-relaxed select-none"
-              style={{
-                color: 'color-mix(in srgb, var(--text-primary) 45%, var(--gold))',
-              }}
-            >
-              أَلَا بِذِكْرِ اللّٰهِ تَطْمَئِنُّ الْقُلُوْبُ
-            </p>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              আল্লাহর স্মরণেই অন্তর প্রশান্ত হয় • {DAY_NAMES_BN[todayIndex]}, {todayFormatted}
-            </p>
-          </div>
-
-          {/* Open Sehri & Iftar Readout inside Hero Band */}
-          <FastingCard
-            now={now}
-            location={fastingLocation}
-            method={fastingMethod}
-            timeFormat={fastingTimeFormat}
-            hijriOffsetDays={hijriOffsetDays}
-            onOpenSchedule={onOpenFastingSchedule}
-          />
+          {/* Serene Thuluth Calligraphic Centerpiece */}
+          <HeroCalligraphy />
         </div>
       </section>
 
       {/* Clean Editorial Canvas Below Hero */}
-      <div className="max-w-2xl mx-auto px-5 pt-6 space-y-7">
+      <div className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Date, Sehri & Iftar Card Outside Header */}
+        <FastingCard
+          now={now}
+          gregorianDateLabel={`${DAY_NAMES_BN[todayIndex]}, ${todayFormatted}`}
+          location={fastingLocation}
+          method={fastingMethod}
+          timeFormat={fastingTimeFormat}
+          hijriOffsetDays={hijriOffsetDays}
+          onOpenSchedule={onOpenFastingSchedule}
+        />
         {/* Continue Reading — Single Focal Surface */}
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -341,13 +328,13 @@ export function HomeView({
             >
               <div className="space-y-1">
                 <div
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium"
                   style={{ color: 'var(--accent)' }}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>বিসমিল্লাহ দিয়ে শুরু করুন</span>
                 </div>
-                <h3 className="text-base font-bold">
+                <h3 className="text-base font-semibold">
                   প্রথম তিলাওয়াত শুরু করুন
                 </h3>
                 <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
@@ -358,7 +345,7 @@ export function HomeView({
                 <button
                   type="button"
                   onClick={() => onOpenSurah(1, 1)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                   style={{
                     backgroundColor: 'var(--accent)',
                     color: 'var(--accent-text)',
@@ -402,7 +389,7 @@ export function HomeView({
               <h2 className="text-sm font-semibold">আজকের আমল</h2>
               {streaks.currentStreak > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full tabular-nums"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full tabular-nums"
                   style={{
                     backgroundColor: 'var(--gold-soft)',
                     color: 'var(--gold)',
@@ -440,7 +427,7 @@ export function HomeView({
             ].map((stat) => (
               <div key={stat.label} className="text-center py-1">
                 <div
-                  className="text-xl font-bold tabular-nums leading-none"
+                  className="text-xl font-semibold tabular-nums leading-none"
                   style={{
                     color: stat.active ? 'var(--accent)' : 'var(--text-muted)',
                   }}
@@ -472,7 +459,7 @@ export function HomeView({
                   </span>
                   {goalCompleted && (
                     <span
-                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                      className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
                       style={{
                         backgroundColor: 'var(--accent-soft)',
                         color: 'var(--accent)',
@@ -484,28 +471,24 @@ export function HomeView({
                   )}
                 </span>
                 <span
-                  className="text-[11px] font-semibold tabular-nums shrink-0"
-                  style={{
-                    color: goalCompleted ? 'var(--accent)' : 'var(--gold)',
-                  }}
+                  className="text-[11px] font-medium tabular-nums shrink-0"
+                  style={{ color: 'var(--accent)' }}
                 >
                   {toBanglaDigits(goalPercent)}%
                 </span>
               </div>
               <div
-                className="h-1 w-full rounded-full overflow-hidden"
+                className="h-[3px] w-full rounded-full overflow-hidden"
                 style={{
                   backgroundColor:
-                    'color-mix(in srgb, var(--text-primary) 8%, transparent)',
+                    'color-mix(in srgb, var(--text-primary) 10%, transparent)',
                 }}
               >
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${goalPercent}%`,
-                    backgroundColor: goalCompleted
-                      ? 'var(--accent)'
-                      : 'var(--gold)',
+                    backgroundColor: 'var(--accent)',
                   }}
                 />
               </div>

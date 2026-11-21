@@ -88,7 +88,7 @@ export function RoutineDetailView({
         <button
           type="button"
           onClick={onBack}
-          className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+          className="px-4 py-2 rounded-xl text-xs font-medium cursor-pointer"
           style={{
             backgroundColor: 'var(--accent)',
             color: 'var(--accent-text)',
@@ -144,23 +144,27 @@ export function RoutineDetailView({
         subtitle={`${scheduleText} • ${toBanglaDigits(items.length)}টি অংশ`}
       />
 
-      {/* Full-Bleed Tinted Top Progress Band */}
-      <section
-        className="w-full"
-        style={{ backgroundColor: 'var(--bg-surface)' }}
-      >
-        <div className="max-w-2xl mx-auto px-5 pt-2 pb-6 space-y-2.5">
+      {/* Open Editorial Canvas Below */}
+      <div className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Elevated Overall Progress Card (matches Stats, Fasting & Surah Suggestion) */}
+        <section
+          className="rounded-2xl px-4 py-3.5 border space-y-2.5"
+          style={{
+            backgroundColor: 'var(--bg-elevated)',
+            borderColor: 'var(--border-subtle)',
+          }}
+        >
           <div className="flex items-baseline justify-between gap-3">
             <div className="min-w-0">
               <p
-                className="text-xs font-semibold"
-                style={{ color: 'var(--text-secondary)' }}
+                className="text-xs font-medium"
+                style={{ color: 'var(--text-primary)' }}
               >
                 সামগ্রিক অগ্রগতি ({formatRoutineSummaryBn(summary)})
               </p>
               <p
-                className="text-xs mt-1 tabular-nums"
-                style={{ color: 'var(--text-muted)' }}
+                className="text-[11px] mt-0.5 tabular-nums"
+                style={{ color: 'var(--text-secondary)' }}
               >
                 {toBanglaDigits(completedSet.size)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন •{' '}
                 {toBanglaDigits(completedUnits)}/{toBanglaDigits(totalUnits)} ইউনিট
@@ -171,7 +175,7 @@ export function RoutineDetailView({
                 <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
               )}
               <span
-                className="text-2xl font-bold tabular-nums leading-none"
+                className="text-xl font-semibold tabular-nums leading-none"
                 style={{
                   color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
                 }}
@@ -196,13 +200,11 @@ export function RoutineDetailView({
               }}
             />
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Open Editorial Canvas Below (Zero Box Stack) */}
-      <div className="max-w-2xl mx-auto px-5 pt-6 space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">রুটিনের তালিকা</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">রুটিনের তালিকা</h2>
           <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
             বামে টিক দিয়ে পড়া মার্ক করুন
           </span>
@@ -374,7 +376,7 @@ export function RoutineDetailView({
                           <button
                             type="button"
                             onClick={() => onStartItem(routine, idx, progress)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                             style={{
                               backgroundColor: 'var(--accent)',
                               color: 'var(--accent-text)',
@@ -418,7 +420,7 @@ export function RoutineDetailView({
                           <button
                             type="button"
                             onClick={() => onStartItem(routine, idx, progress)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                             style={{
                               backgroundColor: 'var(--accent)',
                               color: 'var(--accent-text)',
@@ -440,6 +442,7 @@ export function RoutineDetailView({
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </div>

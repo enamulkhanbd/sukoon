@@ -139,12 +139,16 @@ export function DuasView({
             onOpenDua(dua);
           }
         }}
-        className="w-full py-3.5 space-y-2 transition-opacity active:opacity-70 cursor-pointer group"
+        className="w-full py-4 border-b last:border-b-0 space-y-2 transition-opacity active:opacity-70 cursor-pointer group"
+        style={{
+          borderColor:
+            'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+        }}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-2.5 min-w-0">
             <span
-              className="w-6 text-xs font-semibold tabular-nums shrink-0 pt-0.5"
+              className="w-6 text-xs font-medium tabular-nums shrink-0 pt-0.5"
               style={{ color: 'var(--accent)' }}
             >
               {toBanglaDigits(dua.order)}.
@@ -156,7 +160,7 @@ export function DuasView({
               <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
                 {dua.repeatCount && dua.repeatCount > 1 && (
                   <span
-                    className="px-2 py-0.5 rounded-full font-semibold"
+                    className="px-2 py-0.5 rounded-full font-medium"
                     style={{
                       backgroundColor: 'var(--accent-soft)',
                       color: 'var(--accent)',
@@ -265,7 +269,7 @@ export function DuasView({
               এই অধ্যায়ে কোনো দুআ পাওয়া যায়নি।
             </div>
           ) : (
-            <div className="space-y-2">
+            <div>
               {matchingDuas.map((dua) => renderDuaRow(dua, false))}
             </div>
           )}
@@ -328,7 +332,7 @@ export function DuasView({
 
         {/* Plain Editorial Chapter Directory vs Dua List */}
         {!showDuaList ? (
-          <div className="space-y-1">
+          <div>
             {DUA_CHAPTERS.map((ch) => {
               const count = DUAS_BY_CHAPTER[ch.id]?.length ?? 0;
               return (
@@ -336,11 +340,15 @@ export function DuasView({
                   key={ch.id}
                   type="button"
                   onClick={() => setSelectedChapterId(ch.id)}
-                  className="w-full py-3.5 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-70 cursor-pointer group"
+                  className="w-full py-3.5 border-b last:border-b-0 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-70 cursor-pointer group"
+                  style={{
+                    borderColor:
+                      'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+                  }}
                 >
                   <div className="flex items-start gap-3.5 min-w-0">
                     <span
-                      className="w-6 text-xs font-semibold tabular-nums shrink-0 pt-0.5"
+                      className="w-6 text-xs font-medium tabular-nums shrink-0 pt-0.5"
                       style={{ color: 'var(--accent)' }}
                     >
                       {ch.id < 10 ? `০${toBanglaDigits(ch.id)}` : toBanglaDigits(ch.id)}
@@ -390,7 +398,7 @@ export function DuasView({
             )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div>
             {matchingDuas.map((dua) =>
               renderDuaRow(
                 dua,

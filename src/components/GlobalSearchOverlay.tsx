@@ -280,7 +280,7 @@ export function GlobalSearchOverlay({
               {results.routines.length > 0 && (
                 <section className="space-y-2">
                   <h2
-                    className="text-xs font-semibold"
+                    className="text-xs font-medium"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     রুটিন
@@ -319,7 +319,7 @@ export function GlobalSearchOverlay({
               {results.surahs.length > 0 && (
                 <section className="space-y-2">
                   <h2
-                    className="text-xs font-semibold"
+                    className="text-xs font-medium"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     সূরা
@@ -337,7 +337,7 @@ export function GlobalSearchOverlay({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <span
-                            className="w-7 text-xs font-semibold tabular-nums shrink-0"
+                            className="w-7 text-xs font-medium tabular-nums shrink-0"
                             style={{ color: 'var(--accent)' }}
                           >
                             {toBanglaDigits(surah.id)}.
@@ -377,7 +377,7 @@ export function GlobalSearchOverlay({
               {results.duas.length > 0 && (
                 <section className="space-y-2">
                   <h2
-                    className="text-xs font-semibold"
+                    className="text-xs font-medium"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     দুআ

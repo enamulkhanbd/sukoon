@@ -30,7 +30,7 @@ import {
   type YearMonthBucket,
 } from '../utils/stats';
 import { DailyGoalSheet } from './DailyGoalSheet';
-import { TopBar } from './NavigationChrome';
+import { TopBar, UnderlineTabs } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
 interface StatsViewProps {
@@ -321,12 +321,12 @@ export function StatsView({
       >
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold">
+            <span className="text-xs font-medium">
               {formatDayDateBn(day.date)}
             </span>
             {day.isToday && (
               <span
-                className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+                className="text-[11px] font-medium px-1.5 py-0.5 rounded-md"
                 style={{
                   backgroundColor: 'var(--accent-soft)',
                   color: 'var(--accent)',
@@ -352,7 +352,7 @@ export function StatsView({
           ].map((item) => (
             <div key={item.label} className="inline-flex items-baseline gap-1.5">
               <span
-                className="font-bold tabular-nums text-sm"
+                className="font-semibold tabular-nums text-sm"
                 style={{
                   color: item.val > 0 ? 'var(--accent)' : 'var(--text-muted)',
                 }}
@@ -365,7 +365,7 @@ export function StatsView({
           {day.readingSeconds > 0 && (
             <div className="inline-flex items-baseline gap-1.5">
               <span
-                className="font-bold tabular-nums text-sm"
+                className="font-semibold tabular-nums text-sm"
                 style={{ color: 'var(--gold)' }}
               >
                 {formatReadingDurationBn(day.readingSeconds)}
@@ -412,7 +412,7 @@ export function StatsView({
 
   const renderIntensityLegend = () => (
     <div
-      className="flex items-center justify-end gap-1.5 text-[10px]"
+      className="flex items-center justify-end gap-1.5 text-[11px]"
       style={{ color: 'var(--text-muted)' }}
     >
       <span>কম</span>
@@ -460,30 +460,34 @@ export function StatsView({
     <div className="min-h-dvh paper-frame pb-16">
       <TopBar
         mode="sticky"
+        surface="tinted"
         onBack={onBack}
         backLabel="ফিরে যান"
         title="আমল পরিসংখ্যান"
         subtitle="সাপ্তাহিক, মাসিক ও বাৎসরিক ধারাবাহিকতা"
       />
 
-      <main className="max-w-2xl mx-auto px-5 pt-4 space-y-8">
-        {/* Quiet Unboxed Daily Recitation Goal Strip */}
+      <main className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Elevated Daily Recitation Goal Card (matches Surah suggestion & FastingCard) */}
         <section
-          className="pb-4 border-b space-y-2"
-          style={{ borderColor: 'var(--border-subtle)' }}
+          className="rounded-2xl px-4 py-3.5 border space-y-2.5"
+          style={{
+            backgroundColor: 'var(--bg-elevated)',
+            borderColor: 'var(--border-subtle)',
+          }}
         >
           <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               <Target
                 className="w-4 h-4 shrink-0"
                 style={{ color: 'var(--accent)' }}
               />
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap text-xs font-semibold">
+                <div className="flex items-center gap-1.5 flex-wrap text-xs font-medium">
                   <span>দৈনিক কুরআন তিলাওয়াত লক্ষ্য</span>
                   {goalCompleted && (
                     <span
-                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                      className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full"
                       style={{
                         backgroundColor: 'var(--accent-soft)',
                         color: 'var(--accent)',
@@ -509,7 +513,7 @@ export function StatsView({
             <button
               type="button"
               onClick={() => setGoalSheetOpen(true)}
-              className="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-xl cursor-pointer transition-opacity active:opacity-75"
+              className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-full cursor-pointer transition-opacity active:opacity-75"
               style={{
                 backgroundColor: 'var(--accent-soft)',
                 color: 'var(--accent)',
@@ -520,58 +524,31 @@ export function StatsView({
           </div>
           {dailyGoalMinutes > 0 && (
             <div
-              className="h-1.5 w-full rounded-full overflow-hidden"
+              className="h-[3px] w-full rounded-full overflow-hidden"
               style={{
                 backgroundColor:
-                  'color-mix(in srgb, var(--text-primary) 7%, transparent)',
+                  'color-mix(in srgb, var(--text-primary) 10%, transparent)',
               }}
             >
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${goalPercent}%`,
-                  backgroundColor: goalCompleted
-                    ? 'var(--accent)'
-                    : 'var(--gold)',
+                  backgroundColor: 'var(--accent)',
                 }}
               />
             </div>
           )}
         </section>
 
-        {/* Minimal Underline Period Tabs + Clean Date Navigator (Unboxed) */}
+        {/* Shared Underline Period Tabs + Clean Date Navigator */}
         <section className="space-y-4">
-          <div
-            className="grid grid-cols-3 border-b"
-            style={{ borderColor: 'var(--border-subtle)' }}
-            role="tablist"
-            aria-label="সময়কাল নির্বাচন"
-          >
-            {PERIOD_TABS.map((tab) => {
-              const active = period === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setPeriod(tab.id)}
-                  className="relative py-2.5 text-xs font-semibold transition-colors cursor-pointer"
-                  style={{
-                    color: active ? 'var(--accent)' : 'var(--text-muted)',
-                  }}
-                >
-                  {tab.label}
-                  {active && (
-                    <span
-                      className="absolute inset-x-6 bottom-0 h-[2px] rounded-full"
-                      style={{ backgroundColor: 'var(--accent)' }}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <UnderlineTabs
+            value={period}
+            onChange={setPeriod}
+            ariaLabel="সময়কাল নির্বাচন"
+            tabs={PERIOD_TABS}
+          />
 
           <div className="flex items-center justify-between gap-2">
             <button
@@ -589,14 +566,14 @@ export function StatsView({
 
             <div className="text-center min-w-0 flex-1">
               <div className="flex items-center justify-center gap-2">
-                <span className="text-base font-bold tracking-tight truncate">
+                <span className="text-base font-semibold truncate">
                   {activeLabel}
                 </span>
                 {!isCurrentPeriod && (
                   <button
                     type="button"
                     onClick={handleJumpCurrent}
-                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-pointer"
+                    className="text-[11px] font-medium px-2 py-0.5 rounded-full cursor-pointer"
                     style={{
                       backgroundColor: 'var(--accent-soft)',
                       color: 'var(--accent)',
@@ -644,7 +621,7 @@ export function StatsView({
                   }}
                 >
                   <div
-                    className="text-2xl sm:text-3xl font-bold tabular-nums tracking-tight leading-none"
+                    className="text-2xl sm:text-3xl font-semibold tabular-nums leading-none"
                     style={{
                       color: active
                         ? 'var(--accent)'
@@ -723,7 +700,7 @@ export function StatsView({
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <h2
-                className="text-xs font-semibold uppercase tracking-wide"
+                className="text-xs font-medium"
                 style={{ color: 'var(--text-secondary)' }}
               >
                 দৈনিক অগ্রগতি — {METRIC_META[metric].label}
@@ -755,7 +732,7 @@ export function StatsView({
                     className="flex flex-col items-center gap-2 py-1 cursor-pointer group"
                   >
                     <span
-                      className="text-[10px] font-medium tabular-nums h-3.5 flex items-center"
+                      className="text-[11px] font-medium tabular-nums h-3.5 flex items-center"
                       style={{
                         color:
                           value > 0
@@ -808,7 +785,7 @@ export function StatsView({
                         {WEEK_DAYS_SAT_SHORT_BN[day.satWeekIndex]}
                       </div>
                       <div
-                        className="text-[10px] tabular-nums"
+                        className="text-[11px] tabular-nums"
                         style={{ color: 'var(--text-muted)' }}
                       >
                         {toBanglaDigits(day.dayOfMonth)}
@@ -828,7 +805,7 @@ export function StatsView({
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <h2
-                className="text-xs font-semibold uppercase tracking-wide"
+                className="text-xs font-medium"
                 style={{ color: 'var(--text-secondary)' }}
               >
                 মাসিক ক্যালেন্ডার — {METRIC_META[metric].label}
@@ -882,7 +859,7 @@ export function StatsView({
                     type="button"
                     onClick={() => setSelectedDayKey(cell.dateKey)}
                     aria-label={formatDayDateBn(cell.date)}
-                    className="aspect-square rounded-2xl flex items-center justify-center text-xs font-semibold tabular-nums transition-transform active:scale-95 cursor-pointer"
+                    className="aspect-square rounded-2xl flex items-center justify-center text-xs font-medium tabular-nums transition-transform active:scale-95 cursor-pointer"
                     style={{
                       backgroundColor: colors.bg,
                       color: colors.text,
@@ -912,7 +889,7 @@ export function StatsView({
             <section className="space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <h2
-                  className="text-xs font-semibold uppercase tracking-wide"
+                  className="text-xs font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
                   ১২ মাসের অগ্রগতি — {METRIC_META[metric].label}
@@ -991,7 +968,7 @@ export function StatsView({
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold">
+                    <span className="text-xs font-medium">
                       {selectedMonth.labelFull}
                     </span>
                     <span
@@ -1013,7 +990,7 @@ export function StatsView({
                         className="inline-flex items-baseline gap-1.5"
                       >
                         <span
-                          className="font-bold tabular-nums text-sm"
+                          className="font-semibold tabular-nums text-sm"
                           style={{
                             color:
                               item.val > 0
@@ -1040,7 +1017,7 @@ export function StatsView({
             >
               <div>
                 <h2
-                  className="text-xs font-semibold uppercase tracking-wide"
+                  className="text-xs font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
                   বার্ষিক অ্যাক্টিভিটি গ্রিড ({toBanglaDigits(yearly.year)})
@@ -1156,7 +1133,7 @@ export function StatsView({
         >
           <div className="flex items-center justify-between gap-2">
             <h2
-              className="text-xs font-semibold uppercase tracking-wide"
+              className="text-xs font-medium"
               style={{ color: 'var(--text-secondary)' }}
             >
               শীর্ষ আমল — {activeLabel}
@@ -1218,7 +1195,7 @@ export function StatsView({
                             className="h-[3px] rounded-full overflow-hidden"
                             style={{
                               backgroundColor:
-                                'color-mix(in srgb, var(--text-primary) 7%, transparent)',
+                                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
                             }}
                           >
                             <div
@@ -1257,8 +1234,8 @@ export function StatsView({
                               {item.title}
                             </span>
                             <span
-                              className="text-[11px] font-semibold shrink-0 tabular-nums"
-                              style={{ color: 'var(--gold)' }}
+                              className="text-[11px] font-medium shrink-0 tabular-nums"
+                              style={{ color: 'var(--accent)' }}
                             >
                               {toBanglaDigits(item.count)} দিন
                             </span>
@@ -1267,14 +1244,14 @@ export function StatsView({
                             className="h-[3px] rounded-full overflow-hidden"
                             style={{
                               backgroundColor:
-                                'color-mix(in srgb, var(--text-primary) 7%, transparent)',
+                                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
                             }}
                           >
                             <div
                               className="h-full rounded-full transition-all duration-300"
                               style={{
                                 width: `${pct}%`,
-                                backgroundColor: 'var(--gold)',
+                                backgroundColor: 'var(--accent)',
                               }}
                             />
                           </div>

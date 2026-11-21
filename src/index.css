@@ -51,6 +51,25 @@
   color-scheme: light;
 }
 
+[data-theme="sky"] {
+  --bg-page: #f2f6fa;
+  --bg-surface: #e6ecf3;
+  --bg-elevated: #f9fbfd;
+  --border-subtle: #cedbea;
+  --text-primary: #142233;
+  --text-secondary: #485b73;
+  --text-muted: #73879e;
+  --accent: #0077d8;
+  --accent-soft: rgba(0, 119, 216, 0.12);
+  --accent-text: #ffffff;
+  --gold: #2c6599;
+  --gold-soft: rgba(44, 101, 153, 0.12);
+  --ayah-highlight: rgba(0, 119, 216, 0.14);
+  --calligraphy-ink: var(--accent);
+  --logo-accent: #cfe8ff;
+  color-scheme: light;
+}
+
 [data-theme="black"] {
   --bg-page: #070807;
   --bg-surface: #121412;
@@ -78,6 +97,15 @@ body {
   overscroll-behavior-y: contain;
 }
 
+::selection {
+  background-color: var(--accent-soft);
+}
+
+strong,
+b {
+  font-weight: 600;
+}
+
 .font-indopak {
   font-family: "IndoPak", "Noto Naskh Arabic", serif;
   direction: rtl;
@@ -94,6 +122,14 @@ body {
   font-family: "surahnames", serif;
   line-height: 1;
   font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-brand-ar {
+  font-family: "Alyamama", "IndoPak", serif;
+  direction: rtl;
+  unicode-bidi: isolate;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

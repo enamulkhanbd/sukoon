@@ -68,7 +68,7 @@ export function LastReadSurahCard({
       {/* Bottom row: Bold Surah title + muted meaning + slim progress bar */}
       <div className="space-y-2.5">
         <div>
-          <h2 className="text-base font-bold tracking-tight leading-snug">
+          <h2 className="text-base font-semibold leading-snug">
             সূরা {toBanglaDigits(surah.id)} • {surah.nameBangla}
           </h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -77,10 +77,10 @@ export function LastReadSurahCard({
         </div>
 
         <div
-          className="h-[2.5px] w-full rounded-full overflow-hidden"
+          className="h-[3px] w-full rounded-full overflow-hidden"
           style={{
             backgroundColor:
-              'color-mix(in srgb, var(--text-primary) 9%, transparent)',
+              'color-mix(in srgb, var(--text-primary) 10%, transparent)',
           }}
         >
           <div

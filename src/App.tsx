@@ -9,6 +9,7 @@ import { ReaderView } from './components/ReaderView';
 import { RoutineDetailView } from './components/RoutineDetailView';
 import { RoutinesView } from './components/RoutinesView';
 import { SettingsView } from './components/SettingsView';
+import { SplashScreen } from './components/SplashScreen';
 import { StatsView } from './components/StatsView';
 import { SurahListView } from './components/SurahListView';
 import { useToast } from './components/ToastProvider';
@@ -33,10 +34,12 @@ import {
   parseRoute,
   type AppRoute,
 } from './router';
+import { applyThemeIcons } from './utils/themeIcons';
 
 const THEME_META_COLORS: Record<Settings['theme'], string> = {
   paper: '#FAF6EE',
   olive: '#EEF2EA',
+  sky: '#F2F6FA',
   black: '#070807',
 };
 
@@ -193,14 +196,21 @@ export function App() {
     }
   }, [dbReady, route, isRoutineReadReady, activeRouteRoutine, navigate]);
 
-  // Apply theme attribute & PWA status bar color
+  // Apply theme attribute, PWA status bar color, dynamic favicon/app icon & cache for zero-flash splash
   useEffect(() => {
+    if (rawSettings === undefined && !dbReady) return;
     document.documentElement.setAttribute('data-theme', settings.theme);
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
       metaTheme.setAttribute('content', THEME_META_COLORS[settings.theme]);
     }
-  }, [settings.theme]);
+    applyThemeIcons(settings.theme);
+    try {
+      window.localStorage.setItem('sukoon-theme', settings.theme);
+    } catch {
+      // Ignore storage quota / private mode errors
+    }
+  }, [rawSettings, dbReady, settings.theme]);
 
   const handleTabChange = useCallback(
     (tab: AppTab) => {
@@ -368,21 +378,7 @@ export function App() {
   );
 
   if (!dbReady || (route.type === 'routineRead' && activeRouteRoutine === undefined)) {
-    return (
-      <div className="min-h-dvh flex items-center justify-center paper-frame">
-        <div className="text-center space-y-2">
-          <div
-            className="font-indopak text-4xl"
-            style={{ color: 'var(--accent)' }}
-          >
-            سُكُوْن
-          </div>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            প্রস্তুত হচ্ছে...
-          </p>
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (route.type === 'dua') {

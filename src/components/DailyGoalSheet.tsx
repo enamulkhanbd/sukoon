@@ -136,7 +136,7 @@ export function DailyGoalSheet({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Target className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-              <h2 className="font-bold text-base">দৈনিক কুরআন তিলাওয়াত লক্ষ্য</h2>
+              <h2 className="font-semibold text-base">দৈনিক কুরআন তিলাওয়াত লক্ষ্য</h2>
             </div>
             <button
               type="button"
@@ -174,7 +174,7 @@ export function DailyGoalSheet({
                       setCustomInput('');
                       setError(null);
                     }}
-                    className="py-2.5 px-3 rounded-2xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                    className="py-2.5 px-3 rounded-2xl text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
                     style={{
                       backgroundColor: active
                         ? 'var(--accent)'
@@ -243,7 +243,7 @@ export function DailyGoalSheet({
             <button
               type="button"
               onClick={handleConfirm}
-              className="flex-1 py-2.5 px-4 rounded-2xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+              className="flex-1 py-2.5 px-4 rounded-2xl text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',

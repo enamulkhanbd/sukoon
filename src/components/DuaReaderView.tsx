@@ -394,7 +394,7 @@ export function DuaReaderView({
       >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs font-semibold">জিকির গণনা</div>
+            <div className="text-xs font-medium">জিকির গণনা</div>
             <div className="text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>
               লক্ষ্য: {toBanglaDigits(target)} বার • সম্পন্ন:{' '}
               <strong>{toBanglaDigits(count)}</strong> বার
@@ -419,7 +419,7 @@ export function DuaReaderView({
               </button>
             )}
             <span
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -433,9 +433,10 @@ export function DuaReaderView({
 
         {count > 0 && (
           <div
-            className="h-1.5 w-full rounded-full overflow-hidden"
+            className="h-[3px] w-full rounded-full overflow-hidden"
             style={{
-              backgroundColor: nested ? 'var(--bg-surface)' : 'var(--bg-elevated)',
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
             }}
           >
             <div
@@ -463,7 +464,7 @@ export function DuaReaderView({
         {hasTranslit && (
           <div className="space-y-1">
             <div
-              className="text-xs font-semibold"
+              className="text-xs font-medium"
               style={{ color: 'var(--accent)' }}
             >
               বাংলা উচ্চারণ
@@ -479,7 +480,7 @@ export function DuaReaderView({
 
         <div className="space-y-1">
           <div
-            className="text-xs font-semibold"
+            className="text-xs font-medium"
             style={{ color: 'var(--gold)' }}
           >
             {meaningLabel}
@@ -637,7 +638,7 @@ export function DuaReaderView({
             {dua.occasionNote ?? chapter?.titleBangla ?? 'দুআ ও জিকির'}
           </span>
           <span
-            className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full shrink-0"
+            className="text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0"
             style={{
               backgroundColor: 'var(--accent-soft)',
               color: 'var(--accent)',
@@ -673,13 +674,13 @@ export function DuaReaderView({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className="text-xs font-semibold tabular-nums"
+                        className="text-xs font-medium tabular-nums"
                         style={{ color: partDone ? 'var(--accent)' : 'var(--text-muted)' }}
                       >
                         অংশ {toBanglaDigits(idx + 1)}
                       </span>
                       <span
-                        className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                        className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
                         style={{
                           backgroundColor: 'var(--bg-surface)',
                           color: 'var(--accent)',
@@ -769,7 +770,7 @@ export function DuaReaderView({
                 }}
               >
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold">
+                  <div className="text-xs font-medium">
                     {isStandaloneMarkedToday ? 'আজ পড়া হয়েছে' : 'আজকের আমল'}
                   </div>
                   <div
@@ -784,7 +785,7 @@ export function DuaReaderView({
                 <button
                   type="button"
                   onClick={() => void handleToggleStandaloneRead()}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity active:opacity-85 cursor-pointer"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer"
                   style={{
                     backgroundColor: isStandaloneMarkedToday
                       ? 'var(--bg-elevated)'

@@ -174,9 +174,9 @@ export function TasbihCounterSheet({
           />
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <h2 className="font-bold text-sm truncate">{title}</h2>
+              <h2 className="font-semibold text-sm truncate">{title}</h2>
               <span
-                className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                className="text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0"
                 style={{
                   backgroundColor: done ? 'var(--accent-soft)' : 'var(--bg-surface)',
                   color: done ? 'var(--accent)' : 'var(--text-secondary)',
@@ -193,7 +193,7 @@ export function TasbihCounterSheet({
                 disabled={count === 0}
                 aria-label="একটি কমান"
                 title="একটি কমান (-১)"
-                className="h-8 px-2.5 rounded-full flex items-center justify-center gap-0.5 text-xs font-semibold transition-colors active:scale-95 cursor-pointer disabled:opacity-35 disabled:cursor-default"
+                className="h-8 px-2.5 rounded-full flex items-center justify-center gap-0.5 text-xs font-medium transition-colors active:scale-95 cursor-pointer disabled:opacity-35 disabled:cursor-default"
                 style={{
                   backgroundColor: 'var(--bg-surface)',
                   color: 'var(--text-secondary)',
@@ -298,7 +298,7 @@ export function TasbihCounterSheet({
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span
                   key={count}
-                  className="text-5xl font-bold tabular-nums leading-none sukoon-count-pop"
+                  className="text-5xl font-semibold tabular-nums leading-none sukoon-count-pop"
                   style={{
                     color: done ? 'var(--accent)' : 'var(--text-primary)',
                   }}
@@ -322,7 +322,7 @@ export function TasbihCounterSheet({
             {done ? (
               <div className="flex flex-col items-center gap-0.5 pointer-events-none">
                 <span
-                  className="inline-flex items-center gap-1 text-xs font-semibold"
+                  className="inline-flex items-center gap-1 text-xs font-medium"
                   style={{ color: 'var(--accent)' }}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -351,7 +351,7 @@ export function TasbihCounterSheet({
             <button
               type="button"
               onClick={onNextAction}
-              className="w-full py-2.5 px-4 rounded-2xl text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-[0.99] cursor-pointer shrink-0"
+              className="w-full py-2.5 px-4 rounded-2xl text-xs font-medium flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-[0.99] cursor-pointer shrink-0"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',

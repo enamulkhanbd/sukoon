@@ -464,7 +464,7 @@ export function ReaderView({
           {routine && (
             <div className="text-center">
               <span
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full"
                 style={{
                   backgroundColor: 'var(--accent-soft)',
                   color: 'var(--accent)',
@@ -484,7 +484,7 @@ export function ReaderView({
             </div>
             <div className="text-left min-w-0">
               <h1
-                className="text-lg sm:text-xl font-bold leading-snug tracking-tight"
+                className="text-lg sm:text-xl font-semibold leading-snug"
                 style={{ color: 'var(--text-primary)' }}
               >
                 {toBanglaDigits(meta.id)}. সূরা {meta.nameBangla}
@@ -534,7 +534,7 @@ export function ReaderView({
             <button
               type="button"
               onClick={() => loadSurah()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -719,7 +719,7 @@ export function ReaderView({
             <button
               type="button"
               onClick={() => setAutoScrollPaused((p) => !p)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full shadow-md text-xs font-semibold cursor-pointer outline-none"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full shadow-md text-xs font-medium cursor-pointer outline-none"
               style={{
                 backgroundColor: 'var(--bg-surface)',
                 color: 'var(--accent)',
@@ -802,7 +802,7 @@ export function ReaderView({
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+                className="px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                 style={{
                   backgroundColor: 'var(--accent)',
                   color: 'var(--accent-text)',

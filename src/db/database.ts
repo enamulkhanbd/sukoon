@@ -109,7 +109,14 @@ export interface CachedSurah {
   scriptVersion?: number;
 }
 
-export type ThemeMode = 'paper' | 'olive' | 'black';
+export type ThemeMode = 'paper' | 'olive' | 'sky' | 'black';
+
+const VALID_THEMES: ReadonlySet<ThemeMode> = new Set([
+  'paper',
+  'olive',
+  'sky',
+  'black',
+]);
 
 export interface Settings {
   key: string;
@@ -1159,9 +1166,13 @@ export async function importUserData(raw: unknown): Promise<{
 
       if (settings && typeof settings === 'object') {
         const cachedCount = await db.cachedSurahs.count();
+        const safeTheme: ThemeMode = VALID_THEMES.has(settings.theme)
+          ? settings.theme
+          : DEFAULT_SETTINGS.theme;
         await db.settings.put({
           ...DEFAULT_SETTINGS,
           ...settings,
+          theme: safeTheme,
           key: 'app',
           offlineDownloaded: cachedCount >= 114,
         });

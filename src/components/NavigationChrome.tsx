@@ -149,7 +149,7 @@ export function TabHeader({
       {badge}
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-tight truncate min-w-0 flex items-center">
+          <h1 className="text-2xl font-semibold truncate min-w-0 flex items-center">
             {title}
           </h1>
           {rightAction && <div className="shrink-0">{rightAction}</div>}
@@ -193,8 +193,8 @@ export function TopBarIconButton({
       style={{
         backgroundColor: active
           ? 'var(--accent-soft)'
-          : 'color-mix(in srgb, var(--text-primary) 6%, transparent)',
-        color: active ? 'var(--accent)' : 'var(--text-primary)',
+          : 'color-mix(in srgb, var(--text-primary) 4.5%, transparent)',
+        color: active ? 'var(--accent)' : 'var(--text-secondary)',
       }}
     >
       {children}
@@ -228,9 +228,10 @@ export function UnderlineTabs<T extends string>({
 }: UnderlineTabsProps<T>) {
   return (
     <div
-      className="grid"
+      className="grid border-b"
       style={{
         gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+        borderColor: 'var(--border-subtle)',
       }}
       role="tablist"
       aria-label={ariaLabel}
@@ -244,20 +245,20 @@ export function UnderlineTabs<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(tab.id)}
-            className="relative py-2.5 px-1 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1 min-w-0"
+            className="relative py-2.5 px-1 text-xs font-medium transition-colors cursor-pointer flex items-center justify-center gap-1 min-w-0"
             style={{
               color: active ? accentColor : 'var(--text-muted)',
             }}
           >
             <span className="truncate">{tab.label}</span>
             {tab.count !== undefined && (
-              <span className="text-[10px] font-medium tabular-nums opacity-70 shrink-0">
+              <span className="text-[11px] font-medium tabular-nums opacity-70 shrink-0">
                 {tab.count}
               </span>
             )}
             {active && (
               <span
-                className="absolute inset-x-4 bottom-0 h-[2px] rounded-full"
+                className="absolute inset-x-3 sm:inset-x-6 bottom-0 h-[2px] rounded-full"
                 style={{ backgroundColor: accentColor }}
               />
             )}
@@ -379,8 +380,8 @@ export function TopBar({
           className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
           style={{
             backgroundColor:
-              'color-mix(in srgb, var(--text-primary) 6%, transparent)',
-            color: 'var(--text-primary)',
+              'color-mix(in srgb, var(--text-primary) 4.5%, transparent)',
+            color: 'var(--text-secondary)',
           }}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -388,7 +389,7 @@ export function TopBar({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h1 className="font-bold text-sm sm:text-base truncate">{title}</h1>
+            <h1 className="font-semibold text-sm sm:text-base truncate">{title}</h1>
             {titleBadge}
           </div>
           {subtitle && (
@@ -421,6 +422,7 @@ export const THEME_OPTIONS: Array<{
 }> = [
   { id: 'paper', label: 'কাগজ', desc: 'উষ্ণ মুসহাফ', swatch: '#FAF6EE', ink: '#1F241E' },
   { id: 'olive', label: 'জলপাই', desc: 'স্নিগ্ধ সবুজ', swatch: '#EEF2EA', ink: '#1A241B' },
+  { id: 'sky', label: 'আকাশ', desc: 'স্নিগ্ধ নীল', swatch: '#E6ECF3', ink: '#0077D8' },
   { id: 'black', label: 'রাত', desc: 'ওলেড কালো', swatch: '#070807', ink: '#E8E2D5' },
 ];
 
@@ -437,7 +439,7 @@ export function ThemePicker({
 }: ThemePickerProps) {
   return (
     <div
-      className="grid grid-cols-3 gap-1 p-1 rounded-2xl"
+      className="grid grid-cols-4 gap-1 p-1 rounded-2xl"
       style={{
         backgroundColor:
           'color-mix(in srgb, var(--text-primary) 5%, transparent)',
@@ -451,7 +453,7 @@ export function ThemePicker({
             type="button"
             onClick={() => onSelect(t.id, t.label)}
             aria-pressed={active}
-            className="flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer active:scale-[0.98]"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
             style={{
               backgroundColor: active ? 'var(--accent)' : 'transparent',
               color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
@@ -557,7 +559,7 @@ export function FontSizeControl({
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium">{label}</span>
         <span
-          className="font-semibold tabular-nums"
+          className="font-medium tabular-nums"
           style={{ color: 'var(--accent)' }}
         >
           {toBanglaDigits(activeStop.size)} px
@@ -704,7 +706,7 @@ export function ReaderQuickSettingsSheet({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-              <h2 className="font-bold text-base">পাঠ সেটিংস</h2>
+              <h2 className="font-semibold text-base">পাঠ সেটিংস</h2>
             </div>
             <button
               type="button"
@@ -725,7 +727,7 @@ export function ReaderQuickSettingsSheet({
 
         {/* Theme Selection */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold">পড়ার থিম</label>
+          <label className="block text-xs font-medium">পড়ার থিম</label>
           <ThemePicker
             value={settings.theme}
             onSelect={(theme) => onUpdateSettings({ theme })}
@@ -822,11 +824,11 @@ export function ReaderFreePager({
       >
         <ArrowLeft className="w-4 h-4 shrink-0" />
         <div className="min-w-0">
-          <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
             {prevLabel}
           </div>
           {prevTitle && (
-            <div className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+            <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
               {prevTitle}
             </div>
           )}
@@ -844,9 +846,9 @@ export function ReaderFreePager({
         }}
       >
         <div className="min-w-0">
-          <div className="text-[10px] opacity-80">{nextLabel}</div>
+          <div className="text-[11px] opacity-80">{nextLabel}</div>
           {nextTitle && (
-            <div className="text-xs font-semibold truncate">{nextTitle}</div>
+            <div className="text-xs font-medium truncate">{nextTitle}</div>
           )}
         </div>
         <ArrowRight className="w-4 h-4 shrink-0" />

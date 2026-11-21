@@ -58,7 +58,7 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
               >
                 <Icon className="w-[18px] h-[18px]" strokeWidth={active ? 2.2 : 1.75} />
               </span>
-              <span className={`text-[11px] leading-tight ${active ? 'font-semibold' : 'font-medium'}`}>
+              <span className={`text-[11px] leading-tight ${active ? 'font-medium' : 'font-normal'}`}>
                 {item.label}
               </span>
             </button>

@@ -691,7 +691,7 @@ export function RoutinesView({
               <button
                 type="button"
                 onClick={openCreateModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-opacity active:opacity-85 cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
                 style={{
                   backgroundColor: 'var(--accent)',
                   color: 'var(--accent-text)',
@@ -718,7 +718,7 @@ export function RoutinesView({
             <button
               type="button"
               onClick={openCreateModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold cursor-pointer transition-opacity active:opacity-85"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -729,7 +729,7 @@ export function RoutinesView({
             </button>
           </div>
         ) : (
-          <div className="space-y-7">
+          <div>
             {(routines ?? []).map((routine) => {
               const prog = progressMap.get(routine.id);
               const routineItems = getRoutineItems(routine);
@@ -754,11 +754,15 @@ export function RoutinesView({
                       onOpenRoutineDetails(routine);
                     }
                   }}
-                  className="space-y-2.5 transition-opacity active:opacity-75 cursor-pointer group"
+                  className="py-5 first:pt-0 last:pb-0 border-b last:border-b-0 space-y-2.5 transition-opacity active:opacity-75 cursor-pointer group"
+                  style={{
+                    borderColor:
+                      'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+                  }}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="font-semibold text-base tracking-tight truncate">
+                      <h2 className="font-semibold text-base truncate">
                         {routine.title}
                       </h2>
                       <p
@@ -844,10 +848,10 @@ export function RoutinesView({
                         </span>
                       </div>
                       <div
-                        className="h-[2.5px] rounded-full overflow-hidden"
+                        className="h-[3px] rounded-full overflow-hidden"
                         style={{
                           backgroundColor:
-                            'color-mix(in srgb, var(--text-primary) 7%, transparent)',
+                            'color-mix(in srgb, var(--text-primary) 10%, transparent)',
                         }}
                       >
                         <div
@@ -865,7 +869,7 @@ export function RoutinesView({
                         e.stopPropagation();
                         onOpenRoutineDetails(routine);
                       }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold shrink-0 transition-opacity active:opacity-70 cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-medium shrink-0 transition-opacity active:opacity-70 cursor-pointer"
                       style={{ color: 'var(--accent)' }}
                     >
                       {prog && prog.percentage > 0 && prog.percentage < 100
@@ -918,7 +922,7 @@ export function RoutinesView({
                 <div className="min-w-0">
                   <h2
                     id="routine-sheet-title"
-                    className="font-bold text-lg tracking-tight"
+                    className="font-semibold text-lg"
                   >
                     {editingRoutine ? 'রুটিন সম্পাদনা' : 'নতুন রুটিন তৈরি'}
                   </h2>
@@ -1034,7 +1038,7 @@ export function RoutinesView({
               {items.length > 0 && (
                 <div className="space-y-2">
                   <label
-                    className="block text-xs font-semibold"
+                    className="block text-xs font-medium"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     নির্বাচিত অংশ ({toBanglaDigits(items.length)}টি •{' '}
@@ -1224,7 +1228,7 @@ export function RoutinesView({
               {/* Surah / Dua Tonal Picker Header */}
               <div className="space-y-3">
                 <label
-                  className="block text-xs font-semibold"
+                  className="block text-xs font-medium"
                   style={{ color: 'var(--text-secondary)' }}
                 >
                   সূরা বা দুআ যুক্ত করুন
@@ -1294,7 +1298,7 @@ export function RoutinesView({
                                 type="button"
                                 onClick={() => addSurahItem(s.id)}
                                 title="একই সূরার আরেকটি আয়াত অংশ যোগ করুন"
-                                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full cursor-pointer"
+                                className="inline-flex items-center gap-0.5 text-[11px] font-medium px-2 py-0.5 rounded-full cursor-pointer"
                                 style={{
                                   backgroundColor: 'var(--bg-elevated)',
                                   color: 'var(--accent)',
@@ -1307,7 +1311,7 @@ export function RoutinesView({
                                 type="button"
                                 onClick={() => toggleSurahInPicker(s.id)}
                                 title="তালিকা থেকে সরান"
-                                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full cursor-pointer"
+                                className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full cursor-pointer"
                                 style={{
                                   backgroundColor: 'var(--accent)',
                                   color: 'var(--accent-text)',
@@ -1365,7 +1369,7 @@ export function RoutinesView({
                             className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer transition-colors"
                           >
                             <div className="min-w-0 flex-1">
-                              <div className="text-xs font-semibold leading-snug">
+                              <div className="text-xs font-medium leading-snug">
                                 {chapter.titleBangla}
                               </div>
                               <div
@@ -1404,7 +1408,7 @@ export function RoutinesView({
                                       'সব রুকইয়া আয়াত ইতিমধ্যে তালিকায় রয়েছে'
                                     )
                                   }
-                                  className="w-full py-2 px-3 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                                  className="w-full py-2 px-3 rounded-xl text-[11px] font-medium flex items-center justify-center gap-1.5 cursor-pointer"
                                   style={{
                                     backgroundColor: 'var(--accent-soft)',
                                     color: 'var(--accent)',
@@ -1426,7 +1430,7 @@ export function RoutinesView({
                                         'সব সাধারণ আমল ইতিমধ্যে তালিকায় রয়েছে'
                                       )
                                     }
-                                    className="flex-1 min-w-[140px] py-2 px-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    className="flex-1 min-w-[140px] py-2 px-2.5 rounded-xl text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--accent-soft)',
                                       color: 'var(--accent)',
@@ -1444,7 +1448,7 @@ export function RoutinesView({
                                         'ফজরের বিশেষ আমলগুলো ইতিমধ্যে তালিকায় রয়েছে'
                                       )
                                     }
-                                    className="py-2 px-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    className="py-2 px-2.5 rounded-xl text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--bg-elevated)',
                                       color: 'var(--accent)',
@@ -1462,7 +1466,7 @@ export function RoutinesView({
                                         'মাগরিবের বিশেষ আমলগুলো ইতিমধ্যে তালিকায় রয়েছে'
                                       )
                                     }
-                                    className="py-2 px-2.5 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                                    className="py-2 px-2.5 rounded-xl text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer"
                                     style={{
                                       backgroundColor: 'var(--bg-elevated)',
                                       color: 'var(--accent)',
@@ -1512,7 +1516,7 @@ export function RoutinesView({
                                         type="button"
                                         onClick={() => toggleDuaInPicker(dua.id)}
                                         title="তালিকা থেকে সরান"
-                                        className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
+                                        className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
                                         style={{
                                           backgroundColor: 'var(--accent)',
                                           color: 'var(--accent-text)',
@@ -1564,7 +1568,7 @@ export function RoutinesView({
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold transition-opacity active:opacity-80 cursor-pointer"
+                    className="flex-1 py-2.5 rounded-2xl text-xs font-medium transition-opacity active:opacity-80 cursor-pointer"
                     style={{
                       backgroundColor: 'var(--bg-surface)',
                       color: 'var(--text-secondary)',
@@ -1574,7 +1578,7 @@ export function RoutinesView({
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 rounded-2xl text-xs font-semibold transition-opacity active:opacity-85 cursor-pointer"
+                    className="flex-1 py-2.5 rounded-2xl text-xs font-medium transition-opacity active:opacity-85 cursor-pointer"
                     style={{
                       backgroundColor: 'var(--accent)',
                       color: 'var(--accent-text)',

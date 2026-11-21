@@ -719,9 +719,8 @@ export function ReaderView({
             <button
               type="button"
               onClick={() => setAutoScrollPaused((p) => !p)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full shadow-md text-xs font-medium cursor-pointer outline-none"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full sukoon-glass-pill text-xs font-medium cursor-pointer outline-none transition-transform active:scale-95"
               style={{
-                backgroundColor: 'var(--bg-surface)',
                 color: 'var(--accent)',
               }}
             >

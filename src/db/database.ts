@@ -118,9 +118,36 @@ const VALID_THEMES: ReadonlySet<ThemeMode> = new Set([
   'black',
 ]);
 
+export type GlassMode = 'clear' | 'frosted' | 'solid';
+
+const VALID_GLASS_MODES: ReadonlySet<GlassMode> = new Set([
+  'clear',
+  'frosted',
+  'solid',
+]);
+
+export const GLASS_PRESET_OPACITY: Record<GlassMode, number> = {
+  clear: 44,
+  frosted: 62,
+  solid: 94,
+};
+
+export function clampGlassOpacity(value: number): number {
+  if (!Number.isFinite(value)) return GLASS_PRESET_OPACITY.frosted;
+  return Math.min(96, Math.max(20, Math.round(value)));
+}
+
+export function inferGlassModeFromOpacity(opacity: number): GlassMode {
+  if (opacity <= 52) return 'clear';
+  if (opacity <= 82) return 'frosted';
+  return 'solid';
+}
+
 export interface Settings {
   key: string;
   theme: ThemeMode;
+  glassMode?: GlassMode;
+  glassOpacity?: number; // 20 - 96 (%)
   fontSize: number; // 24px - 44px
   keepScreenAwake: boolean; // Screen Wake Lock API
   autoScrollSpeed: number; // 0 = off, 1 = 1x, 2 = 1.5x, etc.
@@ -137,6 +164,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   key: 'app',
   theme: 'paper',
+  glassMode: 'frosted',
+  glassOpacity: GLASS_PRESET_OPACITY.frosted,
   fontSize: 32,
   keepScreenAwake: true,
   autoScrollSpeed: 0,
@@ -1169,10 +1198,21 @@ export async function importUserData(raw: unknown): Promise<{
         const safeTheme: ThemeMode = VALID_THEMES.has(settings.theme)
           ? settings.theme
           : DEFAULT_SETTINGS.theme;
+        const safeGlassMode: GlassMode =
+          settings.glassMode && VALID_GLASS_MODES.has(settings.glassMode)
+            ? settings.glassMode
+            : (DEFAULT_SETTINGS.glassMode ?? 'frosted');
+        const safeGlassOpacity =
+          typeof settings.glassOpacity === 'number' &&
+          Number.isFinite(settings.glassOpacity)
+            ? clampGlassOpacity(settings.glassOpacity)
+            : GLASS_PRESET_OPACITY[safeGlassMode];
         await db.settings.put({
           ...DEFAULT_SETTINGS,
           ...settings,
           theme: safeTheme,
+          glassMode: safeGlassMode,
+          glassOpacity: safeGlassOpacity,
           key: 'app',
           offlineDownloaded: cachedCount >= 114,
         });

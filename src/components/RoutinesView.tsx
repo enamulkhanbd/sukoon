@@ -888,7 +888,7 @@ export function RoutinesView({
       {/* Create / Edit Routine Bottom Sheet (-72px from top over dimmed overlay) */}
       {sheetMounted && (
         <div
-          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 pt-[72px] sm:px-4 sukoon-sheet-backdrop ${
+          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] pt-[72px] sm:px-4 sukoon-sheet-backdrop ${
             sheetVisible ? '' : 'pointer-events-none'
           }`}
           style={sheetBackdropStyle}
@@ -899,11 +899,10 @@ export function RoutinesView({
             role="dialog"
             aria-modal="true"
             aria-labelledby="routine-sheet-title"
-            className={`w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] shadow-2xl flex flex-col overflow-hidden sukoon-sheet-panel ${
+            className={`w-full max-w-2xl h-full max-h-[calc(100dvh-72px)] rounded-t-[28px] flex flex-col overflow-hidden sukoon-sheet-panel sukoon-glass-sheet ${
               sheetDragging ? 'sukoon-sheet-panel--dragging' : ''
             }`}
             style={{
-              backgroundColor: 'var(--bg-page)',
               transform: sheetTransform,
             }}
             onClick={(e) => e.stopPropagation()}
@@ -1561,8 +1560,11 @@ export function RoutinesView({
 
               {/* Sticky Footer */}
               <div
-                className="shrink-0 safe-bottom"
-                style={{ backgroundColor: 'var(--bg-page)' }}
+                className="shrink-0 safe-bottom border-t"
+                style={{
+                  borderColor: 'var(--glass-border)',
+                  backgroundColor: 'color-mix(in srgb, var(--bg-page) 55%, transparent)',
+                }}
               >
                 <div className="px-5 py-3 flex gap-2.5">
                   <button

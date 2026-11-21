@@ -222,7 +222,7 @@ export function FastingScheduleView({
                 </div>
                 <div
                   className="text-base font-semibold tabular-nums mt-0.5"
-                  style={{ color: accentColor }}
+                  style={{ color: 'var(--text-primary)' }}
                 >
                   {todayEntry.iftarFormatted}
                 </div>

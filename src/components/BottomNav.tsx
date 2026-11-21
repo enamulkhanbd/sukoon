@@ -29,14 +29,9 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
   return (
     <nav
       aria-label="প্রধান নেভিগেশন"
-      className="fixed bottom-0 inset-x-0 z-30 backdrop-blur-md safe-bottom"
-      style={{
-        backgroundColor: 'color-mix(in srgb, var(--bg-page) 94%, transparent)',
-        boxShadow:
-          '0 -1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent)',
-      }}
+      className="fixed bottom-0 inset-x-0 z-30 pointer-events-none px-3 safe-bottom"
     >
-      <div className="max-w-2xl mx-auto grid grid-cols-5 px-2 pt-1.5">
+      <div className="max-w-md mx-auto pointer-events-auto grid grid-cols-5 gap-0.5 p-1.5 rounded-[28px] sukoon-glass-pill">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
@@ -44,21 +39,26 @@ export function BottomNav({ activeTab, onChange }: BottomNavProps) {
             <button
               key={item.id}
               type="button"
+              aria-current={active ? 'page' : undefined}
               onClick={() => onChange(item.id)}
-              className="flex flex-col items-center justify-center gap-0.5 py-1 rounded-xl transition-opacity active:opacity-70 cursor-pointer"
+              className="flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-[22px] transition-all duration-200 active:scale-95 cursor-pointer"
               style={{
-                color: active ? 'var(--accent)' : 'var(--text-muted)',
+                backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
+                boxShadow: active
+                  ? 'inset 0 1px 0 var(--glass-specular)'
+                  : 'none',
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
               }}
             >
+              <Icon
+                className="w-[18px] h-[18px]"
+                strokeWidth={active ? 2.2 : 1.75}
+              />
               <span
-                className="flex items-center justify-center w-11 h-7 rounded-full transition-colors"
-                style={{
-                  backgroundColor: active ? 'var(--accent-soft)' : 'transparent',
-                }}
+                className={`text-[11px] leading-tight ${
+                  active ? 'font-medium' : 'font-normal'
+                }`}
               >
-                <Icon className="w-[18px] h-[18px]" strokeWidth={active ? 2.2 : 1.75} />
-              </span>
-              <span className={`text-[11px] leading-tight ${active ? 'font-medium' : 'font-normal'}`}>
                 {item.label}
               </span>
             </button>

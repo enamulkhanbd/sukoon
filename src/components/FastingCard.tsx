@@ -150,7 +150,7 @@ export function FastingCard({
           </div>
           <div
             className="text-base sm:text-lg font-semibold tabular-nums leading-tight mt-0.5"
-            style={{ color: highlightAccent }}
+            style={{ color: 'var(--text-primary)' }}
           >
             {dailyTimes.iftarFormatted}
           </div>

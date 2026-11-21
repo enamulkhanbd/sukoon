@@ -16,7 +16,13 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import type { Settings, ThemeMode } from '../db/database';
+import {
+  clampGlassOpacity,
+  inferGlassModeFromOpacity,
+  type GlassMode,
+  type Settings,
+  type ThemeMode,
+} from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
 
 /**
@@ -363,13 +369,9 @@ export function TopBar({
 
   return (
     <header
-      className={`${positionClass} backdrop-blur-md safe-top`}
-      style={{
-        backgroundColor:
-          surface === 'tinted'
-            ? 'color-mix(in srgb, var(--bg-surface) 94%, transparent)'
-            : 'color-mix(in srgb, var(--bg-page) 92%, transparent)',
-      }}
+      className={`${positionClass} ${
+        surface === 'tinted' ? 'sukoon-glass-bar-tinted' : 'sukoon-glass-bar'
+      } safe-top`}
     >
       <div className="max-w-2xl mx-auto px-5 py-2.5 flex items-center gap-3 min-h-[3.5rem]">
         <button
@@ -473,6 +475,176 @@ export function ThemePicker({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+export const GLASS_OPTIONS: Array<{
+  id: GlassMode;
+  label: string;
+  desc: string;
+  fillOpacity: number;
+}> = [
+  { id: 'clear', label: 'স্বচ্ছ', desc: 'বেশি স্বচ্ছ ও গ্লাসি', fillOpacity: 0.2 },
+  { id: 'frosted', label: 'ফ্রস্টেড', desc: 'সুষম গ্লাস (ডিফল্ট)', fillOpacity: 0.58 },
+  { id: 'solid', label: 'ঘন', desc: 'কম স্বচ্ছ ও স্থির', fillOpacity: 0.96 },
+];
+
+interface GlassPickerProps {
+  value: GlassMode;
+  onSelect: (mode: GlassMode, label: string) => void;
+}
+
+/** Apple-style 3-step glass transparency selector (Clear / Frosted / Solid). */
+export function GlassPicker({ value, onSelect }: GlassPickerProps) {
+  return (
+    <div
+      className="grid grid-cols-3 gap-1 p-1 rounded-2xl"
+      style={{
+        backgroundColor:
+          'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+      }}
+    >
+      {GLASS_OPTIONS.map((opt) => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onSelect(opt.id, opt.label)}
+            aria-pressed={active}
+            className="flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
+            style={{
+              backgroundColor: active ? 'var(--accent)' : 'transparent',
+              color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+            }}
+          >
+            <span
+              className="w-3.5 h-3.5 rounded-full border shrink-0 relative overflow-hidden"
+              style={{
+                borderColor: active
+                  ? 'color-mix(in srgb, var(--accent-text) 70%, transparent)'
+                  : 'color-mix(in srgb, var(--text-primary) 30%, transparent)',
+              }}
+              aria-hidden="true"
+            >
+              <span
+                className="absolute inset-0"
+                style={{
+                  backgroundColor: active
+                    ? 'var(--accent-text)'
+                    : 'var(--text-secondary)',
+                  opacity: opt.fillOpacity,
+                }}
+              />
+            </span>
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface GlassOpacityControlProps {
+  value: number;
+  onChange: (opacity: number, inferredMode: GlassMode) => void;
+}
+
+const GLASS_OPACITY_MIN = 20;
+const GLASS_OPACITY_MAX = 96;
+
+/** Continuous live glass opacity slider matching FontSizeControl's tactile track & thumb. */
+export function GlassOpacityControl({
+  value,
+  onChange,
+}: GlassOpacityControlProps) {
+  const clamped = clampGlassOpacity(value);
+  const percent =
+    ((clamped - GLASS_OPACITY_MIN) / (GLASS_OPACITY_MAX - GLASS_OPACITY_MIN)) *
+    100;
+
+  const handleChange = (raw: number) => {
+    const next = clampGlassOpacity(raw);
+    const nextMode = inferGlassModeFromOpacity(next);
+    // Apply immediately to DOM for lag-free live preview while dragging
+    const root = document.documentElement;
+    root.setAttribute('data-glass', nextMode);
+    root.style.setProperty('--glass-pill-opacity', `${next}%`);
+    root.style.setProperty(
+      '--glass-bar-opacity',
+      `${Math.min(98, next + 6)}%`
+    );
+    root.style.setProperty(
+      '--glass-sheet-opacity',
+      `${Math.min(98, next + 14)}%`
+    );
+    onChange(next, nextMode);
+  };
+
+  return (
+    <div className="space-y-1.5 pt-1">
+      <div className="flex items-center justify-between text-xs">
+        <span style={{ color: 'var(--text-secondary)' }}>অপাসিটি (স্বচ্ছতা)</span>
+        <span
+          className="font-medium tabular-nums"
+          style={{ color: 'var(--accent)' }}
+        >
+          {toBanglaDigits(clamped)}%
+        </span>
+      </div>
+
+      <div className="relative h-7 flex items-center select-none">
+        <div className="relative w-full mx-2.5 h-1.5 rounded-full overflow-visible">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+            }}
+          />
+          <div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{
+              width: `${percent}%`,
+              backgroundColor: 'var(--accent)',
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full border shadow-sm pointer-events-none"
+            style={{
+              left: `${percent}%`,
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor:
+                'color-mix(in srgb, var(--accent) 45%, var(--border-subtle))',
+            }}
+          />
+        </div>
+
+        <input
+          type="range"
+          min={GLASS_OPACITY_MIN}
+          max={GLASS_OPACITY_MAX}
+          step={1}
+          value={clamped}
+          aria-label="গ্লাস অপাসিটি"
+          aria-valuemin={GLASS_OPACITY_MIN}
+          aria-valuemax={GLASS_OPACITY_MAX}
+          aria-valuenow={clamped}
+          aria-valuetext={`${toBanglaDigits(clamped)} শতাংশ`}
+          onChange={(e) => handleChange(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+      </div>
+
+      <div
+        className="flex items-center justify-between text-[11px]"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <span>বেশি স্বচ্ছ ({toBanglaDigits(GLASS_OPACITY_MIN)}%)</span>
+        <span>ঘন ({toBanglaDigits(GLASS_OPACITY_MAX)}%)</span>
+      </div>
     </div>
   );
 }
@@ -676,7 +848,7 @@ export function ReaderQuickSettingsSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
       style={backdropStyle}
@@ -684,11 +856,10 @@ export function ReaderQuickSettingsSheet({
     >
       <div
         ref={panelRef}
-        className={`w-full sm:max-w-md rounded-t-[28px] space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-md rounded-t-[28px] space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel sukoon-glass-sheet safe-bottom ${
           dragging ? 'sukoon-sheet-panel--dragging' : ''
         }`}
         style={{
-          backgroundColor: 'var(--bg-page)',
           transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}

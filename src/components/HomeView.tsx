@@ -389,14 +389,16 @@ export function HomeView({
               <h2 className="text-sm font-semibold">আজকের আমল</h2>
               {streaks.currentStreak > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full tabular-nums"
+                  className="inline-flex items-center justify-center gap-1 text-[11px] leading-none font-medium px-2.5 py-1 rounded-full tabular-nums"
                   style={{
                     backgroundColor: 'var(--gold-soft)',
                     color: 'var(--gold)',
                   }}
                 >
-                  <Flame className="w-3 h-3" />
-                  {toBanglaDigits(streaks.currentStreak)} দিন
+                  <Flame className="w-3 h-3 shrink-0" />
+                  <span className="translate-y-[1px]">
+                    {toBanglaDigits(streaks.currentStreak)} দিন
+                  </span>
                 </span>
               )}
             </div>

@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  GLASS_PRESET_OPACITY,
   db,
   exportUserData,
   importUserData,
@@ -48,6 +49,9 @@ import { getRecordDuaTotal } from '../utils/stats';
 import { DailyGoalSheet } from './DailyGoalSheet';
 import {
   FontSizeControl,
+  GLASS_OPTIONS,
+  GlassOpacityControl,
+  GlassPicker,
   TabHeader,
   ThemePicker,
   useBottomSheet,
@@ -95,7 +99,7 @@ function LocationPickerSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
       style={backdropStyle}
@@ -106,12 +110,10 @@ function LocationPickerSheet({
         role="dialog"
         aria-modal="true"
         aria-label="অবস্থান নির্বাচন"
-        className={`w-full sm:max-w-md rounded-t-[28px] border-t border-x max-h-[75dvh] flex flex-col overflow-hidden sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-md rounded-t-[28px] max-h-[75dvh] flex flex-col overflow-hidden sukoon-sheet-panel sukoon-glass-sheet safe-bottom ${
           dragging ? 'sukoon-sheet-panel--dragging' : ''
         }`}
         style={{
-          backgroundColor: 'var(--bg-page)',
-          borderColor: 'var(--border-subtle)',
           transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -419,7 +421,7 @@ export function SettingsView({
           </div>
         </section>
 
-        {/* Reading Environment & Typography */}
+        {/* Appearance, Theme & Glass Effect */}
         <section
           className="pt-6 border-t space-y-5"
           style={{
@@ -427,7 +429,7 @@ export function SettingsView({
               'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
           }}
         >
-          <h2 className="text-sm font-semibold">পড়ার পরিবেশ</h2>
+          <h2 className="text-sm font-semibold">থিম ও দৃশ্যমানতা</h2>
 
           <div className="space-y-2">
             <span className="text-xs font-medium block">থিম</span>
@@ -439,6 +441,52 @@ export function SettingsView({
               }}
             />
           </div>
+
+          <div className="space-y-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium">গ্লাস ইফেক্ট</span>
+              <span
+                className="text-[11px]"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {
+                  GLASS_OPTIONS.find(
+                    (o) => o.id === (settings.glassMode ?? 'frosted')
+                  )?.desc
+                }
+              </span>
+            </div>
+            <GlassPicker
+              value={settings.glassMode ?? 'frosted'}
+              onSelect={async (glassMode, label) => {
+                await onUpdateSettings({
+                  glassMode,
+                  glassOpacity: GLASS_PRESET_OPACITY[glassMode],
+                });
+                toast.info(`গ্লাস ইফেক্ট: ${label}`);
+              }}
+            />
+            <GlassOpacityControl
+              value={
+                settings.glassOpacity ??
+                GLASS_PRESET_OPACITY[settings.glassMode ?? 'frosted']
+              }
+              onChange={(glassOpacity, glassMode) => {
+                void onUpdateSettings({ glassOpacity, glassMode });
+              }}
+            />
+          </div>
+        </section>
+
+        {/* Reading Environment & Typography */}
+        <section
+          className="pt-6 border-t space-y-5"
+          style={{
+            borderColor:
+              'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+          }}
+        >
+          <h2 className="text-sm font-semibold">পড়ার পরিবেশ</h2>
 
           <FontSizeControl
             value={settings.fontSize}

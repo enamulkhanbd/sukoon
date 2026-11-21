@@ -103,7 +103,7 @@ export function DailyGoalSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
       style={backdropStyle}
@@ -114,11 +114,10 @@ export function DailyGoalSheet({
         role="dialog"
         aria-modal="true"
         aria-label="দৈনিক তিলাওয়াত লক্ষ্য নির্ধারণ"
-        className={`w-full sm:max-w-md rounded-t-[28px] max-h-[85dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-md rounded-t-[28px] max-h-[85dvh] overflow-y-auto sukoon-sheet-panel sukoon-glass-sheet safe-bottom ${
           dragging ? 'sukoon-sheet-panel--dragging' : ''
         }`}
         style={{
-          backgroundColor: 'var(--bg-page)',
           transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}

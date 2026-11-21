@@ -144,10 +144,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <div
                 key={t.id}
                 role="status"
-                className="pointer-events-auto w-full max-w-md flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border shadow-lg backdrop-blur-md text-xs font-medium transition-all"
+                className="pointer-events-auto w-full max-w-md flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl sukoon-glass-pill text-xs font-medium transition-all"
                 style={{
-                  backgroundColor:
-                    'color-mix(in srgb, var(--bg-elevated) 95%, transparent)',
                   borderColor: cfg.borderColor,
                   color: 'var(--text-primary)',
                 }}

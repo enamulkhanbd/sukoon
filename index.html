@@ -73,6 +73,17 @@
               icon.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
             }
           }
+          var g = localStorage.getItem('sukoon-glass');
+          if (g === 'clear' || g === 'frosted' || g === 'solid') {
+            document.documentElement.setAttribute('data-glass', g);
+          }
+          var go = Number(localStorage.getItem('sukoon-glass-opacity'));
+          if (Number.isFinite(go) && go >= 20 && go <= 96) {
+            var op = Math.round(go);
+            document.documentElement.style.setProperty('--glass-pill-opacity', op + '%');
+            document.documentElement.style.setProperty('--glass-bar-opacity', Math.min(98, op + 6) + '%');
+            document.documentElement.style.setProperty('--glass-sheet-opacity', Math.min(98, op + 14) + '%');
+          }
         } catch (e) {}
       })();
     </script>

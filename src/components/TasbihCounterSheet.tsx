@@ -153,12 +153,10 @@ export function TasbihCounterSheet({
     >
       <div
         ref={panelRef}
-        className={`w-full sm:max-w-2xl h-[50dvh] min-h-[300px] max-h-[460px] rounded-t-[28px] flex flex-col overflow-hidden sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-2xl h-[50dvh] min-h-[300px] max-h-[460px] rounded-t-[28px] flex flex-col overflow-hidden sukoon-sheet-panel sukoon-glass-sheet safe-bottom ${
           visible ? 'pointer-events-auto' : 'pointer-events-none'
         } ${dragging ? 'sukoon-sheet-panel--dragging' : ''}`}
         style={{
-          backgroundColor: 'var(--bg-page)',
-          boxShadow: '0 -12px 36px rgba(0, 0, 0, 0.14)',
           transform: panelTransform,
         }}
       >
@@ -242,10 +240,13 @@ export function TasbihCounterSheet({
             type="button"
             onClick={handleTapClick}
             aria-label={`জিকির গণনা +১, বর্তমান ${toBanglaDigits(count)} বার`}
-            className="w-full flex-1 min-h-0 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center gap-2 select-none cursor-pointer transition-colors active:scale-[0.992]"
+            className="w-full flex-1 min-h-0 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center gap-2 select-none cursor-pointer transition-colors active:scale-[0.992] border"
             style={{
               touchAction: 'manipulation',
-              backgroundColor: done ? 'var(--accent-soft)' : 'var(--bg-surface)',
+              backgroundColor: done
+                ? 'var(--accent-soft)'
+                : 'color-mix(in srgb, var(--bg-surface) 64%, transparent)',
+              borderColor: 'var(--glass-border)',
             }}
           >
             {/* Tap ripples */}

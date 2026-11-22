@@ -44,13 +44,13 @@ export function LastReadSurahCard({
     >
       {/* Top row: Calligraphic Surah glyph left + Ayah resume cue right (Quran.com editorial layout) */}
       <div className="flex items-start justify-between gap-4">
-        <div
-          className="font-surah-names text-[2.75rem] leading-none select-none"
+        <span
+          className="font-surah-names font-surah-names-start text-[2.75rem] leading-none select-none"
           style={{ color: 'var(--text-primary)' }}
           aria-hidden="true"
         >
           {String(surah.id).padStart(3, '0')}
-        </div>
+        </span>
 
         <span
           className="inline-flex items-center gap-0.5 text-xs font-medium tabular-nums pt-1 shrink-0"

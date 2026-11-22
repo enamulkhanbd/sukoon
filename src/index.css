@@ -301,6 +301,17 @@ b {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Optical edge alignment: sura_names.woff2 embeds ~15% symmetrical side-bearings */
+.font-surah-names-start {
+  display: inline-block;
+  transform: translateX(-14.5%);
+}
+
+.font-surah-names-end {
+  display: inline-block;
+  transform: translateX(14.5%);
+}
+
 .font-brand-ar {
   font-family: "Alyamama", "IndoPak", serif;
   direction: rtl;

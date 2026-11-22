@@ -234,7 +234,7 @@ export function SurahListView({
                 </div>
                 <div className="shrink-0 flex flex-col items-end gap-0.5">
                   <span
-                    className="font-surah-names text-[2.25rem] leading-none select-none"
+                    className="font-surah-names font-surah-names-end text-[2.25rem] leading-none select-none"
                     style={{ color: 'var(--gold)' }}
                     aria-hidden="true"
                   >
@@ -361,7 +361,7 @@ export function SurahListView({
 
                   <div className="shrink-0 flex flex-col items-end gap-0.5">
                     <span
-                      className="font-surah-names text-[2.25rem] leading-none select-none"
+                      className="font-surah-names font-surah-names-end text-[2.25rem] leading-none select-none"
                       style={{ color: 'var(--accent)' }}
                       aria-hidden="true"
                     >
@@ -479,7 +479,7 @@ export function SurahListView({
                       </div>
 
                       <span
-                        className="font-surah-names text-[2rem] leading-none shrink-0 select-none"
+                        className="font-surah-names font-surah-names-end text-[2rem] leading-none shrink-0 select-none"
                         style={{ color: 'var(--text-primary)' }}
                         aria-hidden="true"
                       >

@@ -262,7 +262,7 @@ export function HomeView({
         className="w-full safe-top"
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        <div className="max-w-2xl mx-auto px-5 pt-3 pb-5 space-y-3.5">
+        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-5 space-y-6">
           {/* Minimal Top Brand Bar */}
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />

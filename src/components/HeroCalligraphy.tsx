@@ -6,11 +6,11 @@
  */
 export function HeroCalligraphy() {
   return (
-    <div className="flex flex-col items-center justify-center text-center select-none py-1 sm:py-1.5">
+    <div className="w-full flex flex-col items-center justify-center text-center select-none">
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 1315 333"
-        className="w-full max-w-[295px] sm:max-w-[385px] h-auto overflow-visible"
+        viewBox="10 10 1296 314"
+        className="w-full h-auto block overflow-visible"
         style={{
           color: 'var(--calligraphy-ink, var(--text-primary))',
           opacity: 'var(--calligraphy-opacity, 0.24)',

@@ -8,7 +8,6 @@ import {
   Compass,
   Flame,
   Search,
-  Settings as SettingsIcon,
   Sparkles,
 } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
@@ -38,7 +37,6 @@ import {
 import { FastingCard } from './FastingCard';
 import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
-import { TopBarIconButton } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
 
 interface HomeViewProps {
@@ -265,15 +263,9 @@ export function HomeView({
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
         <div className="max-w-2xl mx-auto px-5 pt-3 pb-5 space-y-3.5">
-          {/* Minimal Top Utility Bar */}
+          {/* Minimal Top Brand Bar */}
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />
-            <TopBarIconButton
-              onClick={onOpenSettings}
-              label="সেটিংস"
-            >
-              <SettingsIcon className="w-4 h-4" />
-            </TopBarIconButton>
           </div>
 
           {/* Serene Thuluth Calligraphic Centerpiece */}

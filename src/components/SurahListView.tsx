@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowRight, BookOpen, Clock, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Clock, Sparkles } from 'lucide-react';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import { db, type GlobalLastRead, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
@@ -12,13 +12,11 @@ import { LastReadSurahCard } from './LastReadSurahCard';
 import {
   SoftSearchInput,
   TabHeader,
-  TopBarIconButton,
   UnderlineTabs,
 } from './NavigationChrome';
 
 interface SurahListViewProps {
   settings: Settings;
-  onOpenSearch?: () => void;
   onOpenSurah: (surahId: number, initialAyah?: number) => void;
 }
 
@@ -34,7 +32,6 @@ const MADINAH_SURAHS_COUNT = SURAHS.filter(
 
 export function SurahListView({
   settings,
-  onOpenSearch,
   onOpenSurah,
 }: SurahListViewProps) {
   const [query, setQuery] = useState('');
@@ -118,16 +115,6 @@ export function SurahListView({
           <TabHeader
             title="সূরা সমূহ"
             subtitle={`মোট ১১৪টি সূরা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত`}
-            rightAction={
-              onOpenSearch ? (
-                <TopBarIconButton
-                  onClick={onOpenSearch}
-                  label="গ্লোবাল অনুসন্ধান"
-                >
-                  <Search className="w-4 h-4" />
-                </TopBarIconButton>
-              ) : undefined
-            }
           />
 
           <SoftSearchInput

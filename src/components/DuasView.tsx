@@ -27,7 +27,6 @@ interface DuasViewProps {
   settings: Settings;
   selectedChapterId?: number | null;
   savedFilterNonce?: number;
-  onOpenSearch?: () => void;
   onSelectChapter?: (chapterId: number | null) => void;
   onOpenDua: (dua: DuaItem) => void;
   onToggleBookmark: (duaId: string) => void;
@@ -39,7 +38,6 @@ export function DuasView({
   settings,
   selectedChapterId: controlledChapterId,
   savedFilterNonce = 0,
-  onOpenSearch,
   onSelectChapter,
   onOpenDua,
   onToggleBookmark,
@@ -287,16 +285,6 @@ export function DuasView({
           <TabHeader
             title="দুআ ও জিকির"
             subtitle={`${toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট ${toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া`}
-            rightAction={
-              onOpenSearch ? (
-                <TopBarIconButton
-                  onClick={onOpenSearch}
-                  label="গ্লোবাল অনুসন্ধান"
-                >
-                  <Search className="w-4 h-4" />
-                </TopBarIconButton>
-              ) : undefined
-            }
           />
 
           <SoftSearchInput

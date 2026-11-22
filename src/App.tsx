@@ -658,7 +658,6 @@ export function App() {
       {activeTab === 'surahs' && (
         <SurahListView
           settings={settings}
-          onOpenSearch={() => setSearchOpen(true)}
           onOpenSurah={(id, initialAyah = 1) => handleOpenSurah(id, initialAyah)}
         />
       )}
@@ -667,7 +666,6 @@ export function App() {
           settings={settings}
           selectedChapterId={activeDuaChapterId}
           savedFilterNonce={savedDuasNonce}
-          onOpenSearch={() => setSearchOpen(true)}
           onSelectChapter={(chapterId) =>
             navigate(
               { type: 'tab', tab: 'duas', duaChapterId: chapterId },
@@ -681,7 +679,6 @@ export function App() {
       {activeTab === 'routines' && (
         <RoutinesView
           settings={settings}
-          onOpenSearch={() => setSearchOpen(true)}
           onOpenRoutineDetails={openRoutineDetails}
           shouldOpenCreate={openCreateRoutine}
           onHandledCreate={() => setOpenCreateRoutine(false)}

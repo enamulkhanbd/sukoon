@@ -22,12 +22,12 @@ export const THEME_VARIANT_META: Record<ThemeVariantKey, ThemeVariantMeta> = {
   'paper-light': {
     metaColor: '#FAF6EE',
     swatchBg: '#FAF6EE',
-    swatchAccent: '#B48A3E',
+    swatchAccent: '#8C6223',
     icon: {
-      bg: '#1B4D3E',
-      stroke: '#C6A253',
+      bg: '#8C6223',
+      stroke: '#F2DCA6',
       page: '#FAF6EE',
-      lines: '#1B4D3E',
+      lines: '#8C6223',
     },
   },
   'olive-light': {

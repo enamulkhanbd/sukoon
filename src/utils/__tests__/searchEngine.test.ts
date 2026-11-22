@@ -181,6 +181,12 @@ describe('searchEngine entity search & ranking', () => {
 
     const darkAction = searchAppActions('dark mode');
     expect(darkAction.some((a) => a.id === 'settings')).toBe(true);
+
+    const profileBnAction = searchAppActions('প্রোফাইল');
+    expect(profileBnAction.some((a) => a.id === 'stats')).toBe(true);
+
+    const profileEnAction = searchAppActions('profile');
+    expect(profileEnAction.some((a) => a.id === 'stats')).toBe(true);
   });
 
   it('deep-searches Routines by title, contained Surah/Dua, and weekday', () => {

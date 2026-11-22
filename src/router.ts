@@ -6,7 +6,6 @@ export type AppRoute =
   | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
   | { type: 'surah'; surahId: number; initialAyah: number }
   | { type: 'dua'; duaId: string }
-  | { type: 'stats' }
   | { type: 'ramadan' }
   | { type: 'routineDetail'; routineId: string }
   | {
@@ -46,11 +45,11 @@ export function parseRoute(
   if (path === '/routines') {
     return { type: 'tab', tab: 'routines' };
   }
-  if (path === '/settings') {
-    return { type: 'tab', tab: 'settings' };
+  if (path === '/profile' || path === '/stats') {
+    return { type: 'tab', tab: 'profile' };
   }
-  if (path === '/stats') {
-    return { type: 'stats' };
+  if (path === '/settings') {
+    return { type: 'tab', tab: 'home' };
   }
   if (path === '/ramadan') {
     return { type: 'ramadan' };
@@ -145,8 +144,8 @@ export function buildPath(route: AppRoute): string {
             : '/duas';
         case 'routines':
           return '/routines';
-        case 'settings':
-          return '/settings';
+        case 'profile':
+          return '/profile';
       }
     }
     case 'surah':
@@ -155,8 +154,6 @@ export function buildPath(route: AppRoute): string {
         : `/surah/${route.surahId}`;
     case 'dua':
       return `/dua/${encodeURIComponent(route.duaId)}`;
-    case 'stats':
-      return '/stats';
     case 'ramadan':
       return '/ramadan';
     case 'routineDetail':
@@ -179,7 +176,6 @@ export function isReaderRoute(route: AppRoute): boolean {
 export function hidesBottomNav(route: AppRoute): boolean {
   return (
     isReaderRoute(route) ||
-    route.type === 'stats' ||
     route.type === 'ramadan' ||
     route.type === 'routineDetail' ||
     (route.type === 'tab' &&

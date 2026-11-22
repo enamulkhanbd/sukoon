@@ -478,14 +478,14 @@ export function ReaderView({
               </span>
             </div>
           )}
-          <div className="flex items-center justify-center gap-4 sm:gap-5">
-            <div
-              className="font-surah-names shrink-0 select-none text-[3.25rem] sm:text-[3.75rem]"
+          <div className="flex items-center justify-center gap-3 sm:gap-4">
+            <span
+              className="font-surah-names font-surah-names-tight shrink-0 select-none text-[3.25rem] sm:text-[3.75rem]"
               style={{ color: 'var(--text-primary)' }}
               aria-hidden="true"
             >
               {String(meta.id).padStart(3, '0')}
-            </div>
+            </span>
             <div className="text-left min-w-0">
               <h1
                 className="text-lg sm:text-xl font-semibold leading-snug"

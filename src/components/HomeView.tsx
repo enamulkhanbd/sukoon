@@ -37,12 +37,12 @@ import {
 import { FastingCard } from './FastingCard';
 import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
-import { TopBarIconButton } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
 
 interface HomeViewProps {
   settings: Settings;
   onOpenSearch: () => void;
+  onOpenSettings: () => void;
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   onOpenStats: () => void;
@@ -54,6 +54,7 @@ interface HomeViewProps {
 export function HomeView({
   settings,
   onOpenSearch,
+  onOpenSettings,
   onOpenSurah,
   onOpenRoutineDetails,
   onOpenStats,
@@ -261,20 +262,43 @@ export function HomeView({
         className="w-full safe-top"
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-6 space-y-4">
-          {/* Minimal Top Utility Bar */}
+        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-5 space-y-6">
+          {/* Minimal Top Brand Bar */}
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />
-            <TopBarIconButton
-              onClick={onOpenSearch}
-              label="অনুসন্ধান"
-            >
-              <Search className="w-4 h-4" />
-            </TopBarIconButton>
           </div>
 
           {/* Serene Thuluth Calligraphic Centerpiece */}
           <HeroCalligraphy />
+
+          {/* Full-Width Global Search Bar Trigger */}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="সূরা, আয়াত, দুআ, পারা বা রুটিন খুঁজুন"
+            className="w-full relative flex items-center justify-between gap-2 pl-11 pr-3.5 py-2.5 rounded-full text-left transition-all active:scale-[0.99] cursor-pointer"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <Search
+              className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ color: 'var(--text-muted)' }}
+            />
+            <span className="text-sm truncate">
+              সূরা, আয়াত, দুআ, পারা বা রুটিন খুঁজুন...
+            </span>
+            <kbd
+              className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              ⌘K
+            </kbd>
+          </button>
         </div>
       </section>
 
@@ -523,12 +547,17 @@ export function HomeView({
 
         {/* Quiet Offline Footnote */}
         {typeof cachedCount === 'number' && cachedCount < 114 && (
-          <p
-            className="text-center text-[11px] pt-1"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            অফলাইনে সংরক্ষিত সূরা: {toBanglaDigits(cachedCount)} / ১১৪ • সেটিংস থেকে ডাউনলোড করুন
-          </p>
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="text-[11px] cursor-pointer transition-opacity active:opacity-70"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              অফলাইনে সংরক্ষিত সূরা: {toBanglaDigits(cachedCount)} / ১১৪ •{' '}
+              <span style={{ color: 'var(--accent)' }}>সেটিংস থেকে ডাউনলোড করুন</span>
+            </button>
+          </div>
         )}
       </div>
     </div>

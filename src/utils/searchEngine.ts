@@ -2032,24 +2032,24 @@ interface AppActionDef {
 const STATIC_APP_ACTIONS: AppActionDef[] = [
   {
     id: 'ramadan',
-    titleBangla: 'সেহরি ও ইফতারের সময়সূচী',
+    titleBangla: 'সাহরি ও ইফতারের সময়সূচি',
     subtitleBangla: 'রমজান ও হিজরি ক্যালেন্ডার',
     keywords:
-      'সেহরি ইফতার রোজা রমজান হিজরি ক্যালেন্ডার সময়সূচী sehri sahri iftar ifter ramadan romjan roza fasting calendar schedule',
+      'সাহরি সেহরি ইফতার রোজা রমজান হিজরি ক্যালেন্ডার সময়সূচি সময়সূচী sehri sahri iftar ifter ramadan romjan roza fasting calendar schedule',
   },
   {
     id: 'stats',
-    titleBangla: 'আমলের পরিসংখ্যান',
-    subtitleBangla: 'দৈনিক তিলাওয়াত, জিকির, স্ট্রিক ও লক্ষ্য',
+    titleBangla: 'প্রোফাইল ও আমলের পরিসংখ্যান',
+    subtitleBangla: 'দৈনিক তিলাওয়াত লক্ষ্য, স্ট্রিক, ওয়াক্ত ও লোকেশন',
     keywords:
-      'পরিসংখ্যান আমল স্ট্রিক দৈনিক লক্ষ্য তিলাওয়াত হিসাব stats statistics streak daily goal progress history',
+      'প্রোফাইল পরিসংখ্যান আমল স্ট্রিক দৈনিক লক্ষ্য তিলাওয়াত হিসাব ওয়াক্ত লোকেশন profile stats statistics streak daily goal progress history waqt location',
   },
   {
     id: 'settings',
     titleBangla: 'সেটিংস ও অফলাইন ডাউনলোড',
-    subtitleBangla: 'থিম, ফন্ট সাইজ, গ্লাস মোড ও লোকেশন',
+    subtitleBangla: 'থিম, ফন্ট সাইজ, গ্লাস মোড ও ব্যাকআপ',
     keywords:
-      'সেটিংস থিম ডার্ক মোড ফন্ট সাইজ অফলাইন ডাউনলোড লোকেশন settings theme dark mode paper olive sky black font offline download location',
+      'সেটিংস থিম ডার্ক মোড ফন্ট সাইজ অফলাইন ডাউনলোড ব্যাকআপ settings theme dark mode paper olive sky black font offline download backup',
   },
   {
     id: 'savedDuas',

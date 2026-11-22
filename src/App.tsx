@@ -6,12 +6,12 @@ import { DuasView } from './components/DuasView';
 import { FastingScheduleView } from './components/FastingScheduleView';
 import { GlobalSearchOverlay } from './components/GlobalSearchOverlay';
 import { HomeView } from './components/HomeView';
+import { ProfileView, type ProfileSection } from './components/ProfileView';
 import { ReaderView } from './components/ReaderView';
 import { RoutineDetailView } from './components/RoutineDetailView';
 import { RoutinesView } from './components/RoutinesView';
-import { SettingsView } from './components/SettingsView';
+import { SettingsSheet } from './components/SettingsSheet';
 import { SplashScreen } from './components/SplashScreen';
-import { StatsView } from './components/StatsView';
 import { SurahListView } from './components/SurahListView';
 import { useToast } from './components/ToastProvider';
 import { DUA_MAP, type DuaItem } from './data/duas';
@@ -45,8 +45,13 @@ export function App() {
   const toast = useToast();
   const [dbReady, setDbReady] = useState(false);
   const [route, setRoute] = useState<AppRoute>(() => parseRoute());
+  const [profileSection, setProfileSection] = useState<ProfileSection>('stats');
   const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => {
+    const normalized = window.location.pathname.replace(/\/+$/, '');
+    return normalized === '/settings';
+  });
   const [savedDuasNonce, setSavedDuasNonce] = useState(0);
   const lastBaseRouteRef = useRef<AppRoute>({ type: 'tab', tab: 'home' });
   const scrollPositionsRef = useRef<Record<string, number>>({});
@@ -80,7 +85,7 @@ export function App() {
 
   // Keep non-reader return destination up to date
   useEffect(() => {
-    if (!isReaderRoute(route) && route.type !== 'stats' && route.type !== 'ramadan') {
+    if (!isReaderRoute(route) && route.type !== 'ramadan') {
       lastBaseRouteRef.current = route;
     }
   }, [route]);
@@ -285,8 +290,13 @@ export function App() {
   );
 
   const openStats = useCallback(() => {
-    navigate({ type: 'stats' });
+    setProfileSection('stats');
+    navigate({ type: 'tab', tab: 'profile' });
   }, [navigate]);
+
+  const openSettings = useCallback(() => {
+    setSettingsOpen(true);
+  }, []);
 
   const openRamadanSchedule = useCallback(() => {
     navigate({ type: 'ramadan' });
@@ -446,29 +456,37 @@ export function App() {
     return <SplashScreen />;
   }
 
-  const globalSearchElement = (
-    <GlobalSearchOverlay
-      open={searchOpen}
-      bookmarkedDuaIds={settings.bookmarkedDuaIds ?? []}
-      isJummah={clock.isJummah}
-      waqtSurahId={clock.waqtSuggestion.surahId}
-      waqtLabel={`${clock.waqtSuggestion.contextLabelBn} • ${clock.waqtSuggestion.hintBn}`}
-      onClose={() => setSearchOpen(false)}
-      onOpenSurah={handleOpenSurah}
-      onOpenDua={handleOpenDua}
-      onOpenDuaChapter={(chapterId) =>
-        navigate({ type: 'tab', tab: 'duas', duaChapterId: chapterId })
-      }
-      onOpenSavedDuas={() => {
-        setSavedDuasNonce((n) => n + 1);
-        navigate({ type: 'tab', tab: 'duas', duaChapterId: null });
-      }}
-      onOpenRoutineDetails={openRoutineDetails}
-      onOpenStats={openStats}
-      onOpenFastingSchedule={openRamadanSchedule}
-      onOpenSettings={() => navigate({ type: 'tab', tab: 'settings' })}
-      onOpenRoutinesTab={() => navigate({ type: 'tab', tab: 'routines' })}
-    />
+  const globalOverlays = (
+    <>
+      <GlobalSearchOverlay
+        open={searchOpen}
+        bookmarkedDuaIds={settings.bookmarkedDuaIds ?? []}
+        isJummah={clock.isJummah}
+        waqtSurahId={clock.waqtSuggestion.surahId}
+        waqtLabel={`${clock.waqtSuggestion.contextLabelBn} • ${clock.waqtSuggestion.hintBn}`}
+        onClose={() => setSearchOpen(false)}
+        onOpenSurah={handleOpenSurah}
+        onOpenDua={handleOpenDua}
+        onOpenDuaChapter={(chapterId) =>
+          navigate({ type: 'tab', tab: 'duas', duaChapterId: chapterId })
+        }
+        onOpenSavedDuas={() => {
+          setSavedDuasNonce((n) => n + 1);
+          navigate({ type: 'tab', tab: 'duas', duaChapterId: null });
+        }}
+        onOpenRoutineDetails={openRoutineDetails}
+        onOpenStats={openStats}
+        onOpenFastingSchedule={openRamadanSchedule}
+        onOpenSettings={openSettings}
+        onOpenRoutinesTab={() => navigate({ type: 'tab', tab: 'routines' })}
+      />
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onUpdateSettings={handleUpdateSettings}
+      />
+    </>
   );
 
   if (route.type === 'dua') {
@@ -489,7 +507,7 @@ export function App() {
               navigate({ type: 'surah', surahId, initialAyah: startAyah })
             }
           />
-          {globalSearchElement}
+          {globalOverlays}
         </>
       );
     }
@@ -509,7 +527,7 @@ export function App() {
           }
           onUpdateSettings={handleUpdateSettings}
         />
-        {globalSearchElement}
+        {globalOverlays}
       </>
     );
   }
@@ -542,7 +560,7 @@ export function App() {
                   navigate({ type: 'surah', surahId, initialAyah: startAyah })
                 }
               />
-              {globalSearchElement}
+              {globalOverlays}
             </>
           );
         }
@@ -588,31 +606,18 @@ export function App() {
               }
               onUpdateSettings={handleUpdateSettings}
             />
-            {globalSearchElement}
+            {globalOverlays}
           </>
         );
       }
     }
   }
 
-  if (route.type === 'stats') {
-    return (
-      <>
-        <StatsView
-          settings={settings}
-          onUpdateSettings={handleUpdateSettings}
-          onBack={closeSubView}
-        />
-        {globalSearchElement}
-      </>
-    );
-  }
-
   if (route.type === 'ramadan') {
     return (
       <>
         <FastingScheduleView settings={settings} onBack={closeSubView} />
-        {globalSearchElement}
+        {globalOverlays}
       </>
     );
   }
@@ -627,7 +632,7 @@ export function App() {
           onBack={closeRoutineDetails}
           onStartItem={handleStartRoutineItem}
         />
-        {globalSearchElement}
+        {globalOverlays}
       </>
     );
   }
@@ -644,6 +649,7 @@ export function App() {
         <HomeView
           settings={settings}
           onOpenSearch={() => setSearchOpen(true)}
+          onOpenSettings={openSettings}
           onOpenSurah={handleOpenSurah}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
@@ -684,11 +690,14 @@ export function App() {
           onHandledCreate={() => setOpenCreateRoutine(false)}
         />
       )}
-      {activeTab === 'settings' && (
-        <SettingsView
+      {activeTab === 'profile' && (
+        <ProfileView
           settings={settings}
+          activeSection={profileSection}
+          onChangeSection={setProfileSection}
           onUpdateSettings={handleUpdateSettings}
-          onOpenStats={openStats}
+          onOpenSettings={openSettings}
+          onOpenFastingSchedule={openRamadanSchedule}
         />
       )}
 
@@ -696,7 +705,7 @@ export function App() {
         <BottomNav activeTab={activeTab} onChange={handleTabChange} />
       )}
 
-      {globalSearchElement}
+      {globalOverlays}
     </div>
   );
 }

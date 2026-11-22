@@ -25,8 +25,8 @@
   --text-primary: #1f241e;
   --text-secondary: #5e5a4f;
   --text-muted: #8a8373;
-  --accent: #1b4d3e;
-  --accent-soft: rgba(27, 77, 62, 0.1);
+  --accent: #8c6223;
+  --accent-soft: rgba(140, 98, 35, 0.12);
   --accent-text: #ffffff;
   --gold: #b48a3e;
   --gold-soft: rgba(180, 138, 62, 0.14);
@@ -37,7 +37,7 @@
   --calligraphy-ink: var(--gold);
   --calligraphy-opacity: 0.3;
   --logo-bg: var(--accent);
-  --logo-accent: var(--gold);
+  --logo-accent: #f2dca6;
   --logo-page: var(--bg-page);
   --logo-lines: var(--accent);
   --glass-tint-pill: #fffdf8;
@@ -299,6 +299,23 @@ b {
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Optical edge alignment: sura_names.woff2 embeds ~15% symmetrical side-bearings */
+.font-surah-names-start {
+  display: inline-block;
+  transform: translateX(-14.5%);
+}
+
+.font-surah-names-end {
+  display: inline-block;
+  transform: translateX(14.5%);
+}
+
+/* Trims built-in ~0.26em side-bearings in flow for inline / centered rows */
+.font-surah-names-tight {
+  display: inline-block;
+  margin-inline: -0.24em;
 }
 
 .font-brand-ar {

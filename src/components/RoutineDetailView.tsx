@@ -354,7 +354,7 @@ export function RoutineDetailView({
                           <div className="space-y-1 text-xs">
                             <p style={{ color: 'var(--text-secondary)' }}>
                               অর্থ: <span className="font-medium">{surahMeta.meaningBangla}</span> •{' '}
-                              {surahMeta.revelationPlace === 'makkah' ? 'মক্কী' : 'মাদানী'}
+                              {surahMeta.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
                             </p>
                             <p style={{ color: 'var(--text-muted)' }}>
                               নির্ধারিত অংশ: আয়াত {toBanglaDigits(item.startAyah)} থেকে{' '}
@@ -364,7 +364,7 @@ export function RoutineDetailView({
                             </p>
                           </div>
                           <span
-                            className="font-surah-names text-[2rem] leading-none shrink-0 select-none"
+                            className="font-surah-names font-surah-names-end text-[2rem] leading-none shrink-0 select-none"
                             style={{ color: 'var(--text-primary)' }}
                             aria-hidden="true"
                           >

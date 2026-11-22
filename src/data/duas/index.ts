@@ -56,7 +56,7 @@ export const DUA_CHAPTERS: DuaChapter[] = [
   {
     id: 7,
     titleBangla: 'সফর সংক্রান্ত দুআ ও জিকির',
-    subtitleBangla: 'সপ্তম অধ্যায় • বের হওয়া, বাহন, বাজার ও ঘরে ফেরা',
+    subtitleBangla: 'সপ্তম অধ্যায় • বের হওয়া, বাহন, বাজার, কর্মস্থল ও ঘরে ফেরা',
   },
   {
     id: 8,

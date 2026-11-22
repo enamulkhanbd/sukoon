@@ -530,6 +530,16 @@ const QUERY_SYNONYMS: Record<string, string[]> = {
   mata: ['মাতা'],
   baba: ['পিতা'],
   ma: ['মাতা'],
+  office: ['অফিস', 'কর্মস্থল'],
+  work: ['কর্মস্থল', 'অফিস', 'কাজ'],
+  workplace: ['কর্মস্থল', 'অফিস'],
+  job: ['কর্মস্থল', 'অফিস'],
+  kormosthol: ['কর্মস্থল', 'অফিস'],
+  kormoisthan: ['কর্মস্থল', 'অফিস'],
+  shop: ['দোকান', 'ব্যবসাপ্রতিষ্ঠান', 'বাজার'],
+  dokan: ['দোকান', 'কর্মস্থল'],
+  business: ['ব্যবসাপ্রতিষ্ঠান', 'কর্মস্থল'],
+  mudkhala: ['মুদখালা', 'কর্মস্থল'],
 };
 
 /** Extra Banglish / alternative names for Surahs beyond `nameSimple`. */
@@ -657,7 +667,7 @@ const DUA_CHAPTER_ALIASES: Record<number, string[]> = {
   4: ['food', 'eating', 'khabar', 'water', 'pani', 'iftar', 'dawat', 'khawa'],
   5: ['family', 'poribar', 'marriage', 'biye', 'child', 'sontan', 'baby'],
   6: ['daily', 'cloth', 'poshak', 'majlis', 'istikhara', 'istekhara', '99 names', 'asmaul husna'],
-  7: ['travel', 'sofor', 'safar', 'vehicle', 'market', 'bajar', 'home'],
+  7: ['travel', 'sofor', 'safar', 'vehicle', 'market', 'bajar', 'home', 'office', 'workplace', 'kormosthol'],
   8: ['danger', 'bipod', 'anxiety', 'tension', 'duschinta', 'debt', 'rin', 'difficulty'],
   9: ['sick', 'osustho', 'illness', 'shifa', 'healing', 'bodnojor', 'evil eye', 'kobor', 'grave'],
   10: ['ruqyah', 'rukia', 'jadu', 'magic', 'protection', 'bodnojor', 'jharfuk', 'ayatul kursi'],

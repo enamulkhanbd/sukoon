@@ -40,18 +40,26 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem('sukoon-theme');
-          var themes = {
-            paper: { meta: '#FAF6EE', bg: '#1B4D3E', s: '#C6A253', p: '#FAF6EE', l: '#1B4D3E' },
-            olive: { meta: '#EEF2EA', bg: '#2C593D', s: '#C4AA62', p: '#F6F9F3', l: '#2C593D' },
-            sky: { meta: '#F2F6FA', bg: '#0077D8', s: '#CFE8FF', p: '#F2F6FA', l: '#0077D8' },
-            black: { meta: '#070807', bg: '#141714', s: '#CFA85C', p: '#E8E2D5', l: '#4C9A74' },
+          var rawT = localStorage.getItem('sukoon-theme');
+          var rawM = localStorage.getItem('sukoon-mode');
+          var t = rawT === 'black' ? 'olive' : (rawT === 'paper' || rawT === 'olive' || rawT === 'sky' ? rawT : 'paper');
+          var mode = rawT === 'black' ? 'dark' : (rawM === 'dark' ? 'dark' : 'light');
+          var variants = {
+            'paper-light': { meta: '#FAF6EE', bg: '#1B4D3E', s: '#C6A253', p: '#FAF6EE', l: '#1B4D3E' },
+            'olive-light': { meta: '#EEF2EA', bg: '#2C593D', s: '#C4AA62', p: '#F6F9F3', l: '#2C593D' },
+            'sky-light': { meta: '#F2F6FA', bg: '#0077D8', s: '#CFE8FF', p: '#F2F6FA', l: '#0077D8' },
+            'paper-dark': { meta: '#110F0C', bg: '#1B1712', s: '#D4A654', p: '#F0E8DA', l: '#8C6A2B' },
+            'olive-dark': { meta: '#070907', bg: '#111511', s: '#CFA85C', p: '#E6EBE5', l: '#4C9A74' },
+            'sky-dark': { meta: '#090E16', bg: '#111926', s: '#7BB6EB', p: '#E7EFF8', l: '#4CA3F5' },
           };
-          var c = t && themes[t];
+          var c = variants[t + '-' + mode];
           if (c) {
             document.documentElement.setAttribute('data-theme', t);
+            document.documentElement.setAttribute('data-mode', mode);
             var m = document.querySelector('meta[name="theme-color"]');
             if (m) m.setAttribute('content', c.meta);
+            var sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+            if (sb) sb.setAttribute('content', mode === 'dark' ? 'black-translucent' : 'default');
             var icon = document.querySelector('link[rel="icon"]');
             if (icon) {
               var svg =

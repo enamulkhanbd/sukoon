@@ -62,9 +62,9 @@ const VARIANT_CONFIG: Record<
   },
   error: {
     icon: XCircle,
-    borderColor: '#dc2626',
-    iconColor: '#dc2626',
-    badgeBg: 'rgba(220, 38, 38, 0.12)',
+    borderColor: 'var(--danger)',
+    iconColor: 'var(--danger)',
+    badgeBg: 'var(--danger-soft)',
   },
   info: {
     icon: Info,

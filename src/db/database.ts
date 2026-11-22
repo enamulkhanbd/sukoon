@@ -109,14 +109,38 @@ export interface CachedSurah {
   scriptVersion?: number;
 }
 
-export type ThemeMode = 'paper' | 'olive' | 'sky' | 'black';
+export type ThemeMode = 'paper' | 'olive' | 'sky';
+export type ColorMode = 'light' | 'dark';
 
 const VALID_THEMES: ReadonlySet<ThemeMode> = new Set([
   'paper',
   'olive',
   'sky',
-  'black',
 ]);
+
+const VALID_COLOR_MODES: ReadonlySet<ColorMode> = new Set(['light', 'dark']);
+
+/**
+ * Normalizes stored or imported theme + light/dark mode settings.
+ * Seamlessly migrates the legacy `'black'` theme to `{ theme: 'olive', colorMode: 'dark' }`.
+ */
+export function normalizeThemeSettings(
+  rawTheme: unknown,
+  rawMode: unknown
+): { theme: ThemeMode; colorMode: ColorMode } {
+  if (rawTheme === 'black') {
+    return { theme: 'olive', colorMode: 'dark' };
+  }
+  const theme: ThemeMode =
+    typeof rawTheme === 'string' && VALID_THEMES.has(rawTheme as ThemeMode)
+      ? (rawTheme as ThemeMode)
+      : 'paper';
+  const colorMode: ColorMode =
+    typeof rawMode === 'string' && VALID_COLOR_MODES.has(rawMode as ColorMode)
+      ? (rawMode as ColorMode)
+      : 'light';
+  return { theme, colorMode };
+}
 
 export type GlassMode = 'clear' | 'frosted' | 'solid';
 
@@ -146,6 +170,7 @@ export function inferGlassModeFromOpacity(opacity: number): GlassMode {
 export interface Settings {
   key: string;
   theme: ThemeMode;
+  colorMode?: ColorMode;
   glassMode?: GlassMode;
   glassOpacity?: number; // 20 - 96 (%)
   fontSize: number; // 24px - 44px
@@ -164,6 +189,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   key: 'app',
   theme: 'paper',
+  colorMode: 'light',
   glassMode: 'frosted',
   glassOpacity: GLASS_PRESET_OPACITY.frosted,
   fontSize: 32,
@@ -843,7 +869,26 @@ export function ensureDatabaseInitialized(): Promise<void> {
         await db.settings.put(DEFAULT_SETTINGS);
         syncIslamicClockSettings(DEFAULT_SETTINGS);
       } else {
-        syncIslamicClockSettings(existingSettings);
+        const normalized = normalizeThemeSettings(
+          existingSettings.theme,
+          existingSettings.colorMode
+        );
+        if (
+          (existingSettings.theme as string) !== normalized.theme ||
+          existingSettings.colorMode !== normalized.colorMode
+        ) {
+          const migrated: Settings = {
+            ...DEFAULT_SETTINGS,
+            ...existingSettings,
+            theme: normalized.theme,
+            colorMode: normalized.colorMode,
+            key: 'app',
+          };
+          await db.settings.put(migrated);
+          syncIslamicClockSettings(migrated);
+        } else {
+          syncIslamicClockSettings(existingSettings);
+        }
       }
       await resetStaleRoutineProgressIfNeeded();
     })();
@@ -1195,9 +1240,8 @@ export async function importUserData(raw: unknown): Promise<{
 
       if (settings && typeof settings === 'object') {
         const cachedCount = await db.cachedSurahs.count();
-        const safeTheme: ThemeMode = VALID_THEMES.has(settings.theme)
-          ? settings.theme
-          : DEFAULT_SETTINGS.theme;
+        const { theme: safeTheme, colorMode: safeColorMode } =
+          normalizeThemeSettings(settings.theme, settings.colorMode);
         const safeGlassMode: GlassMode =
           settings.glassMode && VALID_GLASS_MODES.has(settings.glassMode)
             ? settings.glassMode
@@ -1211,6 +1255,7 @@ export async function importUserData(raw: unknown): Promise<{
           ...DEFAULT_SETTINGS,
           ...settings,
           theme: safeTheme,
+          colorMode: safeColorMode,
           glassMode: safeGlassMode,
           glassOpacity: safeGlassOpacity,
           key: 'app',

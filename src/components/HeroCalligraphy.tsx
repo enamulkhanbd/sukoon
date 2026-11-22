@@ -1,8 +1,8 @@
 /**
  * Classical Jali Thuluth calligraphy banner of Surah Ar-Ra'd (13:28):
  * "أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ"
- * Uses --calligraphy-ink (falling back to --text-primary) with subtle SVG-level
- * opacity so it adapts cleanly across Paper, Olive, Sky, and Black themes.
+ * Uses --calligraphy-ink & --calligraphy-opacity so it adapts cleanly across
+ * Light & Dark modes for Paper, Olive, and Sky themes.
  */
 export function HeroCalligraphy() {
   return (

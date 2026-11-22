@@ -103,10 +103,13 @@ export function DailyGoalSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
-      style={backdropStyle}
+      style={{
+        ...backdropStyle,
+        backgroundColor: 'var(--backdrop-scrim)',
+      }}
       onClick={onClose}
     >
       <div
@@ -211,7 +214,7 @@ export function DailyGoalSheet({
                 className="flex-1 px-3.5 py-2.5 rounded-2xl text-xs outline-none"
                 style={{
                   backgroundColor: 'var(--bg-surface)',
-                  boxShadow: error ? 'inset 0 0 0 1px #dc2626' : undefined,
+                  boxShadow: error ? 'inset 0 0 0 1px var(--danger)' : undefined,
                   color: 'var(--text-primary)',
                 }}
               />
@@ -220,7 +223,9 @@ export function DailyGoalSheet({
               </span>
             </div>
             {error && (
-              <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-[11px]" style={{ color: 'var(--danger)' }}>
+                {error}
+              </p>
             )}
           </div>
 

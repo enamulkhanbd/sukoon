@@ -12,18 +12,22 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Moon,
   Search,
   SlidersHorizontal,
+  Sun,
   X,
 } from 'lucide-react';
 import {
   clampGlassOpacity,
   inferGlassModeFromOpacity,
+  type ColorMode,
   type GlassMode,
   type Settings,
   type ThemeMode,
 } from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
+import { getThemeVariantMeta } from '../utils/themeRegistry';
 
 /**
  * Native-style bottom sheet controller: deterministic mount->paint slide up/down
@@ -415,33 +419,99 @@ export function TopBar({
   );
 }
 
+export const COLOR_MODE_OPTIONS: Array<{
+  id: ColorMode;
+  label: string;
+  desc: string;
+}> = [
+  { id: 'light', label: 'আলো (Light)', desc: 'দিনের আরামদায়ক আলো' },
+  { id: 'dark', label: 'রাত (Dark)', desc: 'রাতের শান্ত ডার্ক মোড' },
+];
+
+interface ModePickerProps {
+  value: ColorMode;
+  onSelect: (mode: ColorMode, label: string) => void;
+}
+
+/** Clean 2-segment Light / Dark mode selector shared across Settings and Reader sheets. */
+export function ModePicker({ value, onSelect }: ModePickerProps) {
+  return (
+    <div
+      className="grid grid-cols-2 gap-1 p-1 rounded-2xl"
+      style={{
+        backgroundColor:
+          'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+      }}
+    >
+      {COLOR_MODE_OPTIONS.map((m) => {
+        const active = value === m.id;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onSelect(m.id, m.label)}
+            aria-pressed={active}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
+            style={{
+              backgroundColor: active ? 'var(--accent)' : 'transparent',
+              color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+            }}
+          >
+            {m.id === 'light' ? (
+              <Sun className="w-3.5 h-3.5 shrink-0" />
+            ) : (
+              <Moon className="w-3.5 h-3.5 shrink-0" />
+            )}
+            <span>{m.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export const THEME_OPTIONS: Array<{
   id: ThemeMode;
   label: string;
-  desc: string;
-  swatch: string;
-  ink: string;
+  descLight: string;
+  descDark: string;
 }> = [
-  { id: 'paper', label: 'কাগজ', desc: 'উষ্ণ মুসহাফ', swatch: '#FAF6EE', ink: '#1F241E' },
-  { id: 'olive', label: 'জলপাই', desc: 'স্নিগ্ধ সবুজ', swatch: '#EEF2EA', ink: '#1A241B' },
-  { id: 'sky', label: 'আকাশ', desc: 'স্নিগ্ধ নীল', swatch: '#E6ECF3', ink: '#0077D8' },
-  { id: 'black', label: 'রাত', desc: 'ওলেড কালো', swatch: '#070807', ink: '#E8E2D5' },
+  {
+    id: 'paper',
+    label: 'কাগজ',
+    descLight: 'উষ্ণ মুসহাফ',
+    descDark: 'উষ্ণ রাত',
+  },
+  {
+    id: 'olive',
+    label: 'জলপাই',
+    descLight: 'স্নিগ্ধ সবুজ',
+    descDark: 'রাতের অলিভ',
+  },
+  {
+    id: 'sky',
+    label: 'আকাশ',
+    descLight: 'স্নিগ্ধ নীল',
+    descDark: 'রাতের আকাশ',
+  },
 ];
 
 interface ThemePickerProps {
   value: ThemeMode;
+  mode?: ColorMode;
   onSelect: (theme: ThemeMode, label: string) => void;
   showDescription?: boolean;
 }
 
-/** Minimal segmented theme selector shared across Settings and Reader sheets. */
+/** Minimal 3-palette theme selector with mode-aware dual-tone swatches. */
 export function ThemePicker({
   value,
+  mode = 'light',
   onSelect,
 }: ThemePickerProps) {
   return (
     <div
-      className="grid grid-cols-4 gap-1 p-1 rounded-2xl"
+      className="grid grid-cols-3 gap-1 p-1 rounded-2xl"
       style={{
         backgroundColor:
           'color-mix(in srgb, var(--text-primary) 5%, transparent)',
@@ -449,28 +519,34 @@ export function ThemePicker({
     >
       {THEME_OPTIONS.map((t) => {
         const active = value === t.id;
+        const { swatchBg, swatchAccent } = getThemeVariantMeta(t.id, mode);
         return (
           <button
             key={t.id}
             type="button"
             onClick={() => onSelect(t.id, t.label)}
             aria-pressed={active}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
             style={{
               backgroundColor: active ? 'var(--accent)' : 'transparent',
               color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
             }}
           >
             <span
-              className="w-3.5 h-3.5 rounded-full border shrink-0"
+              className="w-4 h-4 rounded-full border shrink-0 flex items-center justify-center"
               style={{
-                backgroundColor: t.swatch,
+                backgroundColor: swatchBg,
                 borderColor: active
                   ? 'color-mix(in srgb, var(--accent-text) 55%, transparent)'
-                  : 'color-mix(in srgb, var(--text-primary) 22%, transparent)',
+                  : 'color-mix(in srgb, var(--text-primary) 24%, transparent)',
               }}
               aria-hidden="true"
-            />
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: swatchAccent }}
+              />
+            </span>
             <span>{t.label}</span>
           </button>
         );
@@ -848,10 +924,13 @@ export function ReaderQuickSettingsSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
-      style={backdropStyle}
+      style={{
+        ...backdropStyle,
+        backgroundColor: 'var(--backdrop-scrim)',
+      }}
       onClick={onClose}
     >
       <div
@@ -896,11 +975,21 @@ export function ReaderQuickSettingsSheet({
 
         <div className="px-5 pb-5 space-y-5">
 
+        {/* Light / Dark Mode Selection */}
+        <div className="space-y-2">
+          <label className="block text-xs font-medium">মোড</label>
+          <ModePicker
+            value={settings.colorMode ?? 'light'}
+            onSelect={(colorMode) => onUpdateSettings({ colorMode })}
+          />
+        </div>
+
         {/* Theme Selection */}
         <div className="space-y-2">
           <label className="block text-xs font-medium">পড়ার থিম</label>
           <ThemePicker
             value={settings.theme}
+            mode={settings.colorMode ?? 'light'}
             onSelect={(theme) => onUpdateSettings({ theme })}
           />
         </div>
@@ -944,9 +1033,14 @@ export function ReaderQuickSettingsSheet({
             }}
           >
             <span
-              className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+              className={`block w-5 h-5 rounded-full transition-transform ${
                 settings.keepScreenAwake ? 'translate-x-5' : 'translate-x-0'
               }`}
+              style={{
+                backgroundColor: settings.keepScreenAwake
+                  ? 'var(--accent-text)'
+                  : 'var(--bg-elevated)',
+              }}
             />
           </button>
         </div>

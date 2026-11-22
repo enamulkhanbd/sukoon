@@ -888,10 +888,13 @@ export function RoutinesView({
       {/* Create / Edit Routine Bottom Sheet (-72px from top over dimmed overlay) */}
       {sheetMounted && (
         <div
-          className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] pt-[72px] sm:px-4 sukoon-sheet-backdrop ${
+          className={`fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px] pt-[72px] sm:px-4 sukoon-sheet-backdrop ${
             sheetVisible ? '' : 'pointer-events-none'
           }`}
-          style={sheetBackdropStyle}
+          style={{
+            ...sheetBackdropStyle,
+            backgroundColor: 'var(--backdrop-scrim)',
+          }}
           onClick={() => setIsModalOpen(false)}
         >
           <div
@@ -1549,9 +1552,10 @@ export function RoutinesView({
 
               {formError && (
                 <div
-                  className="mx-5 mb-2 px-3.5 py-2 rounded-xl text-xs font-medium text-red-600 shrink-0"
+                  className="mx-5 mb-2 px-3.5 py-2 rounded-xl text-xs font-medium shrink-0"
                   style={{
-                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                    color: 'var(--danger)',
+                    backgroundColor: 'var(--danger-soft)',
                   }}
                 >
                   {formError}

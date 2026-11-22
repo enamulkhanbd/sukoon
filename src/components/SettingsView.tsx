@@ -52,7 +52,9 @@ import {
   GLASS_OPTIONS,
   GlassOpacityControl,
   GlassPicker,
+  ModePicker,
   TabHeader,
+  THEME_OPTIONS,
   ThemePicker,
   useBottomSheet,
 } from './NavigationChrome';
@@ -99,10 +101,13 @@ function LocationPickerSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
-      style={backdropStyle}
+      style={{
+        ...backdropStyle,
+        backgroundColor: 'var(--backdrop-scrim)',
+      }}
       onClick={onClose}
     >
       <div
@@ -432,9 +437,37 @@ export function SettingsView({
           <h2 className="text-sm font-semibold">থিম ও দৃশ্যমানতা</h2>
 
           <div className="space-y-2">
-            <span className="text-xs font-medium block">থিম</span>
+            <span className="text-xs font-medium block">মোড</span>
+            <ModePicker
+              value={settings.colorMode ?? 'light'}
+              onSelect={async (colorMode, label) => {
+                await onUpdateSettings({ colorMode });
+                toast.success(`মোড পরিবর্তন হয়েছে: ${label}`);
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-medium">থিম</span>
+              <span
+                className="text-[11px]"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {(() => {
+                  const activeThemeOpt = THEME_OPTIONS.find(
+                    (t) => t.id === settings.theme
+                  );
+                  if (!activeThemeOpt) return '';
+                  return (settings.colorMode ?? 'light') === 'dark'
+                    ? activeThemeOpt.descDark
+                    : activeThemeOpt.descLight;
+                })()}
+              </span>
+            </div>
             <ThemePicker
               value={settings.theme}
+              mode={settings.colorMode ?? 'light'}
               onSelect={async (theme, label) => {
                 await onUpdateSettings({ theme });
                 toast.success(`থিম পরিবর্তন হয়েছে: ${label}`);
@@ -521,9 +554,14 @@ export function SettingsView({
               }}
             >
               <span
-                className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                className={`block w-5 h-5 rounded-full transition-transform ${
                   settings.keepScreenAwake ? 'translate-x-5' : 'translate-x-0'
                 }`}
+                style={{
+                  backgroundColor: settings.keepScreenAwake
+                    ? 'var(--accent-text)'
+                    : 'var(--bg-elevated)',
+                }}
               />
             </button>
           </div>

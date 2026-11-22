@@ -936,9 +936,14 @@ export function DuaReaderView({
               }}
             >
               <span
-                className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                className={`block w-5 h-5 rounded-full transition-transform ${
                   showTransliteration ? 'translate-x-5' : 'translate-x-0'
                 }`}
+                style={{
+                  backgroundColor: showTransliteration
+                    ? 'var(--accent-text)'
+                    : 'var(--bg-elevated)',
+                }}
               />
             </button>
           </div>

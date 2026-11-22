@@ -1,42 +1,18 @@
-import type { ThemeMode } from '../db/database';
+import type { ColorMode, ThemeMode } from '../db/database';
+import {
+  getThemeVariantKey,
+  getThemeVariantMeta,
+  type ThemeVariantKey,
+} from './themeRegistry';
 
-interface ThemeIconPalette {
-  bg: string;
-  stroke: string;
-  page: string;
-  lines: string;
-}
+export { getThemeVariantKey, type ThemeVariantKey } from './themeRegistry';
 
-const THEME_ICON_PALETTES: Record<ThemeMode, ThemeIconPalette> = {
-  paper: {
-    bg: '#1B4D3E',
-    stroke: '#C6A253',
-    page: '#FAF6EE',
-    lines: '#1B4D3E',
-  },
-  olive: {
-    bg: '#2C593D',
-    stroke: '#C4AA62',
-    page: '#F6F9F3',
-    lines: '#2C593D',
-  },
-  sky: {
-    bg: '#0077D8',
-    stroke: '#CFE8FF',
-    page: '#F2F6FA',
-    lines: '#0077D8',
-  },
-  black: {
-    bg: '#141714',
-    stroke: '#CFA85C',
-    page: '#E8E2D5',
-    lines: '#4C9A74',
-  },
-};
-
-export function buildThemeIconSvg(theme: ThemeMode, rounded = true): string {
-  const { bg, stroke, page, lines } =
-    THEME_ICON_PALETTES[theme] ?? THEME_ICON_PALETTES.paper;
+export function buildThemeIconSvg(
+  theme: ThemeMode,
+  mode: ColorMode = 'light',
+  rounded = true
+): string {
+  const { bg, stroke, page, lines } = getThemeVariantMeta(theme, mode).icon;
   const outerRx = rounded ? 112 : 0;
   const innerRx = rounded ? 90 : 0;
 
@@ -58,7 +34,7 @@ export function buildThemeIconSvg(theme: ThemeMode, rounded = true): string {
 </svg>`;
 }
 
-const appleIconCache = new Map<ThemeMode, string>();
+const appleIconCache = new Map<ThemeVariantKey, string>();
 
 function renderSquarePngDataUrl(svg: string, size: number): Promise<string | null> {
   return new Promise((resolve) => {
@@ -91,13 +67,17 @@ function renderSquarePngDataUrl(svg: string, size: number): Promise<string | nul
 
 /**
  * Dynamically updates the browser tab SVG favicon and iOS apple-touch-icon PNG
- * to match the active Sukoon theme.
+ * to match the active Sukoon theme & light/dark mode combination.
  */
-export function applyThemeIcons(theme: ThemeMode): void {
+export function applyThemeIcons(
+  theme: ThemeMode,
+  mode: ColorMode = 'light'
+): void {
   if (typeof document === 'undefined') return;
+  const key = getThemeVariantKey(theme, mode);
 
   // 1. Live SVG favicon for desktop & mobile browser tabs
-  const faviconSvg = buildThemeIconSvg(theme, true);
+  const faviconSvg = buildThemeIconSvg(theme, mode, true);
   const faviconHref = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(faviconSvg)}`;
   let faviconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (!faviconLink) {
@@ -121,18 +101,21 @@ export function applyThemeIcons(theme: ThemeMode): void {
     appleLink.href = pngUrl;
   };
 
-  const cached = appleIconCache.get(theme);
+  const cached = appleIconCache.get(key);
   if (cached) {
     updateAppleTouchIcon(cached);
     return;
   }
 
   // iOS applies its own squircle mask, so use full-bleed square canvas
-  const squareSvg = buildThemeIconSvg(theme, false);
+  const squareSvg = buildThemeIconSvg(theme, mode, false);
   void renderSquarePngDataUrl(squareSvg, 180).then((pngUrl) => {
     if (!pngUrl) return;
-    appleIconCache.set(theme, pngUrl);
-    if (document.documentElement.getAttribute('data-theme') === theme) {
+    appleIconCache.set(key, pngUrl);
+    if (
+      document.documentElement.getAttribute('data-theme') === theme &&
+      document.documentElement.getAttribute('data-mode') === mode
+    ) {
       updateAppleTouchIcon(pngUrl);
     }
   });

@@ -12,9 +12,9 @@ export function SukoonEmblem({
     <span
       className={`flex items-center justify-center shrink-0 border shadow-xs ${className}`}
       style={{
-        backgroundColor: 'var(--accent)',
+        backgroundColor: 'var(--logo-bg, var(--accent))',
         borderColor:
-          'color-mix(in srgb, var(--logo-accent, var(--gold)) 55%, var(--accent))',
+          'color-mix(in srgb, var(--logo-accent, var(--gold)) 55%, var(--logo-bg, var(--accent)))',
       }}
       aria-hidden="true"
     >
@@ -45,7 +45,7 @@ export function SukoonEmblem({
         {/* Open Mushaf Pages */}
         <path
           d="M32 23.5 C27.8 21.8, 22.3 22, 19 23.8 L19 41 C22.5 39.2, 27.8 39.2, 32 41 C36.2 39.2, 41.5 39.2, 45 41 L45 23.8 C41.7 22, 36.2 21.8, 32 23.5 Z"
-          fill="var(--bg-page)"
+          fill="var(--logo-page, var(--bg-page))"
           stroke="var(--logo-accent, var(--gold))"
           strokeWidth="1.6"
           strokeLinejoin="round"
@@ -63,7 +63,7 @@ export function SukoonEmblem({
           y1="28.2"
           x2="29"
           y2="27.7"
-          stroke="var(--accent)"
+          stroke="var(--logo-lines, var(--accent))"
           strokeOpacity="0.6"
           strokeWidth="1.3"
           strokeLinecap="round"
@@ -73,7 +73,7 @@ export function SukoonEmblem({
           y1="32.4"
           x2="29"
           y2="31.9"
-          stroke="var(--accent)"
+          stroke="var(--logo-lines, var(--accent))"
           strokeOpacity="0.6"
           strokeWidth="1.3"
           strokeLinecap="round"
@@ -83,7 +83,7 @@ export function SukoonEmblem({
           y1="27.7"
           x2="41.5"
           y2="28.2"
-          stroke="var(--accent)"
+          stroke="var(--logo-lines, var(--accent))"
           strokeOpacity="0.6"
           strokeWidth="1.3"
           strokeLinecap="round"
@@ -93,7 +93,7 @@ export function SukoonEmblem({
           y1="31.9"
           x2="41.5"
           y2="32.4"
-          stroke="var(--accent)"
+          stroke="var(--logo-lines, var(--accent))"
           strokeOpacity="0.6"
           strokeWidth="1.3"
           strokeLinecap="round"

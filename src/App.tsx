@@ -23,6 +23,7 @@ import {
   ensureDatabaseInitialized,
   getCompletedItemIndexes,
   getRoutineItems,
+  normalizeThemeSettings,
   resetStaleRoutineProgressIfNeeded,
   syncIslamicClockSettings,
   type Routine,
@@ -38,13 +39,7 @@ import {
   type AppRoute,
 } from './router';
 import { applyThemeIcons } from './utils/themeIcons';
-
-const THEME_META_COLORS: Record<Settings['theme'], string> = {
-  paper: '#FAF6EE',
-  olive: '#EEF2EA',
-  sky: '#F2F6FA',
-  black: '#070807',
-};
+import { getThemeVariantMeta } from './utils/themeRegistry';
 
 export function App() {
   const toast = useToast();
@@ -149,11 +144,15 @@ export function App() {
   );
 
   const rawSettings = useLiveQuery(() => db.settings.get('app'), []);
+  const { theme: resolvedTheme, colorMode: resolvedColorMode } =
+    normalizeThemeSettings(rawSettings?.theme, rawSettings?.colorMode);
   const resolvedGlassMode =
     rawSettings?.glassMode ?? DEFAULT_SETTINGS.glassMode ?? 'frosted';
   const settings: Settings = {
     ...DEFAULT_SETTINGS,
     ...rawSettings,
+    theme: resolvedTheme,
+    colorMode: resolvedColorMode,
     glassMode: resolvedGlassMode,
     glassOpacity:
       typeof rawSettings?.glassOpacity === 'number'
@@ -223,15 +222,17 @@ export function App() {
     }
   }, [dbReady, route, isRoutineReadReady, activeRouteRoutine, navigate]);
 
-  // Apply theme & glass attributes, PWA status bar color, dynamic favicon/app icon & cache for zero-flash splash
+  // Apply theme, light/dark mode & glass attributes, PWA status bar color, dynamic favicon/app icon & cache for zero-flash splash
   useEffect(() => {
     if (rawSettings === undefined && !dbReady) return;
+    const colorMode = settings.colorMode ?? 'light';
     const glassMode = settings.glassMode ?? 'frosted';
     const glassOpacity = clampGlassOpacity(
       settings.glassOpacity ?? GLASS_PRESET_OPACITY[glassMode]
     );
     const root = document.documentElement;
     root.setAttribute('data-theme', settings.theme);
+    root.setAttribute('data-mode', colorMode);
     root.setAttribute('data-glass', glassMode);
     root.style.setProperty('--glass-pill-opacity', `${glassOpacity}%`);
     root.style.setProperty(
@@ -244,17 +245,37 @@ export function App() {
     );
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
-      metaTheme.setAttribute('content', THEME_META_COLORS[settings.theme]);
+      metaTheme.setAttribute(
+        'content',
+        getThemeVariantMeta(settings.theme, colorMode).metaColor
+      );
     }
-    applyThemeIcons(settings.theme);
+    const statusBarMeta = document.querySelector(
+      'meta[name="apple-mobile-web-app-status-bar-style"]'
+    );
+    if (statusBarMeta) {
+      statusBarMeta.setAttribute(
+        'content',
+        colorMode === 'dark' ? 'black-translucent' : 'default'
+      );
+    }
+    applyThemeIcons(settings.theme, colorMode);
     try {
       window.localStorage.setItem('sukoon-theme', settings.theme);
+      window.localStorage.setItem('sukoon-mode', colorMode);
       window.localStorage.setItem('sukoon-glass', glassMode);
       window.localStorage.setItem('sukoon-glass-opacity', String(glassOpacity));
     } catch {
       // Ignore storage quota / private mode errors
     }
-  }, [rawSettings, dbReady, settings.theme, settings.glassMode, settings.glassOpacity]);
+  }, [
+    rawSettings,
+    dbReady,
+    settings.theme,
+    settings.colorMode,
+    settings.glassMode,
+    settings.glassOpacity,
+  ]);
 
   const handleTabChange = useCallback(
     (tab: AppTab) => {

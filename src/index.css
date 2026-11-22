@@ -229,6 +229,14 @@ b {
   border-radius: 9999px;
 }
 
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Apple-style frosted / liquid glass surfaces (floating chrome & sheets only) */
 .sukoon-glass-pill {
   background-color: color-mix(
@@ -347,13 +355,33 @@ b {
   animation: sukoon-count-pop 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+@keyframes sukoon-ayah-flash {
+  0% {
+    box-shadow: 0 0 0 4px var(--ayah-highlight);
+    background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  55% {
+    box-shadow: 0 0 0 2px var(--ayah-highlight);
+    background-color: var(--ayah-highlight);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    background-color: var(--ayah-highlight);
+  }
+}
+
+.sukoon-ayah-flash {
+  animation: sukoon-ayah-flash 2.4s ease-out 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sukoon-sheet-backdrop,
   .sukoon-sheet-panel {
     transition: none !important;
   }
   .sukoon-tasbih-ripple,
-  .sukoon-count-pop {
+  .sukoon-count-pop,
+  .sukoon-ayah-flash {
     animation: none !important;
   }
 }

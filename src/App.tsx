@@ -4,6 +4,7 @@ import { BottomNav, type AppTab } from './components/BottomNav';
 import { DuaReaderView } from './components/DuaReaderView';
 import { DuasView } from './components/DuasView';
 import { FastingScheduleView } from './components/FastingScheduleView';
+import { GlobalSearchOverlay } from './components/GlobalSearchOverlay';
 import { HomeView } from './components/HomeView';
 import { ReaderView } from './components/ReaderView';
 import { RoutineDetailView } from './components/RoutineDetailView';
@@ -50,9 +51,22 @@ export function App() {
   const [dbReady, setDbReady] = useState(false);
   const [route, setRoute] = useState<AppRoute>(() => parseRoute());
   const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [savedDuasNonce, setSavedDuasNonce] = useState(0);
   const lastBaseRouteRef = useRef<AppRoute>({ type: 'tab', tab: 'home' });
   const scrollPositionsRef = useRef<Record<string, number>>({});
   const restoreScrollRef = useRef(false);
+
+  useEffect(() => {
+    const handleShortcut = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   useEffect(() => {
     ensureDatabaseInitialized().then(() => setDbReady(true));
@@ -76,11 +90,15 @@ export function App() {
     }
   }, [route]);
 
-  // Sync browser Back / Forward navigation
+  // Sync browser Back / Forward navigation (ignore no-op history pops like closing search overlay)
   useEffect(() => {
     const handlePopState = () => {
-      restoreScrollRef.current = true;
-      setRoute(parseRoute());
+      const next = parseRoute();
+      setRoute((prev) => {
+        if (buildPath(prev) === buildPath(next)) return prev;
+        restoreScrollRef.current = true;
+        return next;
+      });
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -407,40 +425,71 @@ export function App() {
     return <SplashScreen />;
   }
 
+  const globalSearchElement = (
+    <GlobalSearchOverlay
+      open={searchOpen}
+      bookmarkedDuaIds={settings.bookmarkedDuaIds ?? []}
+      isJummah={clock.isJummah}
+      waqtSurahId={clock.waqtSuggestion.surahId}
+      waqtLabel={`${clock.waqtSuggestion.contextLabelBn} • ${clock.waqtSuggestion.hintBn}`}
+      onClose={() => setSearchOpen(false)}
+      onOpenSurah={handleOpenSurah}
+      onOpenDua={handleOpenDua}
+      onOpenDuaChapter={(chapterId) =>
+        navigate({ type: 'tab', tab: 'duas', duaChapterId: chapterId })
+      }
+      onOpenSavedDuas={() => {
+        setSavedDuasNonce((n) => n + 1);
+        navigate({ type: 'tab', tab: 'duas', duaChapterId: null });
+      }}
+      onOpenRoutineDetails={openRoutineDetails}
+      onOpenStats={openStats}
+      onOpenFastingSchedule={openRamadanSchedule}
+      onOpenSettings={() => navigate({ type: 'tab', tab: 'settings' })}
+      onOpenRoutinesTab={() => navigate({ type: 'tab', tab: 'routines' })}
+    />
+  );
+
   if (route.type === 'dua') {
     const dua = DUA_MAP[route.duaId];
     if (dua) {
       return (
-        <DuaReaderView
-          key={`dua-${dua.id}-free`}
-          dua={dua}
-          settings={settings}
-          onClose={closeReader}
-          onUpdateSettings={handleUpdateSettings}
-          onSelectDuaInChapter={(nextDua) =>
-            navigate({ type: 'dua', duaId: nextDua.id }, { replace: true })
-          }
-          onOpenQuranRef={(surahId, startAyah) =>
-            navigate({ type: 'surah', surahId, initialAyah: startAyah })
-          }
-        />
+        <>
+          <DuaReaderView
+            key={`dua-${dua.id}-free`}
+            dua={dua}
+            settings={settings}
+            onClose={closeReader}
+            onUpdateSettings={handleUpdateSettings}
+            onSelectDuaInChapter={(nextDua) =>
+              navigate({ type: 'dua', duaId: nextDua.id }, { replace: true })
+            }
+            onOpenQuranRef={(surahId, startAyah) =>
+              navigate({ type: 'surah', surahId, initialAyah: startAyah })
+            }
+          />
+          {globalSearchElement}
+        </>
       );
     }
   }
 
   if (route.type === 'surah') {
     return (
-      <ReaderView
-        key={`${route.surahId}-free`}
-        surahId={route.surahId}
-        initialAyah={route.initialAyah}
-        settings={settings}
-        onClose={closeReader}
-        onSelectSurah={(surahId, initialAyah = 1) =>
-          navigate({ type: 'surah', surahId, initialAyah }, { replace: true })
-        }
-        onUpdateSettings={handleUpdateSettings}
-      />
+      <>
+        <ReaderView
+          key={`${route.surahId}-free`}
+          surahId={route.surahId}
+          initialAyah={route.initialAyah}
+          settings={settings}
+          onClose={closeReader}
+          onSelectSurah={(surahId, initialAyah = 1) =>
+            navigate({ type: 'surah', surahId, initialAyah }, { replace: true })
+          }
+          onUpdateSettings={handleUpdateSettings}
+        />
+        {globalSearchElement}
+      </>
     );
   }
 
@@ -452,25 +501,28 @@ export function App() {
         const dua = DUA_MAP[activeItem.duaId];
         if (dua) {
           return (
-            <DuaReaderView
-              key={`dua-${dua.id}-${activeRouteRoutine.id}-${route.itemIndex}`}
-              dua={dua}
-              settings={settings}
-              routine={activeRouteRoutine}
-              routineItemIndex={route.itemIndex}
-              routineTargetCount={activeItem.targetCount}
-              onClose={closeReader}
-              onUpdateSettings={handleUpdateSettings}
-              onSelectDuaInChapter={(nextDua) =>
-                navigate({ type: 'dua', duaId: nextDua.id })
-              }
-              onAdvanceRoutineItem={(nextIdx) =>
-                handleAdvanceRoutineItem(activeRouteRoutine, nextIdx)
-              }
-              onOpenQuranRef={(surahId, startAyah) =>
-                navigate({ type: 'surah', surahId, initialAyah: startAyah })
-              }
-            />
+            <>
+              <DuaReaderView
+                key={`dua-${dua.id}-${activeRouteRoutine.id}-${route.itemIndex}`}
+                dua={dua}
+                settings={settings}
+                routine={activeRouteRoutine}
+                routineItemIndex={route.itemIndex}
+                routineTargetCount={activeItem.targetCount}
+                onClose={closeReader}
+                onUpdateSettings={handleUpdateSettings}
+                onSelectDuaInChapter={(nextDua) =>
+                  navigate({ type: 'dua', duaId: nextDua.id })
+                }
+                onAdvanceRoutineItem={(nextIdx) =>
+                  handleAdvanceRoutineItem(activeRouteRoutine, nextIdx)
+                }
+                onOpenQuranRef={(surahId, startAyah) =>
+                  navigate({ type: 'surah', surahId, initialAyah: startAyah })
+                }
+              />
+              {globalSearchElement}
+            </>
           );
         }
       } else {
@@ -482,38 +534,41 @@ export function App() {
               )
             : activeItem.startAyah;
         return (
-          <ReaderView
-            key={`${activeItem.surahId}-${activeRouteRoutine.id}-${route.itemIndex}`}
-            surahId={activeItem.surahId}
-            initialAyah={initialAyah}
-            routine={activeRouteRoutine}
-            routineItemIndex={route.itemIndex}
-            settings={settings}
-            onClose={closeReader}
-            onSelectSurah={(surahId, nextStartAyah = 1, nextItemIndex) => {
-              if (nextItemIndex !== undefined) {
-                navigate(
-                  {
-                    type: 'routineRead',
-                    routineId: activeRouteRoutine.id,
-                    itemIndex: nextItemIndex,
-                    ayah: nextStartAyah > 1 ? nextStartAyah : undefined,
-                  },
-                  { replace: true }
-                );
-              } else {
-                navigate({
-                  type: 'surah',
-                  surahId,
-                  initialAyah: nextStartAyah,
-                });
+          <>
+            <ReaderView
+              key={`${activeItem.surahId}-${activeRouteRoutine.id}-${route.itemIndex}`}
+              surahId={activeItem.surahId}
+              initialAyah={initialAyah}
+              routine={activeRouteRoutine}
+              routineItemIndex={route.itemIndex}
+              settings={settings}
+              onClose={closeReader}
+              onSelectSurah={(surahId, nextStartAyah = 1, nextItemIndex) => {
+                if (nextItemIndex !== undefined) {
+                  navigate(
+                    {
+                      type: 'routineRead',
+                      routineId: activeRouteRoutine.id,
+                      itemIndex: nextItemIndex,
+                      ayah: nextStartAyah > 1 ? nextStartAyah : undefined,
+                    },
+                    { replace: true }
+                  );
+                } else {
+                  navigate({
+                    type: 'surah',
+                    surahId,
+                    initialAyah: nextStartAyah,
+                  });
+                }
+              }}
+              onAdvanceRoutineItem={(nextIdx) =>
+                handleAdvanceRoutineItem(activeRouteRoutine, nextIdx)
               }
-            }}
-            onAdvanceRoutineItem={(nextIdx) =>
-              handleAdvanceRoutineItem(activeRouteRoutine, nextIdx)
-            }
-            onUpdateSettings={handleUpdateSettings}
-          />
+              onUpdateSettings={handleUpdateSettings}
+            />
+            {globalSearchElement}
+          </>
         );
       }
     }
@@ -521,27 +576,38 @@ export function App() {
 
   if (route.type === 'stats') {
     return (
-      <StatsView
-        settings={settings}
-        onUpdateSettings={handleUpdateSettings}
-        onBack={closeSubView}
-      />
+      <>
+        <StatsView
+          settings={settings}
+          onUpdateSettings={handleUpdateSettings}
+          onBack={closeSubView}
+        />
+        {globalSearchElement}
+      </>
     );
   }
 
   if (route.type === 'ramadan') {
-    return <FastingScheduleView settings={settings} onBack={closeSubView} />;
+    return (
+      <>
+        <FastingScheduleView settings={settings} onBack={closeSubView} />
+        {globalSearchElement}
+      </>
+    );
   }
 
   if (route.type === 'routineDetail') {
     return (
-      <RoutineDetailView
-        key={route.routineId}
-        routineId={route.routineId}
-        settings={settings}
-        onBack={closeRoutineDetails}
-        onStartItem={handleStartRoutineItem}
-      />
+      <>
+        <RoutineDetailView
+          key={route.routineId}
+          routineId={route.routineId}
+          settings={settings}
+          onBack={closeRoutineDetails}
+          onStartItem={handleStartRoutineItem}
+        />
+        {globalSearchElement}
+      </>
     );
   }
 
@@ -556,8 +622,8 @@ export function App() {
       {activeTab === 'home' && (
         <HomeView
           settings={settings}
+          onOpenSearch={() => setSearchOpen(true)}
           onOpenSurah={handleOpenSurah}
-          onOpenDua={handleOpenDua}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
           onOpenFastingSchedule={openRamadanSchedule}
@@ -571,6 +637,7 @@ export function App() {
       {activeTab === 'surahs' && (
         <SurahListView
           settings={settings}
+          onOpenSearch={() => setSearchOpen(true)}
           onOpenSurah={(id, initialAyah = 1) => handleOpenSurah(id, initialAyah)}
         />
       )}
@@ -578,6 +645,8 @@ export function App() {
         <DuasView
           settings={settings}
           selectedChapterId={activeDuaChapterId}
+          savedFilterNonce={savedDuasNonce}
+          onOpenSearch={() => setSearchOpen(true)}
           onSelectChapter={(chapterId) =>
             navigate(
               { type: 'tab', tab: 'duas', duaChapterId: chapterId },
@@ -591,6 +660,7 @@ export function App() {
       {activeTab === 'routines' && (
         <RoutinesView
           settings={settings}
+          onOpenSearch={() => setSearchOpen(true)}
           onOpenRoutineDetails={openRoutineDetails}
           shouldOpenCreate={openCreateRoutine}
           onHandledCreate={() => setOpenCreateRoutine(false)}
@@ -607,6 +677,8 @@ export function App() {
       {!hidesBottomNav(route) && (
         <BottomNav activeTab={activeTab} onChange={handleTabChange} />
       )}
+
+      {globalSearchElement}
     </div>
   );
 }

@@ -98,6 +98,7 @@ export function ReaderView({
   const [activeJuz, setActiveJuz] = useState(1);
   const [autoScrollPaused, setAutoScrollPaused] = useState(false);
   const [jumpAyahInput, setJumpAyahInput] = useState('');
+  const [flashedAyah, setFlashedAyah] = useState<number | null>(null);
 
   const { supported: wakeLockSupported, active: wakeLockActive } = useWakeLock(
     settings.keepScreenAwake
@@ -163,19 +164,22 @@ export function ReaderView({
     );
   }, [surahData, activeRoutineItem]);
 
-  // Restore scroll position to initialAyah once verses mount
+  // Restore scroll position to initialAyah once verses mount + flash target ayah
   useEffect(() => {
     if (loading || !surahData || hasRestoredScrollRef.current) return;
     hasRestoredScrollRef.current = true;
 
     const startAnchor = activeRoutineItem?.startAyah ?? 1;
     if (initialAyah > startAnchor) {
+      setFlashedAyah(initialAyah);
       requestAnimationFrame(() => {
         const el = document.querySelector(`[data-ayah="${initialAyah}"]`);
         if (el) {
           el.scrollIntoView({ behavior: 'auto', block: 'center' });
         }
       });
+      const timer = window.setTimeout(() => setFlashedAyah(null), 2600);
+      return () => window.clearTimeout(timer);
     } else {
       window.scrollTo({ top: 0, behavior: 'auto' });
     }
@@ -586,7 +590,11 @@ export function ReaderView({
                       data-ayah={verse.verse_number}
                       data-page={verse.page_number}
                       data-juz={verse.juz_number}
-                      className="rounded-md transition-colors duration-300 py-0.5"
+                      className={`rounded-md transition-colors duration-300 py-0.5${
+                        flashedAyah === verse.verse_number
+                          ? ' sukoon-ayah-flash'
+                          : ''
+                      }`}
                       style={{
                         backgroundColor: isActive
                           ? 'var(--ayah-highlight)'

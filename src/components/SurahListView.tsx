@@ -1,17 +1,24 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowRight, Clock, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Clock, Search, Sparkles } from 'lucide-react';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import { db, type GlobalLastRead, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 import { JUMMAH_SURAH_ID } from '../utils/islamicTime';
+import { parseSmartJumps, searchSurahs } from '../utils/searchEngine';
 import { LastReadSurahCard } from './LastReadSurahCard';
-import { SoftSearchInput, TabHeader, UnderlineTabs } from './NavigationChrome';
+import {
+  SoftSearchInput,
+  TabHeader,
+  TopBarIconButton,
+  UnderlineTabs,
+} from './NavigationChrome';
 
 interface SurahListViewProps {
   settings: Settings;
+  onOpenSearch?: () => void;
   onOpenSurah: (surahId: number, initialAyah?: number) => void;
 }
 
@@ -25,7 +32,11 @@ const MADINAH_SURAHS_COUNT = SURAHS.filter(
   (s) => s.revelationPlace === 'madinah'
 ).length;
 
-export function SurahListView({ settings, onOpenSurah }: SurahListViewProps) {
+export function SurahListView({
+  settings,
+  onOpenSearch,
+  onOpenSurah,
+}: SurahListViewProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterMode>('all');
   const clock = useIslamicClock(settings);
@@ -60,22 +71,29 @@ export function SurahListView({ settings, onOpenSurah }: SurahListViewProps) {
     return map;
   }, [lastReadRows]);
 
+  const smartJumps = useMemo(() => {
+    const trimmed = query.trim();
+    return trimmed ? parseSmartJumps(trimmed) : [];
+  }, [query]);
+
+  const resolveJumpAyah = (jump: (typeof smartJumps)[number]): number => {
+    if (jump.kind !== 'page' || !jump.page) return jump.ayah;
+    const cached = (cachedRows ?? []).find((c) => c.surahId === jump.surah.id);
+    const match = cached?.verses.find((v) => v.page_number === jump.page);
+    return match?.verse_number ?? jump.ayah;
+  };
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return SURAHS.filter((s) => {
+    const trimmed = query.trim();
+    const baseList = trimmed
+      ? searchSurahs(trimmed).map((r) => r.surah)
+      : SURAHS;
+
+    return baseList.filter((s) => {
       if (filter === 'offline' && !cachedSet.has(s.id)) return false;
       if (filter === 'makkah' && s.revelationPlace !== 'makkah') return false;
       if (filter === 'madinah' && s.revelationPlace !== 'madinah') return false;
-
-      if (!q) return true;
-      return (
-        String(s.id).includes(q) ||
-        toBanglaDigits(s.id).includes(q) ||
-        s.nameBangla.toLowerCase().includes(q) ||
-        s.meaningBangla.toLowerCase().includes(q) ||
-        s.nameSimple.toLowerCase().includes(q) ||
-        s.nameArabic.includes(q)
-      );
+      return true;
     });
   }, [query, filter, cachedSet]);
 
@@ -100,19 +118,68 @@ export function SurahListView({ settings, onOpenSurah }: SurahListViewProps) {
           <TabHeader
             title="সূরা সমূহ"
             subtitle={`মোট ১১৪টি সূরা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত`}
+            rightAction={
+              onOpenSearch ? (
+                <TopBarIconButton
+                  onClick={onOpenSearch}
+                  label="গ্লোবাল অনুসন্ধান"
+                >
+                  <Search className="w-4 h-4" />
+                </TopBarIconButton>
+              ) : undefined
+            }
           />
 
           <SoftSearchInput
             elevated
             value={query}
             onChange={setQuery}
-            placeholder="সূরার নাম বা নম্বর লিখুন (যেমন: কাহফ, ১৮, Yasin)..."
+            placeholder="সূরা, ২:২৫৫, বাকারা ২৫৫, পারা ৩০ বা পৃষ্ঠা খুঁজুন..."
           />
         </div>
       </section>
 
       {/* Open Editorial Canvas Below */}
       <div className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Smart Direct Jump Cards (Ayah, Surah+Ayah, Juz, Page, Famous Ayahs) */}
+        {smartJumps.length > 0 && (
+          <section className="space-y-2" aria-label="সরাসরি যান">
+            {smartJumps.map((jump) => (
+              <button
+                key={jump.id}
+                type="button"
+                onClick={() =>
+                  onOpenSurah(jump.surah.id, resolveJumpAyah(jump))
+                }
+                className="w-full rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-80 cursor-pointer"
+                style={{ backgroundColor: 'var(--bg-surface)' }}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <BookOpen
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--accent)' }}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">
+                      {jump.titleBangla}
+                    </div>
+                    <div
+                      className="text-[11px] truncate"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {jump.subtitleBangla}
+                    </div>
+                  </div>
+                </div>
+                <ArrowRight
+                  className="w-4 h-4 shrink-0"
+                  style={{ color: 'var(--accent)' }}
+                />
+              </button>
+            ))}
+          </section>
+        )}
+
         {/* Contextual Time-based Surah Suggestion Card Outside Header */}
         {query.trim().length === 0 && ((clock.isJummah && kahfSurah) || waqtSurah) && (
           <section
@@ -350,12 +417,14 @@ export function SurahListView({ settings, onOpenSurah }: SurahListViewProps) {
           />
 
           {filtered.length === 0 ? (
-            <div
-              className="py-12 text-center text-xs"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              কোনো সূরা পাওয়া যায়নি।
-            </div>
+            smartJumps.length > 0 ? null : (
+              <div
+                className="py-12 text-center text-xs"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                কোনো সূরা পাওয়া যায়নি।
+              </div>
+            )
           ) : (
             <div>
               {filtered.map((surah) => {

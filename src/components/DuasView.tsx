@@ -14,6 +14,7 @@ import {
 } from '../data/duas';
 import type { Settings } from '../db/database';
 import { normalizeIndoPakText, toBanglaDigits } from '../utils/formatters';
+import { searchDuas } from '../utils/searchEngine';
 import {
   SoftSearchInput,
   TabHeader,
@@ -25,6 +26,8 @@ import {
 interface DuasViewProps {
   settings: Settings;
   selectedChapterId?: number | null;
+  savedFilterNonce?: number;
+  onOpenSearch?: () => void;
   onSelectChapter?: (chapterId: number | null) => void;
   onOpenDua: (dua: DuaItem) => void;
   onToggleBookmark: (duaId: string) => void;
@@ -35,6 +38,8 @@ type ViewFilter = 'chapters' | 'all' | 'saved';
 export function DuasView({
   settings,
   selectedChapterId: controlledChapterId,
+  savedFilterNonce = 0,
+  onOpenSearch,
   onSelectChapter,
   onOpenDua,
   onToggleBookmark,
@@ -51,6 +56,13 @@ export function DuasView({
     controlledChapterId !== undefined
       ? controlledChapterId
       : uncontrolledChapterId;
+
+  useEffect(() => {
+    if (savedFilterNonce > 0) {
+      setFilter('saved');
+      setQuery('');
+    }
+  }, [savedFilterNonce]);
 
   useEffect(() => {
     setChapterSearchOpen(false);
@@ -70,48 +82,34 @@ export function DuasView({
     [settings.bookmarkedDuaIds]
   );
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const normalizedChapterQuery = chapterQuery.trim().toLowerCase();
+  const normalizedQuery = query.trim();
+  const normalizedChapterQuery = chapterQuery.trim();
 
   const matchingDuas = useMemo(() => {
     if (selectedChapterId !== null) {
       const chapterList = DUAS_BY_CHAPTER[selectedChapterId] ?? [];
       if (!normalizedChapterQuery) return chapterList;
-      return chapterList.filter(
-        (d) =>
-          d.titleBangla.toLowerCase().includes(normalizedChapterQuery) ||
-          d.translationBangla.toLowerCase().includes(normalizedChapterQuery) ||
-          (d.occasionNote ?? '').toLowerCase().includes(normalizedChapterQuery) ||
-          (d.reference ?? '').toLowerCase().includes(normalizedChapterQuery) ||
-          d.arabic.includes(chapterQuery.trim())
-      );
+      return searchDuas(normalizedChapterQuery, {
+        chapterId: selectedChapterId,
+        bookmarkedIds: bookmarkedSet,
+      }).map((r) => r.dua);
     }
 
-    const base: DuaItem[] =
-      filter === 'saved' && !normalizedQuery
+    if (!normalizedQuery) {
+      return filter === 'saved'
         ? DUAS.filter((d) => bookmarkedSet.has(d.id))
         : DUAS;
+    }
 
-    if (!normalizedQuery) return base;
-    return DUAS.filter((d) => {
-      const ch = DUA_CHAPTER_MAP[d.chapterId];
-      return (
-        d.titleBangla.toLowerCase().includes(normalizedQuery) ||
-        d.translationBangla.toLowerCase().includes(normalizedQuery) ||
-        (d.occasionNote ?? '').toLowerCase().includes(normalizedQuery) ||
-        (d.reference ?? '').toLowerCase().includes(normalizedQuery) ||
-        d.arabic.includes(query.trim()) ||
-        (ch?.titleBangla.toLowerCase().includes(normalizedQuery) ?? false)
-      );
-    });
+    return searchDuas(normalizedQuery, {
+      bookmarkedIds: bookmarkedSet,
+    }).map((r) => r.dua);
   }, [
     normalizedQuery,
     normalizedChapterQuery,
     selectedChapterId,
     filter,
     bookmarkedSet,
-    query,
-    chapterQuery,
   ]);
 
   const activeChapter =
@@ -289,6 +287,16 @@ export function DuasView({
           <TabHeader
             title="দুআ ও জিকির"
             subtitle={`${toBanglaDigits(DUA_CHAPTERS.length)}টি অধ্যায় • মোট ${toBanglaDigits(DUAS.length)}টি দুআ, দরুদ ও রুকইয়া`}
+            rightAction={
+              onOpenSearch ? (
+                <TopBarIconButton
+                  onClick={onOpenSearch}
+                  label="গ্লোবাল অনুসন্ধান"
+                >
+                  <Search className="w-4 h-4" />
+                </TopBarIconButton>
+              ) : undefined
+            }
           />
 
           <SoftSearchInput

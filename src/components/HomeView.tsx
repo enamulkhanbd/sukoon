@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
@@ -10,7 +10,6 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
-import type { DuaItem } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 import {
   db,
@@ -36,7 +35,6 @@ import {
   computeStreaks,
 } from '../utils/stats';
 import { FastingCard } from './FastingCard';
-import { GlobalSearchOverlay } from './GlobalSearchOverlay';
 import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import { TopBarIconButton } from './NavigationChrome';
@@ -44,8 +42,8 @@ import { SukoonLogo } from './SukoonLogo';
 
 interface HomeViewProps {
   settings: Settings;
+  onOpenSearch: () => void;
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
-  onOpenDua: (dua: DuaItem) => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   onOpenStats: () => void;
   onOpenFastingSchedule: () => void;
@@ -55,26 +53,14 @@ interface HomeViewProps {
 
 export function HomeView({
   settings,
+  onOpenSearch,
   onOpenSurah,
-  onOpenDua,
   onOpenRoutineDetails,
   onOpenStats,
   onOpenFastingSchedule,
   onGoToRoutines,
   onGoToSurahs,
 }: HomeViewProps) {
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  useEffect(() => {
-    const handleShortcut = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
-  }, []);
 
   const clock = useIslamicClock(settings);
   const now = clock.now;
@@ -280,7 +266,7 @@ export function HomeView({
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />
             <TopBarIconButton
-              onClick={() => setSearchOpen(true)}
+              onClick={onOpenSearch}
               label="অনুসন্ধান"
             >
               <Search className="w-4 h-4" />
@@ -545,15 +531,6 @@ export function HomeView({
           </p>
         )}
       </div>
-
-      <GlobalSearchOverlay
-        open={searchOpen}
-        routines={routines ?? []}
-        onClose={() => setSearchOpen(false)}
-        onOpenSurah={onOpenSurah}
-        onOpenDua={onOpenDua}
-        onOpenRoutineDetails={onOpenRoutineDetails}
-      />
     </div>
   );
 }

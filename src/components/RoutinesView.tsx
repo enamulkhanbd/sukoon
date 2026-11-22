@@ -9,6 +9,7 @@ import {
   Edit3,
   Plus,
   RotateCcw,
+  Search,
   Sparkles,
   Trash2,
   X,
@@ -46,9 +47,11 @@ import {
   formatRoutineSummaryBn,
   toBanglaDigits,
 } from '../utils/formatters';
+import { searchDuas, searchSurahs } from '../utils/searchEngine';
 import {
   SoftSearchInput,
   TabHeader,
+  TopBarIconButton,
   UnderlineTabs,
   useBottomSheet,
 } from './NavigationChrome';
@@ -124,6 +127,7 @@ function createDraftDuaItem(duaId: string, targetCount: number): DraftDuaItem {
 
 interface RoutinesViewProps {
   settings: Settings;
+  onOpenSearch?: () => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   shouldOpenCreate?: boolean;
   onHandledCreate?: () => void;
@@ -131,6 +135,7 @@ interface RoutinesViewProps {
 
 export function RoutinesView({
   settings,
+  onOpenSearch,
   onOpenRoutineDetails,
   shouldOpenCreate = false,
   onHandledCreate,
@@ -617,30 +622,15 @@ export function RoutinesView({
   };
 
   const filteredSurahs = useMemo(() => {
-    const q = pickerQuery.trim().toLowerCase();
-    if (!q) return SURAHS;
-    return SURAHS.filter(
-      (s) =>
-        String(s.id).includes(q) ||
-        toBanglaDigits(s.id).includes(q) ||
-        s.nameBangla.toLowerCase().includes(q) ||
-        s.nameSimple.toLowerCase().includes(q) ||
-        s.nameArabic.includes(pickerQuery.trim())
-    );
+    const trimmed = pickerQuery.trim();
+    if (!trimmed) return SURAHS;
+    return searchSurahs(trimmed).map((r) => r.surah);
   }, [pickerQuery]);
 
   const filteredDuas = useMemo(() => {
-    const q = pickerQuery.trim().toLowerCase();
-    if (!q) return DUAS;
-    return DUAS.filter((d) => {
-      const ch = DUA_CHAPTER_MAP[d.chapterId];
-      return (
-        d.titleBangla.toLowerCase().includes(q) ||
-        d.translationBangla.toLowerCase().includes(q) ||
-        (ch?.titleBangla.toLowerCase().includes(q) ?? false) ||
-        d.arabic.includes(pickerQuery.trim())
-      );
-    });
+    const trimmed = pickerQuery.trim();
+    if (!trimmed) return DUAS;
+    return searchDuas(trimmed).map((r) => r.dua);
   }, [pickerQuery]);
 
   const groupedDuaCategories = useMemo(() => {
@@ -688,18 +678,28 @@ export function RoutinesView({
             title="তিলাওয়াত রুটিন"
             subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
             rightAction={
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                নতুন রুটিন
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {onOpenSearch && (
+                  <TopBarIconButton
+                    onClick={onOpenSearch}
+                    label="গ্লোবাল অনুসন্ধান"
+                  >
+                    <Search className="w-4 h-4" />
+                  </TopBarIconButton>
+                )}
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    color: 'var(--accent-text)',
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  নতুন রুটিন
+                </button>
+              </div>
             }
           />
         </div>

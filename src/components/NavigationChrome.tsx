@@ -19,8 +19,6 @@ import {
   X,
 } from 'lucide-react';
 import {
-  clampGlassOpacity,
-  inferGlassModeFromOpacity,
   type ColorMode,
   type GlassMode,
   type Settings,
@@ -618,109 +616,6 @@ export function GlassPicker({ value, onSelect }: GlassPickerProps) {
           </button>
         );
       })}
-    </div>
-  );
-}
-
-interface GlassOpacityControlProps {
-  value: number;
-  onChange: (opacity: number, inferredMode: GlassMode) => void;
-}
-
-const GLASS_OPACITY_MIN = 20;
-const GLASS_OPACITY_MAX = 96;
-
-/** Continuous live glass opacity slider matching FontSizeControl's tactile track & thumb. */
-export function GlassOpacityControl({
-  value,
-  onChange,
-}: GlassOpacityControlProps) {
-  const clamped = clampGlassOpacity(value);
-  const percent =
-    ((clamped - GLASS_OPACITY_MIN) / (GLASS_OPACITY_MAX - GLASS_OPACITY_MIN)) *
-    100;
-
-  const handleChange = (raw: number) => {
-    const next = clampGlassOpacity(raw);
-    const nextMode = inferGlassModeFromOpacity(next);
-    // Apply immediately to DOM for lag-free live preview while dragging
-    const root = document.documentElement;
-    root.setAttribute('data-glass', nextMode);
-    root.style.setProperty('--glass-pill-opacity', `${next}%`);
-    root.style.setProperty(
-      '--glass-bar-opacity',
-      `${Math.min(98, next + 6)}%`
-    );
-    root.style.setProperty(
-      '--glass-sheet-opacity',
-      `${Math.min(98, next + 14)}%`
-    );
-    onChange(next, nextMode);
-  };
-
-  return (
-    <div className="space-y-1.5 pt-1">
-      <div className="flex items-center justify-between text-xs">
-        <span style={{ color: 'var(--text-secondary)' }}>অপাসিটি (স্বচ্ছতা)</span>
-        <span
-          className="font-medium tabular-nums"
-          style={{ color: 'var(--accent)' }}
-        >
-          {toBanglaDigits(clamped)}%
-        </span>
-      </div>
-
-      <div className="relative h-7 flex items-center select-none">
-        <div className="relative w-full mx-2.5 h-1.5 rounded-full overflow-visible">
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              backgroundColor:
-                'color-mix(in srgb, var(--text-primary) 12%, transparent)',
-            }}
-          />
-          <div
-            className="absolute inset-y-0 left-0 rounded-full"
-            style={{
-              width: `${percent}%`,
-              backgroundColor: 'var(--accent)',
-            }}
-          />
-          <span
-            aria-hidden="true"
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full border shadow-sm pointer-events-none"
-            style={{
-              left: `${percent}%`,
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor:
-                'color-mix(in srgb, var(--accent) 45%, var(--border-subtle))',
-            }}
-          />
-        </div>
-
-        <input
-          type="range"
-          min={GLASS_OPACITY_MIN}
-          max={GLASS_OPACITY_MAX}
-          step={1}
-          value={clamped}
-          aria-label="গ্লাস অপাসিটি"
-          aria-valuemin={GLASS_OPACITY_MIN}
-          aria-valuemax={GLASS_OPACITY_MAX}
-          aria-valuenow={clamped}
-          aria-valuetext={`${toBanglaDigits(clamped)} শতাংশ`}
-          onChange={(e) => handleChange(Number(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-      </div>
-
-      <div
-        className="flex items-center justify-between text-[11px]"
-        style={{ color: 'var(--text-muted)' }}
-      >
-        <span>বেশি স্বচ্ছ ({toBanglaDigits(GLASS_OPACITY_MIN)}%)</span>
-        <span>ঘন ({toBanglaDigits(GLASS_OPACITY_MAX)}%)</span>
-      </div>
     </div>
   );
 }

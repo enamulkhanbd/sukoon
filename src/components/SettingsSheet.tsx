@@ -30,7 +30,6 @@ import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
 import {
   FontSizeControl,
   GLASS_OPTIONS,
-  GlassOpacityControl,
   GlassPicker,
   ModePicker,
   THEME_OPTIONS,
@@ -313,15 +312,6 @@ export function SettingsSheet({
                     glassOpacity: GLASS_PRESET_OPACITY[glassMode],
                   });
                   toast.info(`গ্লাস ইফেক্ট: ${label}`);
-                }}
-              />
-              <GlassOpacityControl
-                value={
-                  settings.glassOpacity ??
-                  GLASS_PRESET_OPACITY[settings.glassMode ?? 'frosted']
-                }
-                onChange={(glassOpacity, glassMode) => {
-                  void onUpdateSettings({ glassOpacity, glassMode });
                 }}
               />
             </div>

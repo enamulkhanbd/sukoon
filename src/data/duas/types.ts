@@ -6,6 +6,7 @@ export interface QuranRef {
 
 export interface DuaPart {
   id: string;
+  labelBangla?: string;
   arabic: string;
   transliteration?: string;
   translationBangla: string;

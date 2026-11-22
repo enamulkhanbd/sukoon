@@ -869,7 +869,10 @@ function getDuaIndex(): IndexedDua[] {
     );
     const partsBn = normalizeBanglaForSearch(
       (dua.parts ?? [])
-        .map((p) => `${p.transliteration ?? ''} ${p.translationBangla}`)
+        .map(
+          (p) =>
+            `${p.labelBangla ?? ''} ${p.transliteration ?? ''} ${p.translationBangla}`
+        )
         .join(' ')
     );
     const partsAr = normalizeArabicForSearch(

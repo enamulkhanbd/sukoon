@@ -645,7 +645,7 @@ export function DuaReaderView({
             }}
           >
             {parts
-              ? `${toBanglaDigits(parts.length)}টি পৃথক জিকির`
+              ? `${toBanglaDigits(parts.length)}টি অংশ`
               : `${toBanglaDigits(targetCount)} বার`}
           </span>
         </div>
@@ -674,13 +674,14 @@ export function DuaReaderView({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className="text-xs font-medium tabular-nums"
-                        style={{ color: partDone ? 'var(--accent)' : 'var(--text-muted)' }}
+                        className="text-xs font-medium leading-snug"
+                        style={{ color: partDone ? 'var(--accent)' : 'var(--text-secondary)' }}
                       >
                         অংশ {toBanglaDigits(idx + 1)}
+                        {part.labelBangla ? ` • ${part.labelBangla}` : ''}
                       </span>
                       <span
-                        className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+                        className="text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0"
                         style={{
                           backgroundColor: 'var(--bg-surface)',
                           color: 'var(--accent)',
@@ -726,6 +727,52 @@ export function DuaReaderView({
                 );
               })}
             </div>
+
+            {!routine &&
+              parts.every(
+                (p) => (p.repeatCount ?? dua.repeatCount ?? 1) <= 1
+              ) && (
+                <div
+                  className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3 transition-colors"
+                  style={{
+                    backgroundColor: isStandaloneMarkedToday
+                      ? 'var(--accent-soft)'
+                      : 'var(--bg-surface)',
+                  }}
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium">
+                      {isStandaloneMarkedToday ? 'আজ পড়া হয়েছে' : 'আজকের আমল'}
+                    </div>
+                    <div
+                      className="text-[11px]"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {isStandaloneMarkedToday
+                        ? 'আপনার দৈনিক পরিসংখ্যানে যুক্ত হয়েছে'
+                        : 'দুআটি পড়া শেষ হলে চিহ্নিত করুন'}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleStandaloneRead()}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer"
+                    style={{
+                      backgroundColor: isStandaloneMarkedToday
+                        ? 'var(--bg-elevated)'
+                        : 'var(--accent)',
+                      color: isStandaloneMarkedToday
+                        ? 'var(--accent)'
+                        : 'var(--accent-text)',
+                    }}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>
+                      {isStandaloneMarkedToday ? 'চিহ্নিত' : 'পড়া হয়েছে'}
+                    </span>
+                  </button>
+                </div>
+              )}
 
             {(dua.reference || dua.quranRef) && (
               <section className="flex items-center justify-between gap-3 flex-wrap text-xs pt-2">

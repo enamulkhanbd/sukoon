@@ -174,8 +174,8 @@ export function GlobalSearchOverlay({
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-colors active:scale-95"
             style={{
               backgroundColor:
-                'color-mix(in srgb, var(--text-primary) 6%, transparent)',
-              color: 'var(--text-primary)',
+                'color-mix(in srgb, var(--text-primary) 4.5%, transparent)',
+              color: 'var(--text-secondary)',
             }}
           >
             <ArrowLeft className="w-4 h-4" />

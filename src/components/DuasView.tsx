@@ -297,7 +297,7 @@ export function DuasView({
       </section>
 
       {/* Open Editorial Canvas Below (Zero Boxes) */}
-      <div className="max-w-2xl mx-auto px-5 pt-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-5 pt-5 space-y-4">
         {!normalizedQuery && (
           <UnderlineTabs
             value={filter}

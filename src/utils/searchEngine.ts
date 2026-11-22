@@ -2032,10 +2032,10 @@ interface AppActionDef {
 const STATIC_APP_ACTIONS: AppActionDef[] = [
   {
     id: 'ramadan',
-    titleBangla: 'সেহরি ও ইফতারের সময়সূচী',
+    titleBangla: 'সাহরি ও ইফতারের সময়সূচি',
     subtitleBangla: 'রমজান ও হিজরি ক্যালেন্ডার',
     keywords:
-      'সেহরি ইফতার রোজা রমজান হিজরি ক্যালেন্ডার সময়সূচী sehri sahri iftar ifter ramadan romjan roza fasting calendar schedule',
+      'সাহরি সেহরি ইফতার রোজা রমজান হিজরি ক্যালেন্ডার সময়সূচি সময়সূচী sehri sahri iftar ifter ramadan romjan roza fasting calendar schedule',
   },
   {
     id: 'stats',

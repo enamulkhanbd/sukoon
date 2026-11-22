@@ -110,7 +110,7 @@ export function ProfileView({
         className="w-full safe-top"
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        <div className="max-w-2xl mx-auto px-5 pt-5 pb-5">
+        <div className="max-w-2xl mx-auto px-5 pt-5 pb-6">
           <TabHeader
             title="প্রোফাইল"
             subtitle={profileSubtitle}

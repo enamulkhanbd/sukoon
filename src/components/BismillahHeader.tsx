@@ -4,8 +4,8 @@ export function BismillahHeader() {
     <div className="flex flex-col items-center justify-center mb-6 select-none">
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 176 36"
-        className="w-[164px] sm:w-[220px] h-auto overflow-visible"
+        viewBox="2 4 174 32"
+        className="w-[164px] sm:w-[220px] h-auto block overflow-visible"
         style={{ color: 'var(--text-primary)' }}
         role="img"
         aria-label="بِسْمِ اللّٰهِ الرَّحْمٰنِ الرَّحِیْمِ"

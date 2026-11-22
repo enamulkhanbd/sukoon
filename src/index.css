@@ -312,6 +312,12 @@ b {
   transform: translateX(14.5%);
 }
 
+/* Trims built-in ~0.26em side-bearings in flow for inline / centered rows */
+.font-surah-names-tight {
+  display: inline-block;
+  margin-inline: -0.24em;
+}
+
 .font-brand-ar {
   font-family: "Alyamama", "IndoPak", serif;
   direction: rtl;

@@ -692,7 +692,7 @@ export function RoutinesView({
       </section>
 
       {/* Open Editorial Canvas Below (Zero Boxes) */}
-      <div className="max-w-2xl mx-auto px-5 pt-6">
+      <div className="max-w-2xl mx-auto px-5 pt-5">
         {(routines ?? []).length === 0 ? (
           <div className="py-12 text-center space-y-3">
             <div className="space-y-1">
@@ -1273,7 +1273,7 @@ export function RoutinesView({
                               </span>
                             </span>
                             <span
-                              className="font-surah-names text-2xl leading-none mr-2 select-none"
+                              className="font-surah-names font-surah-names-tight text-2xl leading-none select-none"
                               aria-hidden="true"
                             >
                               {String(s.id).padStart(3, '0')}

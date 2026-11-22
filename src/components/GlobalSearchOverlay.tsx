@@ -52,7 +52,7 @@ const QUICK_SUGGESTIONS = [
   'ইস্তেগফার',
   'দরুদ',
   'পারা ৩০',
-  'সেহরি ইফতার',
+  'সাহরি ইফতার',
 ] as const;
 
 const DUA_FIELD_LABELS: Record<DuaMatchField, string> = {
@@ -940,7 +940,7 @@ export function GlobalSearchOverlay({
                           </div>
                         </div>
                         <span
-                          className="font-surah-names text-2xl leading-none shrink-0 select-none"
+                          className="font-surah-names font-surah-names-end text-2xl leading-none shrink-0 select-none"
                           style={{ color: 'var(--text-primary)' }}
                           aria-hidden="true"
                         >
@@ -1300,7 +1300,7 @@ export function GlobalSearchOverlay({
                               >
                                 {toBanglaDigits(surah.versesCount)} আয়াত •{' '}
                                 {surah.revelationPlace === 'makkah'
-                                  ? 'মক্কী'
+                                  ? 'মাক্কী'
                                   : 'মাদানী'}{' '}
                                 • পৃষ্ঠা {toBanglaDigits(surah.pages[0])}
                                 {surah.pages[1] !== surah.pages[0]
@@ -1310,7 +1310,7 @@ export function GlobalSearchOverlay({
                             </div>
                           </div>
                           <span
-                            className="font-surah-names text-2xl leading-none shrink-0 select-none"
+                            className="font-surah-names font-surah-names-end text-2xl leading-none shrink-0 select-none"
                             style={{ color: 'var(--text-primary)' }}
                             aria-hidden="true"
                           >

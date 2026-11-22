@@ -11,8 +11,6 @@ import {
   ChevronRight,
   Clock,
   FolderOpen,
-  Globe,
-  HardDrive,
   Loader2,
   Search,
   Settings as SettingsIcon,
@@ -1626,40 +1624,13 @@ export function GlobalSearchOverlay({
                             }}
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span
-                                  className="text-xs font-semibold truncate"
-                                  style={{ color: 'var(--accent)' }}
-                                >
-                                  সূরা {v.surah.nameBangla} • আয়াত{' '}
-                                  {toBanglaDigits(v.ayahNumber)}
-                                </span>
-                                <span
-                                  className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full shrink-0"
-                                  style={{
-                                    backgroundColor:
-                                      v.source === 'offline' || v.source === 'both'
-                                        ? 'var(--accent-soft)'
-                                        : 'var(--gold-soft)',
-                                    color:
-                                      v.source === 'offline' || v.source === 'both'
-                                        ? 'var(--accent)'
-                                        : 'var(--gold)',
-                                  }}
-                                >
-                                  {v.source === 'offline' || v.source === 'both' ? (
-                                    <>
-                                      <HardDrive className="w-2.5 h-2.5" />
-                                      <span>অফলাইন</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Globe className="w-2.5 h-2.5" />
-                                      <span>অনলাইন</span>
-                                    </>
-                                  )}
-                                </span>
-                              </div>
+                              <span
+                                className="text-xs font-semibold truncate"
+                                style={{ color: 'var(--accent)' }}
+                              >
+                                সূরা {v.surah.nameBangla} • আয়াত{' '}
+                                {toBanglaDigits(v.ayahNumber)}
+                              </span>
                               <ArrowRight
                                 className="w-3.5 h-3.5 shrink-0"
                                 style={{ color: 'var(--text-muted)' }}

@@ -11,7 +11,10 @@ export function HeroCalligraphy() {
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 1315 333"
         className="w-full max-w-[330px] sm:max-w-[430px] h-auto overflow-visible"
-        style={{ color: 'var(--calligraphy-ink, var(--text-primary))', opacity: 0.24 }}
+        style={{
+          color: 'var(--calligraphy-ink, var(--text-primary))',
+          opacity: 'var(--calligraphy-opacity, 0.24)',
+        }}
         role="img"
         aria-label="أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ"
       >

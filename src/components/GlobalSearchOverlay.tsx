@@ -3,7 +3,6 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft,
   ArrowRight,
-  BarChart3,
   Bookmark,
   BookOpen,
   CalendarCheck2,
@@ -15,6 +14,7 @@ import {
   Search,
   Settings as SettingsIcon,
   Sparkles,
+  User,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -655,7 +655,7 @@ export function GlobalSearchOverlay({
       case 'ramadan':
         return <CalendarDays className={cls} style={{ color: 'var(--gold)' }} />;
       case 'stats':
-        return <BarChart3 className={cls} style={{ color: 'var(--accent)' }} />;
+        return <User className={cls} style={{ color: 'var(--accent)' }} />;
       case 'settings':
         return (
           <SettingsIcon className={cls} style={{ color: 'var(--text-secondary)' }} />

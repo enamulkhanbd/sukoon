@@ -3,10 +3,10 @@ import {
   CalendarCheck2,
   HeartHandshake,
   Home,
-  Settings as SettingsIcon,
+  User,
 } from 'lucide-react';
 
-export type AppTab = 'home' | 'surahs' | 'duas' | 'routines' | 'settings';
+export type AppTab = 'home' | 'surahs' | 'duas' | 'routines' | 'profile';
 
 interface BottomNavProps {
   activeTab: AppTab;
@@ -22,7 +22,7 @@ const NAV_ITEMS: Array<{
   { id: 'surahs', label: 'সূরা', icon: BookOpen },
   { id: 'duas', label: 'দুআ', icon: HeartHandshake },
   { id: 'routines', label: 'রুটিন', icon: CalendarCheck2 },
-  { id: 'settings', label: 'সেটিংস', icon: SettingsIcon },
+  { id: 'profile', label: 'প্রোফাইল', icon: User },
 ];
 
 export function BottomNav({ activeTab, onChange }: BottomNavProps) {

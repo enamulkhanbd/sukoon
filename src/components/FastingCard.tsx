@@ -1,4 +1,4 @@
-import { Moon, Sparkles, Sunrise } from 'lucide-react';
+import { ChevronRight, Moon, Sparkles } from 'lucide-react';
 import { toBanglaDigits } from '../utils/formatters';
 import {
   resolveActiveFastingContext,
@@ -9,6 +9,7 @@ import { formatHijriDateBn } from '../utils/hijri';
 
 interface FastingCardProps {
   now: Date;
+  gregorianDateLabel: string;
   location: FastingLocation;
   method: FastingCalculationMethod;
   timeFormat: '12h' | '24h';
@@ -16,8 +17,12 @@ interface FastingCardProps {
   onOpenSchedule: () => void;
 }
 
+/**
+ * Editorial Date, Sehri & Iftar card displayed outside the Home top hero band.
+ */
 export function FastingCard({
   now,
+  gregorianDateLabel,
   location,
   method,
   timeFormat,
@@ -38,94 +43,13 @@ export function FastingCard({
   const isMonthlyToday = hijri.isAyyamAlBid;
   const isFastingDay = isRamadan || isWeeklyToday || isMonthlyToday;
 
-  const cardStyle = isRamadan
-    ? {
-        backgroundColor:
-          'color-mix(in srgb, var(--gold-soft) 55%, var(--bg-elevated))',
-        borderColor: 'color-mix(in srgb, var(--gold) 45%, var(--border-subtle))',
-      }
-    : {
-        backgroundColor: 'var(--bg-elevated)',
-        borderColor: 'var(--border-subtle)',
-      };
-
   const highlightAccent = isRamadan ? 'var(--gold)' : 'var(--accent)';
-  const highlightSoft = isRamadan ? 'var(--gold-soft)' : 'var(--accent-soft)';
-
-  if (!isFastingDay) {
-    return (
-      <section
-        role="button"
-        tabIndex={0}
-        aria-label="সাহরি, ইফতার ও পূর্ণ মাসিক রোজার সময়সূচি দেখুন"
-        onClick={onOpenSchedule}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onOpenSchedule();
-          }
-        }}
-        className="rounded-3xl border px-4 py-3.5 space-y-2.5 transition-colors cursor-pointer active:scale-[0.995]"
-        style={cardStyle}
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
-            style={{
-              backgroundColor: 'var(--accent-soft)',
-              color: 'var(--accent)',
-            }}
-          >
-            <Sunrise className="w-3.5 h-3.5" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-xs font-semibold truncate">সাহরি ও ইফতার</h2>
-            <p
-              className="text-[11px] truncate"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {formatHijriDateBn(hijri)} • {location.nameBn}
-            </p>
-          </div>
-        </div>
-
-        <div
-          className="pt-2.5 border-t flex items-center justify-between gap-3 text-xs"
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
-          <div className="inline-flex items-baseline gap-1.5">
-            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              সাহরি শেষ
-            </span>
-            <span
-              className="font-semibold tabular-nums"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              {dailyTimes.sehriFormatted}
-            </span>
-          </div>
-
-          <div className="inline-flex items-baseline gap-1.5">
-            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              ইফতার
-            </span>
-            <span
-              className="font-semibold tabular-nums"
-              style={{ color: 'var(--accent)' }}
-            >
-              {dailyTimes.iftarFormatted}
-            </span>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section
       role="button"
       tabIndex={0}
-      aria-label="সাহরি, ইফতার ও পূর্ণ মাসিক রোজার সময়সূচি দেখুন"
+      aria-label="আজকের তারিখ, সাহরি, ইফতার ও পূর্ণ মাসিক রোজার সময়সূচি দেখুন"
       onClick={onOpenSchedule}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -133,144 +57,142 @@ export function FastingCard({
           onOpenSchedule();
         }
       }}
-      className="rounded-3xl border p-4 sm:p-5 space-y-3.5 transition-colors cursor-pointer active:scale-[0.995]"
-      style={cardStyle}
+      className="rounded-2xl px-4 py-3.5 border space-y-3 transition-opacity active:opacity-80 cursor-pointer group"
+      style={{
+        backgroundColor: 'var(--bg-elevated)',
+        borderColor: 'var(--border-subtle)',
+      }}
     >
-      {/* Header Row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-            style={{
-              backgroundColor: highlightSoft,
-              color: highlightAccent,
-            }}
+      {/* Top Row: Gregorian Date, Hijri Date + Location & Optional Ramadan/Sunnah Pill */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 space-y-0.5">
+          <div
+            className="text-xs sm:text-[13px] font-medium leading-snug truncate"
+            style={{ color: 'var(--text-primary)' }}
           >
-            {isRamadan ? (
-              <Moon className="w-4 h-4" />
-            ) : (
-              <Sunrise className="w-4 h-4" />
-            )}
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-xs font-semibold truncate">
-              {isRamadan ? 'মাহে রমজান' : 'সাহরি ও ইফতার'}
-            </h2>
-            <p
-              className="text-[11px] mt-0.5 truncate"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {formatHijriDateBn(hijri)} • {location.nameBn}
-            </p>
+            {gregorianDateLabel}
+          </div>
+          <div
+            className="text-[11px] leading-snug truncate"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            {formatHijriDateBn(hijri)} • {location.nameBn}
           </div>
         </div>
 
-        {isRamadan ? (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full shrink-0"
-            style={{
-              backgroundColor: 'var(--gold-soft)',
-              color: 'var(--gold)',
-            }}
-          >
-            <Sparkles className="w-3 h-3" />
-            রমজান {toBanglaDigits(hijri.day)}
-          </span>
-        ) : isWeeklyToday || isMonthlyToday ? (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full shrink-0"
-            style={{
-              backgroundColor: 'var(--accent-soft)',
-              color: 'var(--accent)',
-            }}
-          >
-            সুন্নাহ রোজা
-          </span>
-        ) : null}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isRamadan ? (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: 'var(--gold-soft)',
+                color: 'var(--gold)',
+              }}
+            >
+              <Moon className="w-2.5 h-2.5" />
+              রমজান {toBanglaDigits(hijri.day)}
+            </span>
+          ) : isFastingDay ? (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: 'var(--accent-soft)',
+                color: 'var(--accent)',
+              }}
+            >
+              <Sparkles className="w-2.5 h-2.5" />
+              {isMonthlyToday ? 'আইয়ামে বীজ' : 'সুন্নাহ রোজা'}
+            </span>
+          ) : null}
+          <ChevronRight
+            className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+            style={{ color: 'var(--text-muted)' }}
+          />
+        </div>
       </div>
 
-      {/* Unboxed Sehri & Iftar Readout */}
-      <div className="grid grid-cols-2 divide-x divide-[var(--border-subtle)] py-0.5">
-        <div className="pr-3 text-center">
-          <div
-            className="text-[11px]"
-            style={{ color: 'var(--text-secondary)' }}
-          >
+      {/* Subtle Divider */}
+      <div
+        className="h-px w-full"
+        style={{
+          backgroundColor:
+            'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Sehri & Iftar Readout */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <div className="text-center">
+          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
             সাহরি শেষ
           </div>
           <div
-            className="text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5"
+            className="text-base sm:text-lg font-semibold tabular-nums leading-tight mt-0.5"
             style={{ color: 'var(--text-primary)' }}
           >
             {dailyTimes.sehriFormatted}
           </div>
         </div>
 
-        <div className="pl-3 text-center">
-          <div
-            className="text-[11px]"
-            style={{ color: 'var(--text-secondary)' }}
-          >
+        <span
+          className="h-7 w-px"
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+          }}
+          aria-hidden="true"
+        />
+
+        <div className="text-center">
+          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
             ইফতার
           </div>
           <div
-            className="text-base sm:text-lg font-bold tabular-nums leading-tight mt-0.5"
-            style={{ color: highlightAccent }}
+            className="text-base sm:text-lg font-semibold tabular-nums leading-tight mt-0.5"
+            style={{ color: 'var(--text-primary)' }}
           >
             {dailyTimes.iftarFormatted}
           </div>
         </div>
       </div>
 
-      {/* Daily Progress Bar */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[11px]">
-          <span style={{ color: 'var(--text-secondary)' }}>
-            {progress.statusTextBn}
-          </span>
-          <span
-            className="font-semibold tabular-nums"
-            style={{ color: highlightAccent }}
-          >
-            {progress.percentTextBn}
-          </span>
-        </div>
-        <div
-          role="progressbar"
-          aria-label={progress.statusTextBn}
-          aria-valuenow={progress.percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          className="h-1.5 w-full rounded-full overflow-hidden"
-          style={{
-            backgroundColor:
-              'color-mix(in srgb, var(--text-primary) 7%, transparent)',
-          }}
-        >
+      {/* Slim Fasting Progress Bar on Fasting Days */}
+      {isFastingDay && (
+        <div className="space-y-1.5 pt-0.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {progress.statusTextBn}
+            </span>
+            <span
+              className="font-semibold tabular-nums"
+              style={{ color: highlightAccent }}
+            >
+              {progress.percentTextBn}
+            </span>
+          </div>
           <div
-            className="h-full rounded-full transition-all duration-300"
+            role="progressbar"
+            aria-label={progress.statusTextBn}
+            aria-valuenow={progress.percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="h-[3px] w-full rounded-full overflow-hidden"
             style={{
-              width: `${progress.percent}%`,
-              backgroundColor: highlightAccent,
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
             }}
-          />
+          >
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${progress.percent}%`,
+                backgroundColor: highlightAccent,
+              }}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* Monthly Sunnah Fast Note */}
-      <div
-        className="pt-3 border-t text-[11px]"
-        style={{
-          borderColor: 'var(--border-subtle)',
-          color: isMonthlyToday ? highlightAccent : 'var(--text-secondary)',
-        }}
-      >
-        <span className={isMonthlyToday ? 'font-semibold' : undefined}>
-          {isMonthlyToday
-            ? `আজ আইয়ামে বীজ (${toBanglaDigits(hijri.day)} তারিখ)`
-            : 'মাসিক: ১৩–১৫ হিজরি'}
-        </span>
-      </div>
+      )}
     </section>
   );
 }

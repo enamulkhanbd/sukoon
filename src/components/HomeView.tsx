@@ -2,14 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowRight,
-  BarChart3,
-  CalendarDays,
   Check,
   CheckCircle2,
   ChevronRight,
   Compass,
   Flame,
-  Plus,
   Search,
   Sparkles,
 } from 'lucide-react';
@@ -40,8 +37,9 @@ import {
 } from '../utils/stats';
 import { FastingCard } from './FastingCard';
 import { GlobalSearchOverlay } from './GlobalSearchOverlay';
+import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
-import { TabHeader, TopBarIconButton } from './NavigationChrome';
+import { TopBarIconButton } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
 
 interface HomeViewProps {
@@ -157,13 +155,17 @@ export function HomeView({
     year: 'numeric',
   }).format(clock.gregorianDate);
 
-  /** Compact fixed-height routine card for Home page (full details live on RoutineDetailView). */
-  const renderRoutineCard = (routine: Routine, isToday: boolean) => {
+  /** Clean minimal routine row with Apple-style circular progress ring (no dead bars or boxes). */
+  const renderRoutineRow = (routine: Routine, isToday: boolean) => {
     const prog = progressMap.get(routine.id);
     const items = getRoutineItems(routine);
     const completedItemsCount = getCompletedItemIndexes(routine, prog).length;
     const percentage = prog?.percentage ?? 0;
     const isCompleted = percentage >= 100;
+
+    const ringRadius = 11;
+    const ringCircumference = 2 * Math.PI * ringRadius;
+    const ringOffset = ringCircumference * (1 - Math.min(100, Math.max(0, percentage)) / 100);
 
     const scheduleLabel =
       routine.assignedDays.length === 7
@@ -184,69 +186,80 @@ export function HomeView({
             onOpenRoutineDetails(routine);
           }
         }}
-        className="min-h-[84px] rounded-2xl border px-4 py-3 flex flex-col justify-between gap-2.5 transition-colors active:scale-[0.995] cursor-pointer"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: isToday
-            ? 'color-mix(in srgb, var(--accent) 28%, var(--border-subtle))'
-            : 'var(--border-subtle)',
-        }}
+        className="py-2.5 flex items-center justify-between gap-3 transition-opacity active:opacity-70 cursor-pointer group"
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {/* Compact 28px circular progress ring */}
+          <div className="w-7 h-7 shrink-0 flex items-center justify-center relative">
+            {isCompleted ? (
+              <span
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{
+                  backgroundColor: 'var(--accent-soft)',
+                  color: 'var(--accent)',
+                }}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+            ) : (
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 28 28"
+                className="-rotate-90"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="14"
+                  cy="14"
+                  r={ringRadius}
+                  fill="none"
+                  stroke="color-mix(in srgb, var(--text-primary) 12%, transparent)"
+                  strokeWidth="2.5"
+                />
+                {percentage > 0 && (
+                  <circle
+                    cx="14"
+                    cy="14"
+                    r={ringRadius}
+                    fill="none"
+                    stroke="var(--accent)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeDasharray={ringCircumference}
+                    strokeDashoffset={ringOffset}
+                  />
+                )}
+              </svg>
+            )}
+          </div>
+
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <h3 className="font-semibold text-sm tracking-tight truncate">
-                {routine.title}
-              </h3>
-              {isCompleted && (
-                <span
-                  className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
-                  style={{
-                    backgroundColor: 'var(--accent-soft)',
-                    color: 'var(--accent)',
-                  }}
-                >
-                  <CheckCircle2 className="w-2.5 h-2.5" />
-                  সম্পন্ন
-                </span>
-              )}
-            </div>
+            <h3 className="font-semibold text-sm leading-snug truncate">
+              {routine.title}
+            </h3>
             <p
-              className="text-[11px] mt-0.5 truncate"
-              style={{ color: 'var(--text-secondary)' }}
+              className="text-xs mt-0.5 truncate tabular-nums"
+              style={{ color: 'var(--text-muted)' }}
             >
               {toBanglaDigits(completedItemsCount)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন
               {!isToday && ` • ${scheduleLabel}`}
             </p>
           </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="text-xs font-semibold tabular-nums"
-              style={{
-                color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
-              }}
-            >
-              {toBanglaDigits(percentage)}%
-            </span>
-            <ChevronRight
-              className="w-4 h-4"
-              style={{ color: 'var(--text-muted)' }}
-            />
-          </div>
         </div>
 
-        {/* Sleek single-line progress bar */}
-        <div
-          className="h-1.5 w-full rounded-full overflow-hidden"
-          style={{ backgroundColor: 'var(--bg-surface)' }}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-300"
+        <div className="flex items-center gap-1 shrink-0">
+          <span
+            className="text-xs font-medium tabular-nums"
             style={{
-              width: `${percentage}%`,
-              backgroundColor: 'var(--accent)',
+              color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
             }}
+          >
+            {toBanglaDigits(percentage)}%
+          </span>
+          <ChevronRight
+            className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+            style={{ color: 'var(--text-muted)' }}
           />
         </div>
       </div>
@@ -256,320 +269,282 @@ export function HomeView({
   const lastReadMeta = lastRead ? SURAH_MAP[lastRead.surahId] : undefined;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-6">
-      <TabHeader
-        title={<SukoonLogo />}
-        subtitle="হৃদয়ের প্রশান্তিতে কুরআন ও দুআর নিত্যসঙ্গী"
-        rightAction={
-          <TopBarIconButton
-            onClick={() => setSearchOpen(true)}
-            label="অনুসন্ধান"
-          >
-            <Search className="w-4 h-4" />
-          </TopBarIconButton>
-        }
-        badge={
-          <div
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <CalendarDays className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
-            <span>
-              {DAY_NAMES_BN[todayIndex]} • {todayFormatted}
-            </span>
-          </div>
-        }
-      />
-
-      {/* Minimal Last-Read Surah Card (Top Section) */}
-      {lastRead && lastReadMeta ? (
-        <LastReadSurahCard lastRead={lastRead} onOpenSurah={onOpenSurah} />
-      ) : lastRead !== undefined ? (
-        <section
-          className="rounded-3xl border p-5 relative overflow-hidden"
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: 'var(--border-subtle)',
-          }}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div
-                className="inline-flex items-center gap-1.5 text-xs font-medium"
-                style={{ color: 'var(--accent)' }}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>বিসমিল্লাহ দিয়ে শুরু করুন</span>
-              </div>
-              <h2 className="text-lg font-bold">প্রথম তিলাওয়াত শুরু করুন</h2>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                আপনি যে আয়াতে থামবেন, সুকূন তা স্বয়ংক্রিয়ভাবে মনে রাখবে।
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => onOpenSurah(1, 1)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                সূরা ফাতিহা
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={onGoToSurahs}
-                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium border cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <Compass className="w-3.5 h-3.5" />
-                সব সূরা
-              </button>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Ramadan & Fasting Card */}
-      <FastingCard
-        now={now}
-        location={fastingLocation}
-        method={fastingMethod}
-        timeFormat={fastingTimeFormat}
-        hijriOffsetDays={hijriOffsetDays}
-        onOpenSchedule={onOpenFastingSchedule}
-      />
-
-      {/* Today's Ibadah Stats & Daily Quran Goal Card (Quran.com-inspired) */}
+    <div className="pb-28">
+      {/* Full-Bleed Warm Tinted Top Hero Band */}
       <section
-        role="button"
-        tabIndex={0}
-        onClick={onOpenStats}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onOpenStats();
-          }
-        }}
-        className="rounded-3xl border p-4 space-y-3.5 transition-colors cursor-pointer active:scale-[0.995]"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
+        className="w-full safe-top"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        {/* Header Row */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
-              style={{
-                backgroundColor: 'var(--accent-soft)',
-                color: 'var(--accent)',
-              }}
+        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-6 space-y-4">
+          {/* Minimal Top Utility Bar */}
+          <div className="flex items-center justify-between gap-3">
+            <SukoonLogo />
+            <TopBarIconButton
+              onClick={() => setSearchOpen(true)}
+              label="অনুসন্ধান"
             >
-              <BarChart3 className="w-4 h-4" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-xs font-semibold truncate">
-                আজকের আমল ও পরিসংখ্যান
-              </h2>
-            </div>
+              <Search className="w-4 h-4" />
+            </TopBarIconButton>
           </div>
 
-          {streaks.currentStreak > 0 && (
-            <span
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-              style={{
-                backgroundColor: 'var(--gold-soft)',
-                color: 'var(--gold)',
-              }}
-            >
-              <Flame className="w-3 h-3" />
-              {toBanglaDigits(streaks.currentStreak)} দিন
-            </span>
-          )}
+          {/* Serene Thuluth Calligraphic Centerpiece */}
+          <HeroCalligraphy />
         </div>
+      </section>
 
-        {/* Minimal unboxed Daily Quran Goal progress bar (only visible when goal is configured) */}
-        {dailyGoalMinutes > 0 && (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span
-                  className="font-medium truncate"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  দৈনিক তিলাওয়াত •{' '}
-                  <strong
-                    className="tabular-nums"
-                    style={{ color: 'var(--text-primary)' }}
-                  >
-                    {toBanglaDigits(todayReadingMinutes)} /{' '}
-                    {toBanglaDigits(dailyGoalMinutes)} মি.
-                  </strong>
-                </span>
-                {goalCompleted && (
-                  <span
-                    className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: 'var(--accent-soft)',
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    <Check className="w-2.5 h-2.5 stroke-[3]" />
-                    লক্ষ্য পূর্ণ
-                  </span>
-                )}
-              </div>
-              <span
-                className="font-semibold tabular-nums shrink-0"
-                style={{
-                  color: goalCompleted ? 'var(--accent)' : 'var(--gold)',
-                }}
-              >
-                {toBanglaDigits(goalPercent)}%
-              </span>
-            </div>
+      {/* Clean Editorial Canvas Below Hero */}
+      <div className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Date, Sehri & Iftar Card Outside Header */}
+        <FastingCard
+          now={now}
+          gregorianDateLabel={`${DAY_NAMES_BN[todayIndex]}, ${todayFormatted}`}
+          location={fastingLocation}
+          method={fastingMethod}
+          timeFormat={fastingTimeFormat}
+          hijriOffsetDays={hijriOffsetDays}
+          onOpenSchedule={onOpenFastingSchedule}
+        />
+        {/* Continue Reading — Single Focal Surface */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">সর্বশেষ তিলাওয়াত</h2>
+            <button
+              type="button"
+              onClick={onGoToSurahs}
+              className="inline-flex items-center gap-0.5 text-xs font-medium cursor-pointer transition-opacity active:opacity-70"
+              style={{ color: 'var(--accent)' }}
+            >
+              <span>সব সূরা</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {lastRead && lastReadMeta ? (
+            <LastReadSurahCard lastRead={lastRead} onOpenSurah={onOpenSurah} />
+          ) : lastRead !== undefined ? (
             <div
-              className="h-1.5 w-full rounded-full overflow-hidden"
+              className="rounded-2xl p-5 space-y-3"
               style={{ backgroundColor: 'var(--bg-surface)' }}
             >
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${goalPercent}%`,
-                  backgroundColor: goalCompleted
-                    ? 'var(--accent)'
-                    : 'var(--gold)',
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* 4 Core Ibadah Metrics */}
-        <div
-          className="grid grid-cols-4 divide-x"
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
-          {[
-            { label: 'জিকির', value: toBanglaDigits(todayMetrics.dhikir), active: todayMetrics.dhikir > 0 },
-            { label: 'দুআ', value: toBanglaDigits(todayMetrics.duas), active: todayMetrics.duas > 0 },
-            {
-              label: 'রুটিন',
-              value:
-                todaysRoutines.length > 0
-                  ? `${toBanglaDigits(todayCompletedRoutinesCount)}/${toBanglaDigits(todaysRoutines.length)}`
-                  : toBanglaDigits(todayMetrics.routines),
-              active:
-                todayCompletedRoutinesCount > 0 || todayMetrics.routines > 0,
-            },
-            { label: 'আয়াত', value: toBanglaDigits(todayMetrics.ayahs), active: todayMetrics.ayahs > 0 },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="px-1 py-1 text-center"
-              style={{ borderColor: 'var(--border-subtle)' }}
-            >
-              <div
-                className="text-base font-bold tabular-nums leading-tight"
-                style={{
-                  color: stat.active ? 'var(--accent)' : 'var(--text-muted)',
-                }}
-              >
-                {stat.value}
+              <div className="space-y-1">
+                <div
+                  className="inline-flex items-center gap-1.5 text-xs font-medium"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>বিসমিল্লাহ দিয়ে শুরু করুন</span>
+                </div>
+                <h3 className="text-base font-semibold">
+                  প্রথম তিলাওয়াত শুরু করুন
+                </h3>
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  আপনি যে আয়াতে থামবেন, সুকূন তা স্বয়ংক্রিয়ভাবে মনে রাখবে।
+                </p>
               </div>
-              <div
-                className="text-[10px] mt-0.5"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                {stat.label}
+              <div className="flex items-center gap-2.5 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => onOpenSurah(1, 1)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    color: 'var(--accent-text)',
+                  }}
+                >
+                  সূরা ফাতিহা
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onGoToSurahs}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-80"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  সব সূরা
+                </button>
               </div>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Today's Routines */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>
-            আজকের রুটিন ({DAY_NAMES_BN[todayIndex]})
-          </h2>
-          <button
-            type="button"
-            onClick={onGoToRoutines}
-            className="inline-flex items-center gap-1 text-xs font-medium cursor-pointer"
-            style={{ color: 'var(--accent)' }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            রুটিন পরিচালনা
-          </button>
-        </div>
-
-        {todaysRoutines.length > 0 ? (
-          <div className="space-y-3">
-            {todaysRoutines.map((r) => renderRoutineCard(r, true))}
-          </div>
-        ) : (
-          <div
-            className="rounded-2xl border p-5 text-center space-y-2"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-            }}
-          >
-            <p className="text-sm font-medium">আজকের জন্য নির্ধারিত কোনো রুটিন নেই</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              আপনার সুবিধামতো দৈনিক বা সাপ্তাহিক রুটিন তৈরি করে নিতে পারেন।
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* Other / Manual Routines */}
-      {otherRoutines.length > 0 && (
-        <section className="space-y-3">
-          <h2
-            className="text-sm font-semibold uppercase tracking-wide"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            অন্যান্য রুটিন
-          </h2>
-          <div className="space-y-3">
-            {otherRoutines.map((r) => renderRoutineCard(r, false))}
-          </div>
+          ) : null}
         </section>
-      )}
 
-      {/* Subtle Offline Status Hint */}
-      {typeof cachedCount === 'number' && cachedCount < 114 && (
-        <div
-          className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 text-xs"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-secondary)',
+        {/* Today's Ibadah + Daily Goal (Unified, Tight & Proportional) */}
+        <section
+          role="button"
+          tabIndex={0}
+          onClick={onOpenStats}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onOpenStats();
+            }
           }}
+          className="space-y-3.5 transition-opacity active:opacity-75 cursor-pointer group"
         >
-          <span>
-            অফলাইনে সংরক্ষিত সূরা: <strong>{toBanglaDigits(cachedCount)} / ১১৪</strong>
-          </span>
-          <span style={{ color: 'var(--text-muted)' }}>
-            সেটিংস থেকে সম্পূর্ণ কুরআন ডাউনলোড করুন
-          </span>
-        </div>
-      )}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold">আজকের আমল</h2>
+              {streaks.currentStreak > 0 && (
+                <span
+                  className="inline-flex items-center justify-center gap-1 text-[11px] leading-none font-medium px-2.5 py-1 rounded-full tabular-nums"
+                  style={{
+                    backgroundColor: 'var(--gold-soft)',
+                    color: 'var(--gold)',
+                  }}
+                >
+                  <Flame className="w-3 h-3 shrink-0" />
+                  <span className="translate-y-[1px]">
+                    {toBanglaDigits(streaks.currentStreak)} দিন
+                  </span>
+                </span>
+              )}
+            </div>
+
+            <span
+              className="inline-flex items-center gap-0.5 text-xs font-medium shrink-0"
+              style={{ color: 'var(--accent)' }}
+            >
+              <span>পরিসংখ্যান</span>
+              <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { label: 'জিকির', value: toBanglaDigits(todayMetrics.dhikir), active: todayMetrics.dhikir > 0 },
+              { label: 'দুআ', value: toBanglaDigits(todayMetrics.duas), active: todayMetrics.duas > 0 },
+              {
+                label: 'রুটিন',
+                value:
+                  todaysRoutines.length > 0
+                    ? `${toBanglaDigits(todayCompletedRoutinesCount)}/${toBanglaDigits(todaysRoutines.length)}`
+                    : toBanglaDigits(todayMetrics.routines),
+                active:
+                  todayCompletedRoutinesCount > 0 || todayMetrics.routines > 0,
+              },
+              { label: 'আয়াত', value: toBanglaDigits(todayMetrics.ayahs), active: todayMetrics.ayahs > 0 },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center py-1">
+                <div
+                  className="text-xl font-semibold tabular-nums leading-none"
+                  style={{
+                    color: stat.active ? 'var(--accent)' : 'var(--text-muted)',
+                  }}
+                >
+                  {stat.value}
+                </div>
+                <div
+                  className="text-[11px] mt-1 font-medium"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {dailyGoalMinutes > 0 && (
+            <div className="space-y-1.5 pt-0.5">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    দৈনিক তিলাওয়াত লক্ষ্য:{' '}
+                    <strong
+                      className="tabular-nums"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {toBanglaDigits(todayReadingMinutes)}/{toBanglaDigits(dailyGoalMinutes)} মি.
+                    </strong>
+                  </span>
+                  {goalCompleted && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      পূর্ণ
+                    </span>
+                  )}
+                </span>
+                <span
+                  className="text-[11px] font-medium tabular-nums shrink-0"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  {toBanglaDigits(goalPercent)}%
+                </span>
+              </div>
+              <div
+                className="h-[3px] w-full rounded-full overflow-hidden"
+                style={{
+                  backgroundColor:
+                    'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+                }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${goalPercent}%`,
+                    backgroundColor: 'var(--accent)',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* Today's Routines */}
+        <section className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">আজকের রুটিন</h2>
+            <button
+              type="button"
+              onClick={onGoToRoutines}
+              className="inline-flex items-center gap-0.5 text-xs font-medium cursor-pointer transition-opacity active:opacity-70"
+              style={{ color: 'var(--accent)' }}
+            >
+              <span>পরিচালনা</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {todaysRoutines.length > 0 ? (
+            <div>{todaysRoutines.map((r) => renderRoutineRow(r, true))}</div>
+          ) : (
+            <div className="py-4 text-center space-y-1">
+              <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                আজকের জন্য নির্ধারিত কোনো রুটিন নেই
+              </p>
+              <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                আপনার সুবিধামতো দৈনিক বা সাপ্তাহিক রুটিন তৈরি করে নিতে পারেন।
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* Other / Manual Routines */}
+        {otherRoutines.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold">অন্যান্য রুটিন</h2>
+            <div>{otherRoutines.map((r) => renderRoutineRow(r, false))}</div>
+          </section>
+        )}
+
+        {/* Quiet Offline Footnote */}
+        {typeof cachedCount === 'number' && cachedCount < 114 && (
+          <p
+            className="text-center text-[11px] pt-1"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            অফলাইনে সংরক্ষিত সূরা: {toBanglaDigits(cachedCount)} / ১১৪ • সেটিংস থেকে ডাউনলোড করুন
+          </p>
+        )}
+      </div>
 
       <GlobalSearchOverlay
         open={searchOpen}

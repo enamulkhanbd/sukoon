@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowRight, Clock, Search, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Clock, Sparkles } from 'lucide-react';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import { db, type GlobalLastRead, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
@@ -8,7 +8,7 @@ import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 import { JUMMAH_SURAH_ID } from '../utils/islamicTime';
 import { LastReadSurahCard } from './LastReadSurahCard';
-import { TabHeader } from './NavigationChrome';
+import { SoftSearchInput, TabHeader, UnderlineTabs } from './NavigationChrome';
 
 interface SurahListViewProps {
   settings: Settings;
@@ -90,426 +90,386 @@ export function SurahListView({ settings, onOpenSurah }: SurahListViewProps) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-4">
-      <TabHeader
-        title="সূরা সমূহ"
-        subtitle={`মোট ১১৪টি সূরা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত`}
-      />
+    <div className="pb-28">
+      {/* Full-Bleed Tinted Top Band (100% matched with DuasView) */}
+      <section
+        className="w-full safe-top"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
+      >
+        <div className="max-w-2xl mx-auto px-5 pt-5 pb-6 space-y-4">
+          <TabHeader
+            title="সূরা সমূহ"
+            subtitle={`মোট ১১৪টি সূরা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত`}
+          />
 
-      {/* Contextual Time-based Surah Suggestion & Jummah Surah Al-Kahf */}
-      {query.trim().length === 0 && (
-        <section className="space-y-2" aria-label="সময়োপযোগী সূরা সাজেশন">
-          {clock.isJummah && kahfSurah && (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() =>
-                onOpenSurah(
-                  kahfSurah.id,
-                  getResumeAyahFor(kahfSurah.id, kahfSurah.versesCount)
-                )
-              }
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onOpenSurah(
-                    kahfSurah.id,
-                    getResumeAyahFor(kahfSurah.id, kahfSurah.versesCount)
-                  );
-                }
-              }}
-              className="rounded-2xl border px-4 py-3.5 flex items-center justify-between gap-3 transition-colors active:scale-[0.995] cursor-pointer"
-              style={{
-                backgroundColor:
-                  'color-mix(in srgb, var(--gold-soft) 72%, var(--bg-elevated))',
-                borderColor:
-                  'color-mix(in srgb, var(--gold) 38%, var(--border-subtle))',
-              }}
-            >
-              <div className="min-w-0 space-y-1">
-                <span
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor: 'var(--gold-soft)',
-                    color: 'var(--gold)',
-                  }}
-                >
-                  <Sparkles className="w-3 h-3" />
-                  জুমুআর আমল • বৃহঃ মাগরিব – শুক্র মাগরিব
-                </span>
-                <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <h2 className="text-base font-bold tracking-tight">
-                    সূরা {kahfSurah.nameBangla}
-                  </h2>
-                  <span
-                    className="text-xs"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    ({kahfSurah.meaningBangla})
-                  </span>
-                </div>
-                <p
-                  className="text-[11px]"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  {(() => {
-                    const resume = getResumeAyahFor(
-                      kahfSurah.id,
-                      kahfSurah.versesCount
-                    );
-                    return resume > 1
-                      ? `সর্বশেষ: আয়াত ${toBanglaDigits(resume)}/${toBanglaDigits(kahfSurah.versesCount)} • চালিয়ে যান`
-                      : `${toBanglaDigits(kahfSurah.versesCount)} আয়াত • জুমুআর দিনে বিশেষ ফযিলতপূর্ণ সূরা`;
-                  })()}
-                </p>
-              </div>
-              <div className="shrink-0 flex flex-col items-end gap-1">
-                <span
-                  className="font-surah-names text-4xl leading-none select-none"
-                  style={{ color: 'var(--gold)' }}
-                  aria-hidden="true"
-                >
-                  {String(kahfSurah.id).padStart(3, '0')}
-                </span>
-                <span
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold"
-                  style={{ color: 'var(--gold)' }}
-                >
-                  পাঠ করুন
-                  <ArrowRight className="w-3 h-3" />
-                </span>
-              </div>
-            </div>
-          )}
+          <SoftSearchInput
+            elevated
+            value={query}
+            onChange={setQuery}
+            placeholder="সূরার নাম বা নম্বর লিখুন (যেমন: কাহফ, ১৮, Yasin)..."
+          />
+        </div>
+      </section>
 
-          {waqtSurah &&
-            (clock.isJummah ? (
-              /* Compact single-row current waqt suggestion bar on Jummah */
-              <button
-                type="button"
-                onClick={() =>
-                  onOpenSurah(
-                    waqtSurah.id,
-                    getResumeAyahFor(waqtSurah.id, waqtSurah.versesCount)
-                  )
-                }
-                className="w-full rounded-2xl border px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-left transition-colors active:scale-[0.995] cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: 'var(--accent-soft)',
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    <Clock className="w-3 h-3" />
-                    {clock.waqtSuggestion.contextLabelBn}
-                  </span>
-                  <span className="text-xs font-semibold truncate">
-                    সূরা {waqtSurah.nameBangla}
-                  </span>
-                </div>
-                <span
-                  className="inline-flex items-center gap-1 text-[11px] font-medium shrink-0"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  পাঠ করুন
-                  <ArrowRight className="w-3 h-3" />
-                </span>
-              </button>
-            ) : (
-              /* Standard current waqt suggestion card on non-Jummah days */
+      {/* Open Editorial Canvas Below */}
+      <div className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Contextual Time-based Surah Suggestion Card Outside Header */}
+        {query.trim().length === 0 && ((clock.isJummah && kahfSurah) || waqtSurah) && (
+          <section
+            aria-label="সময়োপযোগী সূরা সাজেশন"
+            className="rounded-2xl px-4 py-3.5 border space-y-3"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            {clock.isJummah && kahfSurah && (
               <div
                 role="button"
                 tabIndex={0}
                 onClick={() =>
                   onOpenSurah(
-                    waqtSurah.id,
-                    getResumeAyahFor(waqtSurah.id, waqtSurah.versesCount)
+                    kahfSurah.id,
+                    getResumeAyahFor(kahfSurah.id, kahfSurah.versesCount)
                   )
                 }
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onOpenSurah(
-                      waqtSurah.id,
-                      getResumeAyahFor(waqtSurah.id, waqtSurah.versesCount)
+                      kahfSurah.id,
+                      getResumeAyahFor(kahfSurah.id, kahfSurah.versesCount)
                     );
                   }
                 }}
-                className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-colors active:scale-[0.995] cursor-pointer"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor:
-                    'color-mix(in srgb, var(--accent) 26%, var(--border-subtle))',
-                }}
+                className="flex items-center justify-between gap-3 transition-opacity active:opacity-75 cursor-pointer group"
               >
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{
-                        backgroundColor: 'var(--accent-soft)',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      <Clock className="w-3 h-3" />
-                      {clock.waqtSuggestion.contextLabelBn}
-                    </span>
-                    <span
-                      className="text-[10px] tabular-nums"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {clock.waqtWindow.startFormatted} –{' '}
-                      {clock.waqtWindow.endFormatted}
-                    </span>
+                <div className="min-w-0 space-y-0.5">
+                  <div
+                    className="inline-flex items-center gap-1 text-[11px] font-medium"
+                    style={{ color: 'var(--gold)' }}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>জুমুআর আমল • বৃহঃ মাগরিব – শুক্র মাগরিব</span>
                   </div>
                   <div className="flex items-baseline gap-1.5 flex-wrap">
-                    <h2 className="text-sm font-bold tracking-tight">
-                      সূরা {waqtSurah.nameBangla}
+                    <h2 className="text-base font-semibold">
+                      সূরা {kahfSurah.nameBangla}
                     </h2>
                     <span
-                      className="text-[11px]"
+                      className="text-xs"
                       style={{ color: 'var(--text-muted)' }}
                     >
-                      ({waqtSurah.meaningBangla})
+                      ({kahfSurah.meaningBangla})
                     </span>
                   </div>
                   <p
-                    className="text-[11px] truncate"
+                    className="text-[11px]"
                     style={{ color: 'var(--text-secondary)' }}
                   >
                     {(() => {
                       const resume = getResumeAyahFor(
-                        waqtSurah.id,
-                        waqtSurah.versesCount
+                        kahfSurah.id,
+                        kahfSurah.versesCount
                       );
                       return resume > 1
-                        ? `সর্বশেষ: আয়াত ${toBanglaDigits(resume)}/${toBanglaDigits(waqtSurah.versesCount)} • চালিয়ে যান`
-                        : clock.waqtSuggestion.hintBn;
+                        ? `সর্বশেষ: আয়াত ${toBanglaDigits(resume)}/${toBanglaDigits(kahfSurah.versesCount)} • চালিয়ে যান`
+                        : `${toBanglaDigits(kahfSurah.versesCount)} আয়াত • জুমুআর দিনে বিশেষ ফযিলতপূর্ণ সূরা`;
                     })()}
                   </p>
                 </div>
-
                 <div className="shrink-0 flex flex-col items-end gap-0.5">
                   <span
                     className="font-surah-names text-[2.25rem] leading-none select-none"
-                    style={{ color: 'var(--accent)' }}
+                    style={{ color: 'var(--gold)' }}
                     aria-hidden="true"
                   >
-                    {String(waqtSurah.id).padStart(3, '0')}
+                    {String(kahfSurah.id).padStart(3, '0')}
                   </span>
                   <span
-                    className="inline-flex items-center gap-0.5 text-[11px] font-semibold"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium"
+                    style={{ color: 'var(--gold)' }}
+                  >
+                    পাঠ করুন
+                    <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {clock.isJummah && kahfSurah && waqtSurah && (
+              <div
+                className="h-px w-full"
+                style={{
+                  backgroundColor:
+                    'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+                }}
+                aria-hidden="true"
+              />
+            )}
+
+            {waqtSurah &&
+              (clock.isJummah ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenSurah(
+                      waqtSurah.id,
+                      getResumeAyahFor(waqtSurah.id, waqtSurah.versesCount)
+                    )
+                  }
+                  className="w-full pt-0.5 flex items-center justify-between gap-2.5 text-left transition-opacity active:opacity-75 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--accent)' }} />
+                    <span
+                      className="text-[11px] font-medium shrink-0"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      {clock.waqtSuggestion.contextLabelBn}
+                    </span>
+                    <span className="text-xs font-medium truncate">
+                      সূরা {waqtSurah.nameBangla}
+                    </span>
+                  </div>
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-medium shrink-0"
                     style={{ color: 'var(--accent)' }}
                   >
                     পাঠ করুন
-                    <ArrowRight className="w-3 h-3" />
+                    <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                   </span>
-                </div>
-              </div>
-            ))}
-        </section>
-      )}
-
-      {/* Search bar */}
-      <div className="relative">
-        <Search
-          className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-          style={{ color: 'var(--text-muted)' }}
-        />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="সূরার নাম বা নম্বর লিখুন (যেমন: কাহফ, ১৮, Yasin)..."
-          className="w-full pl-10 pr-9 py-2.5 rounded-2xl border text-sm outline-none transition-colors"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-primary)',
-          }}
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            aria-label="অনুসন্ধান মুছুন"
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
-
-      {/* Filter pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {(
-          [
-            ['all', `সব (${toBanglaDigits(TOTAL_SURAHS_COUNT)})`],
-            ['offline', `অফলাইন (${toBanglaDigits(cachedSet.size)})`],
-            ['makkah', `মাক্কী (${toBanglaDigits(MAKKAH_SURAHS_COUNT)})`],
-            ['madinah', `মাদানী (${toBanglaDigits(MADINAH_SURAHS_COUNT)})`],
-          ] as const
-        ).map(([id, label]) => {
-          const active = filter === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setFilter(id)}
-              className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors cursor-pointer"
-              style={{
-                backgroundColor: active ? 'var(--accent)' : 'var(--bg-elevated)',
-                borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
-                color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Last-Read Surah Card */}
-      {currentLastRead && SURAH_MAP[currentLastRead.surahId] && !query.trim() && (
-        <LastReadSurahCard
-          lastRead={currentLastRead}
-          onOpenSurah={onOpenSurah}
-        />
-      )}
-
-      {/* Surah List */}
-      <div className="space-y-2">
-        {filtered.length === 0 ? (
-          <div
-            className="rounded-2xl border p-8 text-center text-sm"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-              color: 'var(--text-muted)',
-            }}
-          >
-            কোনো সূরা পাওয়া যায়নি।
-          </div>
-        ) : (
-          filtered.map((surah) => {
-            const lastRead = surahLastReadMap.get(surah.id);
-            const lastAyah = lastRead
-              ? Math.min(Math.max(lastRead.ayahNumber, 1), surah.versesCount)
-              : 0;
-            const showProgress = lastAyah > 0 && lastAyah < surah.versesCount;
-            const percent = showProgress
-              ? Math.min(99, Math.round((lastAyah / surah.versesCount) * 100))
-              : 0;
-            const resumeAyah = showProgress ? lastAyah : 1;
-
-            return (
-              <div
-                key={surah.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onOpenSurah(surah.id, resumeAyah)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onOpenSurah(surah.id, resumeAyah);
+                </button>
+              ) : (
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() =>
+                    onOpenSurah(
+                      waqtSurah.id,
+                      getResumeAyahFor(waqtSurah.id, waqtSurah.versesCount)
+                    )
                   }
-                }}
-                className="w-full px-3.5 py-3 rounded-2xl border transition-colors cursor-pointer active:scale-[0.995]"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 border"
-                      style={{
-                        backgroundColor: 'var(--bg-surface)',
-                        borderColor: 'var(--border-subtle)',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {toBanglaDigits(surah.id)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-sm truncate">
-                          {surah.nameBangla}
-                        </span>
-                        <span
-                          className="text-[11px] truncate"
-                          style={{ color: 'var(--text-muted)' }}
-                        >
-                          ({surah.meaningBangla})
-                        </span>
-                      </div>
-                      <div
-                        className="text-[11px] flex items-center gap-1.5 mt-0.5"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
-                        <span>•</span>
-                        <span>
-                          {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
-                        </span>
-                        <span>•</span>
-                        <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <span
-                    className="font-surah-names text-[2rem] leading-none shrink-0 select-none"
-                    style={{ color: 'var(--text-primary)' }}
-                    aria-hidden="true"
-                  >
-                    {String(surah.id).padStart(3, '0')}
-                  </span>
-                </div>
-
-                {showProgress && (
-                  <div className="mt-2.5 pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--border-subtle)' }}>
-                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onOpenSurah(
+                        waqtSurah.id,
+                        getResumeAyahFor(waqtSurah.id, waqtSurah.versesCount)
+                      );
+                    }
+                  }}
+                  className="flex items-center justify-between gap-3 transition-opacity active:opacity-75 cursor-pointer group"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span
-                        className="font-medium"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium"
                         style={{ color: 'var(--accent)' }}
                       >
-                        সর্বশেষ: আয়াত {toBanglaDigits(lastAyah)}/{toBanglaDigits(surah.versesCount)}
+                        <Clock className="w-3 h-3" />
+                        {clock.waqtSuggestion.contextLabelBn}
                       </span>
                       <span
-                        className="font-semibold"
-                        style={{ color: 'var(--text-secondary)' }}
+                        className="text-[11px] tabular-nums"
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        {toBanglaDigits(percent)}%
+                        {clock.waqtWindow.startFormatted} –{' '}
+                        {clock.waqtWindow.endFormatted}
                       </span>
                     </div>
-                    <div
-                      className="h-1 w-full rounded-full overflow-hidden"
-                      style={{ backgroundColor: 'var(--bg-surface)' }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{
-                          width: `${percent}%`,
-                          backgroundColor: 'var(--accent)',
-                        }}
-                      />
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <h2 className="text-sm font-semibold">
+                        সূরা {waqtSurah.nameBangla}
+                      </h2>
+                      <span
+                        className="text-[11px]"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        ({waqtSurah.meaningBangla})
+                      </span>
                     </div>
+                    <p
+                      className="text-[11px] truncate"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {(() => {
+                        const resume = getResumeAyahFor(
+                          waqtSurah.id,
+                          waqtSurah.versesCount
+                        );
+                        return resume > 1
+                          ? `সর্বশেষ: আয়াত ${toBanglaDigits(resume)}/${toBanglaDigits(waqtSurah.versesCount)} • চালিয়ে যান`
+                          : clock.waqtSuggestion.hintBn;
+                      })()}
+                    </p>
                   </div>
-                )}
-              </div>
-            );
-          })
+
+                  <div className="shrink-0 flex flex-col items-end gap-0.5">
+                    <span
+                      className="font-surah-names text-[2.25rem] leading-none select-none"
+                      style={{ color: 'var(--accent)' }}
+                      aria-hidden="true"
+                    >
+                      {String(waqtSurah.id).padStart(3, '0')}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[11px] font-medium"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      পাঠ করুন
+                      <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </section>
         )}
+
+        {currentLastRead && SURAH_MAP[currentLastRead.surahId] && !query.trim() && (
+          <div className="space-y-2.5">
+            <h2 className="text-sm font-semibold">সর্বশেষ তিলাওয়াত</h2>
+            <LastReadSurahCard
+              lastRead={currentLastRead}
+              onOpenSurah={onOpenSurah}
+            />
+          </div>
+        )}
+
+        <section className="space-y-3">
+          <UnderlineTabs
+            value={filter}
+            onChange={setFilter}
+            ariaLabel="সূরা ফিল্টার"
+            tabs={[
+              { id: 'all', label: 'সব', count: toBanglaDigits(TOTAL_SURAHS_COUNT) },
+              { id: 'offline', label: 'অফলাইন', count: toBanglaDigits(cachedSet.size) },
+              { id: 'makkah', label: 'মাক্কী', count: toBanglaDigits(MAKKAH_SURAHS_COUNT) },
+              { id: 'madinah', label: 'মাদানী', count: toBanglaDigits(MADINAH_SURAHS_COUNT) },
+            ]}
+          />
+
+          {filtered.length === 0 ? (
+            <div
+              className="py-12 text-center text-xs"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              কোনো সূরা পাওয়া যায়নি।
+            </div>
+          ) : (
+            <div>
+              {filtered.map((surah) => {
+                const lastRead = surahLastReadMap.get(surah.id);
+                const lastAyah = lastRead
+                  ? Math.min(Math.max(lastRead.ayahNumber, 1), surah.versesCount)
+                  : 0;
+                const showProgress = lastAyah > 0 && lastAyah < surah.versesCount;
+                const percent = showProgress
+                  ? Math.min(99, Math.round((lastAyah / surah.versesCount) * 100))
+                  : 0;
+                const resumeAyah = showProgress ? lastAyah : 1;
+
+                return (
+                  <div
+                    key={surah.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onOpenSurah(surah.id, resumeAyah)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onOpenSurah(surah.id, resumeAyah);
+                      }
+                    }}
+                    className="py-3.5 border-b last:border-b-0 transition-opacity active:opacity-70 cursor-pointer"
+                    style={{
+                      borderColor:
+                        'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <span
+                          className="w-7 text-xs font-medium tabular-nums shrink-0"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          {toBanglaDigits(surah.id)}.
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-baseline gap-1.5 min-w-0">
+                            <span className="font-semibold text-sm truncate">
+                              {surah.nameBangla}
+                            </span>
+                            <span
+                              className="text-[11px] truncate"
+                              style={{ color: 'var(--text-muted)' }}
+                            >
+                              ({surah.meaningBangla})
+                            </span>
+                          </div>
+                          <div
+                            className="text-[11px] flex items-center gap-1.5 mt-0.5 tabular-nums"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
+                            <span className="opacity-40">•</span>
+                            <span>
+                              {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
+                            </span>
+                            <span className="opacity-40">•</span>
+                            <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <span
+                        className="font-surah-names text-[2rem] leading-none shrink-0 select-none"
+                        style={{ color: 'var(--text-primary)' }}
+                        aria-hidden="true"
+                      >
+                        {String(surah.id).padStart(3, '0')}
+                      </span>
+                    </div>
+
+                    {showProgress && (
+                      <div className="mt-2 pl-10.5 space-y-1">
+                        <div className="flex items-center justify-between gap-2 text-[11px]">
+                          <span
+                            className="font-medium tabular-nums"
+                            style={{ color: 'var(--accent)' }}
+                          >
+                            সর্বশেষ: আয়াত {toBanglaDigits(lastAyah)}/{toBanglaDigits(surah.versesCount)}
+                          </span>
+                          <span
+                            className="font-medium tabular-nums"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {toBanglaDigits(percent)}%
+                          </span>
+                        </div>
+                        <div
+                          className="h-[3px] w-full rounded-full overflow-hidden"
+                          style={{
+                            backgroundColor:
+                              'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+                          }}
+                        >
+                          <div
+                            className="h-full rounded-full transition-all duration-300"
+                            style={{
+                              width: `${percent}%`,
+                              backgroundColor: 'var(--accent)',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

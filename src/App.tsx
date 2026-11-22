@@ -9,12 +9,15 @@ import { ReaderView } from './components/ReaderView';
 import { RoutineDetailView } from './components/RoutineDetailView';
 import { RoutinesView } from './components/RoutinesView';
 import { SettingsView } from './components/SettingsView';
+import { SplashScreen } from './components/SplashScreen';
 import { StatsView } from './components/StatsView';
 import { SurahListView } from './components/SurahListView';
 import { useToast } from './components/ToastProvider';
 import { DUA_MAP, type DuaItem } from './data/duas';
 import {
   DEFAULT_SETTINGS,
+  GLASS_PRESET_OPACITY,
+  clampGlassOpacity,
   db,
   ensureDatabaseInitialized,
   getCompletedItemIndexes,
@@ -33,10 +36,12 @@ import {
   parseRoute,
   type AppRoute,
 } from './router';
+import { applyThemeIcons } from './utils/themeIcons';
 
 const THEME_META_COLORS: Record<Settings['theme'], string> = {
   paper: '#FAF6EE',
   olive: '#EEF2EA',
+  sky: '#F2F6FA',
   black: '#070807',
 };
 
@@ -126,9 +131,16 @@ export function App() {
   );
 
   const rawSettings = useLiveQuery(() => db.settings.get('app'), []);
+  const resolvedGlassMode =
+    rawSettings?.glassMode ?? DEFAULT_SETTINGS.glassMode ?? 'frosted';
   const settings: Settings = {
     ...DEFAULT_SETTINGS,
     ...rawSettings,
+    glassMode: resolvedGlassMode,
+    glassOpacity:
+      typeof rawSettings?.glassOpacity === 'number'
+        ? clampGlassOpacity(rawSettings.glassOpacity)
+        : GLASS_PRESET_OPACITY[resolvedGlassMode],
     fastingLocation:
       rawSettings?.fastingLocation ?? DEFAULT_SETTINGS.fastingLocation,
     fastingMethod:
@@ -193,14 +205,38 @@ export function App() {
     }
   }, [dbReady, route, isRoutineReadReady, activeRouteRoutine, navigate]);
 
-  // Apply theme attribute & PWA status bar color
+  // Apply theme & glass attributes, PWA status bar color, dynamic favicon/app icon & cache for zero-flash splash
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', settings.theme);
+    if (rawSettings === undefined && !dbReady) return;
+    const glassMode = settings.glassMode ?? 'frosted';
+    const glassOpacity = clampGlassOpacity(
+      settings.glassOpacity ?? GLASS_PRESET_OPACITY[glassMode]
+    );
+    const root = document.documentElement;
+    root.setAttribute('data-theme', settings.theme);
+    root.setAttribute('data-glass', glassMode);
+    root.style.setProperty('--glass-pill-opacity', `${glassOpacity}%`);
+    root.style.setProperty(
+      '--glass-bar-opacity',
+      `${Math.min(98, glassOpacity + 6)}%`
+    );
+    root.style.setProperty(
+      '--glass-sheet-opacity',
+      `${Math.min(98, glassOpacity + 14)}%`
+    );
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
       metaTheme.setAttribute('content', THEME_META_COLORS[settings.theme]);
     }
-  }, [settings.theme]);
+    applyThemeIcons(settings.theme);
+    try {
+      window.localStorage.setItem('sukoon-theme', settings.theme);
+      window.localStorage.setItem('sukoon-glass', glassMode);
+      window.localStorage.setItem('sukoon-glass-opacity', String(glassOpacity));
+    } catch {
+      // Ignore storage quota / private mode errors
+    }
+  }, [rawSettings, dbReady, settings.theme, settings.glassMode, settings.glassOpacity]);
 
   const handleTabChange = useCallback(
     (tab: AppTab) => {
@@ -368,21 +404,7 @@ export function App() {
   );
 
   if (!dbReady || (route.type === 'routineRead' && activeRouteRoutine === undefined)) {
-    return (
-      <div className="min-h-dvh flex items-center justify-center paper-frame">
-        <div className="text-center space-y-2">
-          <div
-            className="font-indopak text-4xl"
-            style={{ color: 'var(--accent)' }}
-          >
-            سُكُوْن
-          </div>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            প্রস্তুত হচ্ছে...
-          </p>
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (route.type === 'dua') {

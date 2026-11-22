@@ -88,7 +88,7 @@ export function RoutineDetailView({
         <button
           type="button"
           onClick={onBack}
-          className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+          className="px-4 py-2 rounded-xl text-xs font-medium cursor-pointer"
           style={{
             backgroundColor: 'var(--accent)',
             color: 'var(--accent-text)',
@@ -137,46 +137,60 @@ export function RoutineDetailView({
     <div className="min-h-dvh paper-frame pb-24">
       <TopBar
         mode="sticky"
+        surface="tinted"
         onBack={onBack}
         backLabel="ফিরে যান"
         title={routine.title}
         subtitle={`${scheduleText} • ${toBanglaDigits(items.length)}টি অংশ`}
       />
 
-      <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4">
-        {/* Progress Summary Card */}
+      {/* Open Editorial Canvas Below */}
+      <div className="max-w-2xl mx-auto px-5 pt-5 space-y-6">
+        {/* Elevated Overall Progress Card (matches Stats, Fasting & Surah Suggestion) */}
         <section
-          className="rounded-2xl border p-4 space-y-3"
+          className="rounded-2xl px-4 py-3.5 border space-y-2.5"
           style={{
             backgroundColor: 'var(--bg-elevated)',
             borderColor: 'var(--border-subtle)',
           }}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="min-w-0">
+              <p
+                className="text-xs font-medium"
+                style={{ color: 'var(--text-primary)' }}
+              >
                 সামগ্রিক অগ্রগতি ({formatRoutineSummaryBn(summary)})
               </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              <p
+                className="text-[11px] mt-0.5 tabular-nums"
+                style={{ color: 'var(--text-secondary)' }}
+              >
                 {toBanglaDigits(completedSet.size)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন •{' '}
                 {toBanglaDigits(completedUnits)}/{toBanglaDigits(totalUnits)} ইউনিট
               </p>
             </div>
-            <span
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold shrink-0"
-              style={{
-                backgroundColor: 'var(--accent-soft)',
-                color: 'var(--accent)',
-              }}
-            >
-              {isAllCompleted && <CheckCircle2 className="w-3.5 h-3.5" />}
-              {toBanglaDigits(percentage)}%
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isAllCompleted && (
+                <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              )}
+              <span
+                className="text-xl font-semibold tabular-nums leading-none"
+                style={{
+                  color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                {toBanglaDigits(percentage)}%
+              </span>
+            </div>
           </div>
 
           <div
-            className="h-2 rounded-full overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-surface)' }}
+            className="h-[3px] rounded-full overflow-hidden"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+            }}
           >
             <div
               className="h-full rounded-full transition-all duration-300"
@@ -188,16 +202,15 @@ export function RoutineDetailView({
           </div>
         </section>
 
-        {/* Section Header */}
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-sm font-semibold">রুটিনের তালিকা</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">রুটিনের তালিকা</h2>
           <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
             বামে টিক দিয়ে পড়া মার্ক করুন
           </span>
         </div>
 
-        {/* Ordered Accordion List */}
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {items.map((item, idx) => {
             const isChecked = completedSet.has(idx);
             const isExpanded = expandedIndex === idx;
@@ -218,17 +231,10 @@ export function RoutineDetailView({
             return (
               <div
                 key={`${isSurah ? `s-${item.surahId}` : `d-${item.duaId}`}-${idx}`}
-                className="rounded-2xl border overflow-hidden transition-colors"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: isChecked
-                    ? 'color-mix(in srgb, var(--accent) 30%, var(--border-subtle))'
-                    : 'var(--border-subtle)',
-                }}
+                className="py-1"
               >
-                {/* Accordion Row Header */}
-                <div className="flex items-center gap-1 pr-3 py-1">
-                  {/* Left 1-click Checkbox */}
+                {/* Plain Unboxed Row Header */}
+                <div className="flex items-center gap-1">
                   <button
                     type="button"
                     role="checkbox"
@@ -238,17 +244,14 @@ export function RoutineDetailView({
                       e.stopPropagation();
                       void handleToggleItem(idx, !isChecked);
                     }}
-                    className="w-11 h-11 shrink-0 flex items-center justify-center cursor-pointer"
+                    className="w-9 h-10 -ml-2 shrink-0 flex items-center justify-center cursor-pointer"
                   >
                     <span
-                      className="w-5 h-5 rounded-md border flex items-center justify-center transition-colors"
+                      className="w-5 h-5 rounded-md flex items-center justify-center transition-colors"
                       style={{
                         backgroundColor: isChecked
                           ? 'var(--accent)'
-                          : 'var(--bg-page)',
-                        borderColor: isChecked
-                          ? 'var(--accent)'
-                          : 'color-mix(in srgb, var(--text-muted) 55%, var(--border-subtle))',
+                          : 'var(--bg-surface)',
                         color: 'var(--accent-text)',
                       }}
                     >
@@ -256,19 +259,18 @@ export function RoutineDetailView({
                     </span>
                   </button>
 
-                  {/* Accordion Toggle Button */}
                   <button
                     type="button"
                     onClick={() =>
                       setExpandedIndex((prev) => (prev === idx ? null : idx))
                     }
                     aria-expanded={isExpanded}
-                    className="flex-1 min-w-0 flex items-center justify-between gap-2 py-2.5 text-left cursor-pointer"
+                    className="flex-1 min-w-0 flex items-center justify-between gap-2 py-2 text-left cursor-pointer"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span
-                          className="text-xs font-medium shrink-0"
+                          className="text-xs font-medium tabular-nums shrink-0"
                           style={{ color: 'var(--text-muted)' }}
                         >
                           {toBanglaDigits(idx + 1)}.
@@ -281,7 +283,7 @@ export function RoutineDetailView({
                         )}
                         <span
                           className={`text-sm font-semibold truncate ${
-                            isChecked ? 'line-through opacity-70' : ''
+                            isChecked ? 'line-through opacity-55' : ''
                           }`}
                         >
                           {isSurah
@@ -291,7 +293,7 @@ export function RoutineDetailView({
                       </div>
 
                       <div
-                        className="flex items-center gap-2 flex-wrap text-[11px] mt-0.5"
+                        className="flex items-center gap-2 flex-wrap text-[11px] mt-0.5 tabular-nums"
                         style={{ color: 'var(--text-secondary)' }}
                       >
                         {isSurah ? (
@@ -308,7 +310,7 @@ export function RoutineDetailView({
 
                         {isPartialActive && progress && (
                           <span
-                            className="px-1.5 py-0.5 rounded font-medium"
+                            className="px-1.5 py-0.5 rounded-md font-medium"
                             style={{
                               backgroundColor: 'var(--accent-soft)',
                               color: 'var(--accent)',
@@ -340,14 +342,11 @@ export function RoutineDetailView({
                   </button>
                 </div>
 
-                {/* Expanded Details Panel */}
+                {/* Expanded Inline Detail */}
                 {isExpanded && (
                   <div
-                    className="px-4 pb-4 pt-3 border-t space-y-3"
-                    style={{
-                      borderColor: 'var(--border-subtle)',
-                      backgroundColor: 'color-mix(in srgb, var(--bg-surface) 45%, var(--bg-elevated))',
-                    }}
+                    className="mt-2 ml-8 rounded-2xl p-4 space-y-3"
+                    style={{ backgroundColor: 'var(--bg-surface)' }}
                   >
                     {isSurah && surahMeta ? (
                       <>
@@ -377,7 +376,7 @@ export function RoutineDetailView({
                           <button
                             type="button"
                             onClick={() => onStartItem(routine, idx, progress)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer active:scale-95 transition-transform"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                             style={{
                               backgroundColor: 'var(--accent)',
                               color: 'var(--accent-text)',
@@ -400,13 +399,9 @@ export function RoutineDetailView({
                           </p>
                         )}
                         <p
-                          className="font-indopak text-lg leading-loose text-right py-2 px-3 rounded-xl border"
+                          className="font-indopak text-lg leading-loose text-right py-1"
                           dir="rtl"
                           lang="ar"
-                          style={{
-                            backgroundColor: 'var(--bg-page)',
-                            borderColor: 'var(--border-subtle)',
-                          }}
                         >
                           {normalizeIndoPakText(dua.arabic)}
                         </p>
@@ -421,11 +416,11 @@ export function RoutineDetailView({
                             সূত্র: {dua.reference}
                           </p>
                         )}
-                        <div className="flex items-center justify-end pt-1">
+                        <div className="flex items-center justify-end pt-0.5">
                           <button
                             type="button"
                             onClick={() => onStartItem(routine, idx, progress)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer active:scale-95 transition-transform"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                             style={{
                               backgroundColor: 'var(--accent)',
                               color: 'var(--accent-text)',
@@ -447,6 +442,7 @@ export function RoutineDetailView({
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </div>

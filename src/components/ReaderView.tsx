@@ -198,7 +198,7 @@ export function ReaderView({
         routineId: routine?.id,
         routineItemIndex,
         incrementTodayAyahs: increment,
-      }).catch(() => {});
+      }).catch(() => { });
 
       if (explicit) {
         toast.success(
@@ -323,8 +323,8 @@ export function ReaderView({
       indexed && !isDuaRoutineItem(indexed) && indexed.surahId === surahId
         ? routineItemIndex!
         : routineItems.findIndex(
-            (it) => !isDuaRoutineItem(it) && it.surahId === surahId
-          );
+          (it) => !isDuaRoutineItem(it) && it.surahId === surahId
+        );
     if (idx === -1) return null;
     const nextItem =
       idx + 1 < routineItems.length ? routineItems[idx + 1] : null;
@@ -456,18 +456,15 @@ export function ReaderView({
           setChromeVisible((v) => !v);
         }}
       >
-        {/* Surah Name Card */}
+        {/* Borderless Tonal Surah Title Header */}
         <div
-          className="rounded-3xl border px-5 py-5 sm:px-7 sm:py-6 mb-7 space-y-3"
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: 'var(--border-subtle)',
-          }}
+          className="rounded-2xl px-5 py-5 sm:px-6 sm:py-6 mb-7 space-y-2.5"
+          style={{ backgroundColor: 'var(--bg-surface)' }}
         >
           {routine && (
             <div className="text-center">
               <span
-                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-0.5 rounded-full"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full"
                 style={{
                   backgroundColor: 'var(--accent-soft)',
                   color: 'var(--accent)',
@@ -487,7 +484,7 @@ export function ReaderView({
             </div>
             <div className="text-left min-w-0">
               <h1
-                className="text-lg sm:text-xl font-bold leading-snug tracking-tight"
+                className="text-lg sm:text-xl font-semibold leading-snug"
                 style={{ color: 'var(--text-primary)' }}
               >
                 {toBanglaDigits(meta.id)}. সূরা {meta.nameBangla}
@@ -501,16 +498,16 @@ export function ReaderView({
             </div>
           </div>
           <div
-            className="text-xs text-center leading-relaxed"
-            style={{ color: 'var(--text-secondary)' }}
+            className="text-xs text-center leading-relaxed tabular-nums"
+            style={{ color: 'var(--text-muted)' }}
           >
             {meta.revelationPlace === 'makkah' ? 'মক্কায় অবতীর্ণ' : 'মদীনায় অবতীর্ণ'} •{' '}
             {activeRoutineItem &&
-            (activeRoutineItem.startAyah > 1 ||
-              activeRoutineItem.endAyah < meta.versesCount)
+              (activeRoutineItem.startAyah > 1 ||
+                activeRoutineItem.endAyah < meta.versesCount)
               ? `আয়াত ${toBanglaDigits(activeRoutineItem.startAyah)}–${toBanglaDigits(
-                  activeRoutineItem.endAyah
-                )} (${toBanglaDigits(meta.versesCount)} আয়াত)`
+                activeRoutineItem.endAyah
+              )} (${toBanglaDigits(meta.versesCount)} আয়াত)`
               : `${toBanglaDigits(meta.versesCount)} আয়াত`}{' '}
             • পৃষ্ঠা {toBanglaDigits(meta.pages[0])}–{toBanglaDigits(meta.pages[1])}
           </div>
@@ -528,22 +525,16 @@ export function ReaderView({
             </p>
           </div>
         ) : error ? (
-          <div
-            className="rounded-2xl border p-6 text-center space-y-3 my-8"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-            }}
-          >
+          <div className="py-12 text-center space-y-3 my-4">
             <WifiOff className="w-7 h-7 mx-auto" style={{ color: 'var(--gold)' }} />
             <h2 className="font-semibold text-sm">অফলাইনে পাওয়া যায়নি</h2>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-xs max-w-xs mx-auto leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
               {error}
             </p>
             <button
               type="button"
               onClick={() => loadSurah()}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -579,11 +570,11 @@ export function ReaderView({
                   <span key={verse.id}>
                     {pageChanged && (
                       <span
-                        className="block my-5 py-1.5 text-center border-y text-xs font-sans tracking-normal"
+                        className="block my-6 py-1.5 px-3 rounded-xl text-center text-xs font-sans tracking-normal"
                         dir="ltr"
                         style={{
                           fontFamily: '"Noto Sans Bengali", sans-serif',
-                          borderColor: 'var(--border-subtle)',
+                          backgroundColor: 'var(--bg-surface)',
                           color: 'var(--text-muted)',
                         }}
                       >
@@ -633,13 +624,10 @@ export function ReaderView({
               })}
             </div>
 
-            {/* End of Surah / Routine Progression Card */}
+            {/* Borderless Tonal End-of-Surah Footer */}
             <div
-              className="mt-12 rounded-3xl border p-6 text-center space-y-4"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
-              }}
+              className="mt-12 rounded-2xl p-6 text-center space-y-4"
+              style={{ backgroundColor: 'var(--bg-surface)' }}
             >
               <div
                 className="font-indopak text-2xl"
@@ -649,14 +637,14 @@ export function ReaderView({
               </div>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {activeRoutineItem &&
-                (activeRoutineItem.startAyah > 1 ||
-                  activeRoutineItem.endAyah < meta.versesCount)
+                  (activeRoutineItem.startAyah > 1 ||
+                    activeRoutineItem.endAyah < meta.versesCount)
                   ? `সূরা ${meta.nameBangla} (আয়াত ${toBanglaDigits(
-                      activeRoutineItem.startAyah
-                    )}–${toBanglaDigits(activeRoutineItem.endAyah)}) সমাপ্ত হয়েছে`
+                    activeRoutineItem.startAyah
+                  )}–${toBanglaDigits(activeRoutineItem.endAyah)}) সমাপ্ত হয়েছে`
                   : `সূরা ${meta.nameBangla} সমাপ্ত হয়েছে (${toBanglaDigits(
-                      meta.versesCount
-                    )} আয়াত)`}
+                    meta.versesCount
+                  )} আয়াত)`}
               </p>
 
               {routineNav ? (
@@ -672,34 +660,35 @@ export function ReaderView({
                   onNext={
                     routineNav.nextItem
                       ? async () => {
-                          const next = routineNav.nextItem!;
-                          if (onAdvanceRoutineItem) {
-                            if (displayedVerses.length > 0) {
-                              const last = displayedVerses[displayedVerses.length - 1];
-                              await updateReadingProgress({
-                                surahId,
-                                ayahNumber: last.verse_number,
-                                pageNumber: last.page_number,
-                                routineId: routine?.id,
-                                routineItemIndex,
-                                markItemCompleted: true,
-                              });
-                            }
-                            onAdvanceRoutineItem(routineNav.nextIndex);
-                          } else if (next.kind === 'surah') {
-                            await handleFinishSurahAndNext(
-                              next.surahId,
-                              next.startAyah,
-                              routineNav.nextIndex
-                            );
+                        const next = routineNav.nextItem!;
+                        if (onAdvanceRoutineItem) {
+                          if (displayedVerses.length > 0) {
+                            const last = displayedVerses[displayedVerses.length - 1];
+                            await updateReadingProgress({
+                              surahId,
+                              ayahNumber: last.verse_number,
+                              pageNumber: last.page_number,
+                              routineId: routine?.id,
+                              routineItemIndex,
+                              markItemCompleted: true,
+                            });
                           }
+                          onAdvanceRoutineItem(routineNav.nextIndex);
+                        } else if (next.kind === 'surah') {
+                          await handleFinishSurahAndNext(
+                            next.surahId,
+                            next.startAyah,
+                            routineNav.nextIndex
+                          );
                         }
+                      }
                       : undefined
                   }
                   onComplete={handleCompleteRoutine}
                 />
               ) : (
                 <ReaderFreePager
+                  elevated
                   prevLabel="পূর্ববর্তী সূরা"
                   prevTitle={prevSurah?.nameBangla ?? null}
                   onPrev={
@@ -726,33 +715,31 @@ export function ReaderView({
         !loading &&
         !error &&
         (chromeVisible || autoScrollPaused) && (
-        <div className="fixed bottom-5 right-4 z-30 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAutoScrollPaused((p) => !p)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border shadow-md text-xs font-semibold cursor-pointer outline-none"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-              color: 'var(--accent)',
-            }}
-          >
-            {autoScrollPaused ? (
-              <Play className="w-3.5 h-3.5" />
-            ) : (
-              <Pause className="w-3.5 h-3.5" />
-            )}
-            <span>
-              অটো-স্ক্রল{' '}
-              {
-                AUTO_SCROLL_SPEEDS.find(
-                  (s) => s.value === settings.autoScrollSpeed
-                )?.label
-              }
-            </span>
-          </button>
-        </div>
-      )}
+          <div className="fixed bottom-5 right-4 z-30 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAutoScrollPaused((p) => !p)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full sukoon-glass-pill text-xs font-medium cursor-pointer outline-none transition-transform active:scale-95"
+              style={{
+                color: 'var(--accent)',
+              }}
+            >
+              {autoScrollPaused ? (
+                <Play className="w-3.5 h-3.5" />
+              ) : (
+                <Pause className="w-3.5 h-3.5" />
+              )}
+              <span>
+                অটো-স্ক্রল{' '}
+                {
+                  AUTO_SCROLL_SPEEDS.find(
+                    (s) => s.value === settings.autoScrollSpeed
+                  )?.label
+                }
+              </span>
+            </button>
+          </div>
+        )}
 
       <ReaderQuickSettingsSheet
         open={settingsOpen}
@@ -762,9 +749,12 @@ export function ReaderView({
         wakeLockSubtitle={wakeLockSubtitle}
       >
         {/* Auto-Scroll Speed */}
-        <div className="space-y-2">
-          <label className="block text-xs font-semibold">অটো-স্ক্রল গতি</label>
-          <div className="grid grid-cols-5 gap-1.5">
+        <div className="space-y-2.5">
+          <label className="block text-xs font-medium">অটো-স্ক্রল গতি</label>
+          <div
+            className="grid grid-cols-5 gap-1 p-1 rounded-2xl"
+            style={{ backgroundColor: 'var(--bg-surface)' }}
+          >
             {AUTO_SCROLL_SPEEDS.map((sp) => {
               const active = settings.autoScrollSpeed === sp.value;
               return (
@@ -775,14 +765,9 @@ export function ReaderView({
                     setAutoScrollPaused(false);
                     onUpdateSettings({ autoScrollSpeed: sp.value });
                   }}
-                  className="py-2 rounded-xl text-xs font-medium border cursor-pointer"
+                  className="py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer"
                   style={{
-                    backgroundColor: active
-                      ? 'var(--accent)'
-                      : 'var(--bg-elevated)',
-                    borderColor: active
-                      ? 'var(--accent)'
-                      : 'var(--border-subtle)',
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
                     color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                   }}
                 >
@@ -796,7 +781,7 @@ export function ReaderView({
         {/* Jump to Ayah */}
         {surahData && (
           <form onSubmit={handleJumpToAyah} className="space-y-2">
-            <label className="block text-xs font-semibold">
+            <label className="block text-xs font-medium">
               নির্দিষ্ট আয়াতে যান ({toBanglaDigits(activeRoutineItem?.startAyah ?? 1)} –{' '}
               {toBanglaDigits(activeRoutineItem?.endAyah ?? surahData.totalVerses)})
             </label>
@@ -808,15 +793,15 @@ export function ReaderView({
                 value={jumpAyahInput}
                 onChange={(e) => setJumpAyahInput(e.target.value)}
                 placeholder={`আয়াত নম্বর (বর্তমান: ${activeAyah})`}
-                className="flex-1 px-3 py-2 rounded-xl border text-xs outline-none"
+                className="flex-1 px-3.5 py-2 rounded-xl text-xs outline-none"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
                 }}
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
                 style={{
                   backgroundColor: 'var(--accent)',
                   color: 'var(--accent-text)',

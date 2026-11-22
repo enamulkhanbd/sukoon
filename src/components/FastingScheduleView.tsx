@@ -11,7 +11,7 @@ import {
 } from '../utils/fasting';
 import { clampHijriOffsetDays } from '../utils/hijri';
 import { formatDateKey, MONTH_SHORT_BN } from '../utils/stats';
-import { TopBar } from './NavigationChrome';
+import { TopBar, UnderlineTabs } from './NavigationChrome';
 
 interface FastingScheduleViewProps {
   settings: Settings;
@@ -132,13 +132,14 @@ export function FastingScheduleView({
     <div className="min-h-dvh paper-frame pb-16">
       <TopBar
         mode="sticky"
+        surface="tinted"
         onBack={onBack}
         backLabel="ফিরে যান"
         title={`${schedule.hijriMonthNameBn} ${toBanglaDigits(schedule.hijriYear)} হি.`}
         titleBadge={
           schedule.isRamadan ? (
             <span
-              className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+              className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0"
               style={{
                 backgroundColor: 'var(--gold-soft)',
                 color: 'var(--gold)',
@@ -152,21 +153,27 @@ export function FastingScheduleView({
         subtitle={`${location.nameBn} • ${toBanglaDigits(schedule.days.length)} দিনের সময়সূচি`}
       />
 
-      <main className="max-w-2xl mx-auto px-5 pt-4 space-y-5">
-        {/* Today's At-a-Glance Strip (Open Editorial Style) */}
+      <main className="max-w-2xl mx-auto px-5 pt-5 space-y-5">
+        {/* Elevated Today's At-a-Glance Card (matches Surah suggestion & FastingCard) */}
         {todayEntry && (
-          <section className="space-y-3">
+          <section
+            className="rounded-2xl px-4 py-3.5 border space-y-3"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
             <div className="flex items-baseline justify-between gap-2">
               <div className="flex items-baseline gap-2 min-w-0">
                 <span
-                  className="text-xl font-bold tabular-nums tracking-tight"
+                  className="text-lg font-semibold tabular-nums"
                   style={{ color: accentColor }}
                 >
                   {toBanglaDigits(todayEntry.hijri.day)} {schedule.hijriMonthNameBn}
                 </span>
                 <span
                   className="text-xs"
-                  style={{ color: 'var(--text-muted)' }}
+                  style={{ color: 'var(--text-secondary)' }}
                 >
                   আজ • {toBanglaDigits(todayEntry.gregorianDate.getDate())}{' '}
                   {MONTH_SHORT_BN[todayEntry.gregorianDate.getMonth()]} (
@@ -176,21 +183,37 @@ export function FastingScheduleView({
             </div>
 
             <div
-              className="grid grid-cols-2 divide-x divide-[var(--border-subtle)] py-2.5 border-y"
-              style={{ borderColor: 'var(--border-subtle)' }}
-            >
-              <div className="pr-4">
+              className="h-px w-full"
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+              }}
+              aria-hidden="true"
+            />
+
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+              <div>
                 <div
                   className="text-[11px]"
                   style={{ color: 'var(--text-muted)' }}
                 >
                   আজকের সাহরি শেষ
                 </div>
-                <div className="text-base font-bold tabular-nums mt-0.5">
+                <div className="text-base font-semibold tabular-nums mt-0.5">
                   {todayEntry.sehriFormatted}
                 </div>
               </div>
-              <div className="pl-4">
+
+              <span
+                className="h-7 w-px"
+                style={{
+                  backgroundColor:
+                    'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+                }}
+                aria-hidden="true"
+              />
+
+              <div>
                 <div
                   className="text-[11px]"
                   style={{ color: 'var(--text-muted)' }}
@@ -198,8 +221,8 @@ export function FastingScheduleView({
                   আজকের ইফতার
                 </div>
                 <div
-                  className="text-base font-bold tabular-nums mt-0.5"
-                  style={{ color: accentColor }}
+                  className="text-base font-semibold tabular-nums mt-0.5"
+                  style={{ color: 'var(--text-primary)' }}
                 >
                   {todayEntry.iftarFormatted}
                 </div>
@@ -208,90 +231,40 @@ export function FastingScheduleView({
           </section>
         )}
 
-        {/* Meaningful Underline Filter Tabs */}
+        {/* Shared Underline Filter Tabs */}
         <section className="space-y-2.5">
           {schedule.isRamadan ? (
-            <div
-              className="grid grid-cols-4 border-b"
-              style={{ borderColor: 'var(--border-subtle)' }}
-              role="tablist"
-              aria-label="আশরা নির্বাচন"
-            >
-              {(
-                [
-                  { id: 'all', label: 'সব দিন' },
-                  { id: 'rahmat', label: 'রহমত' },
-                  { id: 'magfirat', label: 'মাগফিরাত' },
-                  { id: 'najat', label: 'নাজাত' },
-                ] as const
-              ).map((tab) => {
-                const active = ashraFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setAshraFilter(tab.id)}
-                    className="relative py-2 text-xs font-semibold transition-colors cursor-pointer"
-                    style={{
-                      color: active ? accentColor : 'var(--text-muted)',
-                    }}
-                  >
-                    {tab.label}
-                    {active && (
-                      <span
-                        className="absolute inset-x-3 bottom-0 h-[2px] rounded-full"
-                        style={{ backgroundColor: accentColor }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <UnderlineTabs<RamadanAshraFilter>
+              value={ashraFilter}
+              onChange={setAshraFilter}
+              ariaLabel="আশরা নির্বাচন"
+              accentColor={accentColor}
+              tabs={[
+                { id: 'all', label: 'সব দিন' },
+                { id: 'rahmat', label: 'রহমত' },
+                { id: 'magfirat', label: 'মাগফিরাত' },
+                { id: 'najat', label: 'নাজাত' },
+              ]}
+            />
           ) : (
-            <div
-              className="grid grid-cols-2 border-b"
-              style={{ borderColor: 'var(--border-subtle)' }}
-              role="tablist"
-              aria-label="দিন ফিল্টার"
-            >
-              {(
-                [
-                  {
-                    id: 'all',
-                    label: `সব দিন (${toBanglaDigits(schedule.days.length)})`,
-                  },
-                  {
-                    id: 'sunnah',
-                    label: `সুন্নাহ রোজা (${toBanglaDigits(sunnahDaysCount)})`,
-                  },
-                ] as const
-              ).map((tab) => {
-                const active = nonRamadanFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setNonRamadanFilter(tab.id)}
-                    className="relative py-2 text-xs font-semibold transition-colors cursor-pointer"
-                    style={{
-                      color: active ? accentColor : 'var(--text-muted)',
-                    }}
-                  >
-                    {tab.label}
-                    {active && (
-                      <span
-                        className="absolute inset-x-8 bottom-0 h-[2px] rounded-full"
-                        style={{ backgroundColor: accentColor }}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <UnderlineTabs<NonRamadanFilter>
+              value={nonRamadanFilter}
+              onChange={setNonRamadanFilter}
+              ariaLabel="দিন ফিল্টার"
+              accentColor={accentColor}
+              tabs={[
+                {
+                  id: 'all',
+                  label: 'সব দিন',
+                  count: toBanglaDigits(schedule.days.length),
+                },
+                {
+                  id: 'sunnah',
+                  label: 'সুন্নাহ রোজা',
+                  count: toBanglaDigits(sunnahDaysCount),
+                },
+              ]}
+            />
           )}
 
           {/* Quiet Legend */}
@@ -368,7 +341,7 @@ export function FastingScheduleView({
                     {/* Hijri Day Number */}
                     <div className="flex flex-col items-center justify-center">
                       <span
-                        className="text-sm font-bold tabular-nums leading-none"
+                        className="text-sm font-semibold tabular-nums leading-none"
                         style={{
                           color: day.isToday
                             ? accentColor
@@ -396,7 +369,7 @@ export function FastingScheduleView({
                         </span>
                         {day.isToday && (
                           <span
-                            className="text-[10px] font-semibold px-1.5 py-[1px] rounded-full shrink-0"
+                            className="text-[11px] font-medium px-1.5 py-[1px] rounded-full shrink-0"
                             style={{
                               backgroundColor: accentColor,
                               color: 'var(--accent-text)',
@@ -408,7 +381,7 @@ export function FastingScheduleView({
                       </div>
                       {sunnahNote && (
                         <div
-                          className="text-[10px] mt-0.5 truncate"
+                          className="text-[11px] mt-0.5 truncate"
                           style={{
                             color: day.isMonthlySunnah
                               ? 'var(--gold)'
@@ -430,7 +403,7 @@ export function FastingScheduleView({
 
                     {/* Iftar */}
                     <div
-                      className="text-right text-xs font-semibold tabular-nums w-[4.75rem]"
+                      className="text-right text-xs font-medium tabular-nums w-[4.75rem]"
                       style={{ color: accentColor }}
                     >
                       {day.iftarFormatted}

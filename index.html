@@ -33,12 +33,62 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Alyamama:wght@600;700&family=Noto+Sans+Bengali:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <title>সুকূন — হৃদয়ের প্রশান্তিতে কুরআন ও দুআর নিত্যসঙ্গী</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sukoon-theme');
+          var themes = {
+            paper: { meta: '#FAF6EE', bg: '#1B4D3E', s: '#C6A253', p: '#FAF6EE', l: '#1B4D3E' },
+            olive: { meta: '#EEF2EA', bg: '#2C593D', s: '#C4AA62', p: '#F6F9F3', l: '#2C593D' },
+            sky: { meta: '#F2F6FA', bg: '#0077D8', s: '#CFE8FF', p: '#F2F6FA', l: '#0077D8' },
+            black: { meta: '#070807', bg: '#141714', s: '#CFA85C', p: '#E8E2D5', l: '#4C9A74' },
+          };
+          var c = t && themes[t];
+          if (c) {
+            document.documentElement.setAttribute('data-theme', t);
+            var m = document.querySelector('meta[name="theme-color"]');
+            if (m) m.setAttribute('content', c.meta);
+            var icon = document.querySelector('link[rel="icon"]');
+            if (icon) {
+              var svg =
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
+                '<rect width="512" height="512" rx="112" fill="' + c.bg + '"/>' +
+                '<rect x="28" y="28" width="456" height="456" rx="90" fill="none" stroke="' + c.s + '" stroke-opacity="0.35" stroke-width="4"/>' +
+                '<g transform="translate(256 256)" fill="none" stroke="' + c.s + '" stroke-width="10" stroke-linejoin="round">' +
+                '<rect x="-110" y="-110" width="220" height="220" rx="18"/>' +
+                '<rect x="-110" y="-110" width="220" height="220" rx="18" transform="rotate(45)"/></g>' +
+                '<path d="M256 188 C222 174, 178 176, 152 190 L152 326 C180 312, 222 312, 256 326 C290 312, 332 312, 360 326 L360 190 C334 176, 290 174, 256 188 Z" fill="' + c.p + '" stroke="' + c.s + '" stroke-width="8" stroke-linejoin="round"/>' +
+                '<line x1="256" y1="188" x2="256" y2="326" stroke="' + c.s + '" stroke-width="6"/>' +
+                '<line x1="176" y1="220" x2="232" y2="216" stroke="' + c.l + '" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>' +
+                '<line x1="176" y1="248" x2="232" y2="244" stroke="' + c.l + '" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>' +
+                '<line x1="176" y1="276" x2="220" y2="273" stroke="' + c.l + '" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>' +
+                '<line x1="280" y1="216" x2="336" y2="220" stroke="' + c.l + '" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>' +
+                '<line x1="280" y1="244" x2="336" y2="248" stroke="' + c.l + '" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>' +
+                '<line x1="292" y1="273" x2="336" y2="276" stroke="' + c.l + '" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>' +
+                '</svg>';
+              icon.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+            }
+          }
+          var g = localStorage.getItem('sukoon-glass');
+          if (g === 'clear' || g === 'frosted' || g === 'solid') {
+            document.documentElement.setAttribute('data-glass', g);
+          }
+          var go = Number(localStorage.getItem('sukoon-glass-opacity'));
+          if (Number.isFinite(go) && go >= 20 && go <= 96) {
+            var op = Math.round(go);
+            document.documentElement.style.setProperty('--glass-pill-opacity', op + '%');
+            document.documentElement.style.setProperty('--glass-bar-opacity', Math.min(98, op + 6) + '%');
+            document.documentElement.style.setProperty('--glass-sheet-opacity', Math.min(98, op + 14) + '%');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="antialiased selection:bg-emerald-700/15">
+  <body class="antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

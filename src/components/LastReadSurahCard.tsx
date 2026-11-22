@@ -1,4 +1,4 @@
-import { BookOpenCheck } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
 import type { GlobalLastRead } from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
@@ -18,6 +18,10 @@ export function LastReadSurahCard({
   const clampedAyah = Math.min(Math.max(lastRead.ayahNumber, 1), surah.versesCount);
   const isCompleted = clampedAyah >= surah.versesCount;
   const resumeAyah = isCompleted ? 1 : clampedAyah;
+  const progressPercent = Math.min(
+    100,
+    Math.round((clampedAyah / surah.versesCount) * 100)
+  );
 
   const handleOpen = () => {
     onOpenSurah(surah.id, resumeAyah);
@@ -35,54 +39,57 @@ export function LastReadSurahCard({
           handleOpen();
         }
       }}
-      className="rounded-3xl border px-5 py-4 flex items-center justify-between gap-4 transition-colors active:scale-[0.995] cursor-pointer"
-      style={{
-        backgroundColor: 'var(--bg-surface)',
-        borderColor: 'var(--border-subtle)',
-      }}
+      className="rounded-2xl px-5 py-4 space-y-3.5 transition-opacity active:opacity-85 cursor-pointer group"
+      style={{ backgroundColor: 'var(--bg-surface)' }}
     >
-      <div className="min-w-0 space-y-1.5">
-        <span
-          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-          style={{
-            backgroundColor: 'var(--accent-soft)',
-            color: 'var(--accent)',
-          }}
-        >
-          <BookOpenCheck className="w-3 h-3" />
-          সর্বশেষ পাঠ করা সূরা
-        </span>
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <h2 className="text-lg font-bold tracking-tight truncate">
-            {surah.nameBangla}
-          </h2>
-          <span
-            className="text-xs font-normal"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ({surah.meaningBangla})
-          </span>
-        </div>
-        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-          আয়াত {toBanglaDigits(clampedAyah)}/{toBanglaDigits(surah.versesCount)}
-          {' • '}
-          {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
-        </p>
-      </div>
-
-      <div className="text-right shrink-0">
+      {/* Top row: Calligraphic Surah glyph left + Ayah resume cue right (Quran.com editorial layout) */}
+      <div className="flex items-start justify-between gap-4">
         <div
-          className="font-surah-names text-4xl leading-none select-none"
-          style={{ color: 'var(--accent)' }}
+          className="font-surah-names text-[2.75rem] leading-none select-none"
+          style={{ color: 'var(--text-primary)' }}
           aria-hidden="true"
         >
           {String(surah.id).padStart(3, '0')}
         </div>
-        <div
-          className="text-[11px] mt-1"
-          style={{ color: 'var(--text-muted)' }}
+
+        <span
+          className="inline-flex items-center gap-0.5 text-xs font-medium tabular-nums pt-1 shrink-0"
+          style={{ color: 'var(--text-secondary)' }}
         >
-          সূরা {toBanglaDigits(surah.id)}
+          <span>
+            {isCompleted
+              ? 'সম্পন্ন'
+              : `আয়াত ${toBanglaDigits(clampedAyah)}`}
+          </span>
+          <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </div>
+
+      {/* Bottom row: Bold Surah title + muted meaning + slim progress bar */}
+      <div className="space-y-2.5">
+        <div>
+          <h2 className="text-base font-semibold leading-snug">
+            সূরা {toBanglaDigits(surah.id)} • {surah.nameBangla}
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            {surah.meaningBangla} • {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'} ({toBanglaDigits(surah.versesCount)} আয়াত)
+          </p>
+        </div>
+
+        <div
+          className="h-[3px] w-full rounded-full overflow-hidden"
+          style={{
+            backgroundColor:
+              'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+          }}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{
+              width: `${progressPercent}%`,
+              backgroundColor: 'var(--accent)',
+            }}
+          />
         </div>
       </div>
     </section>

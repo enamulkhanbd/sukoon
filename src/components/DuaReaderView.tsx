@@ -350,8 +350,7 @@ export function DuaReaderView({
   const renderTasbihCounter = (params: {
     count: number;
     target: number;
-    surfaceBg: string;
-    resetBg: string;
+    nested?: boolean;
     isSheetActive: boolean;
     onReset: () => void;
     onOpenSheet: () => void;
@@ -359,8 +358,7 @@ export function DuaReaderView({
     const {
       count,
       target,
-      surfaceBg,
-      resetBg,
+      nested = false,
       isSheetActive,
       onReset,
       onOpenSheet,
@@ -384,17 +382,20 @@ export function DuaReaderView({
             onOpenSheet();
           }
         }}
-        className="rounded-2xl border px-4 py-3 space-y-2.5 transition-colors cursor-pointer active:scale-[0.995]"
+        className="rounded-2xl px-4 py-3 space-y-2.5 transition-opacity active:opacity-85 cursor-pointer"
         style={{
-          backgroundColor: done ? 'var(--accent-soft)' : surfaceBg,
-          borderColor:
-            done || isSheetActive ? 'var(--accent)' : 'var(--border-subtle)',
+          backgroundColor:
+            done || isSheetActive
+              ? 'var(--accent-soft)'
+              : nested
+                ? 'var(--bg-elevated)'
+                : 'var(--bg-surface)',
         }}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs font-semibold">জিকির গণনা</div>
-            <div className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            <div className="text-xs font-medium">জিকির গণনা</div>
+            <div className="text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>
               লক্ষ্য: {toBanglaDigits(target)} বার • সম্পন্ন:{' '}
               <strong>{toBanglaDigits(count)}</strong> বার
             </div>
@@ -408,10 +409,9 @@ export function DuaReaderView({
                   onReset();
                 }}
                 aria-label="গণনা রিসেট"
-                className="p-2 rounded-xl border cursor-pointer"
+                className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-opacity active:opacity-75"
                 style={{
-                  backgroundColor: resetBg,
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: nested ? 'var(--bg-surface)' : 'var(--bg-elevated)',
                   color: 'var(--text-muted)',
                 }}
               >
@@ -419,7 +419,7 @@ export function DuaReaderView({
               </button>
             )}
             <span
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium"
               style={{
                 backgroundColor: 'var(--accent)',
                 color: 'var(--accent-text)',
@@ -433,8 +433,11 @@ export function DuaReaderView({
 
         {count > 0 && (
           <div
-            className="h-1 w-full rounded-full overflow-hidden"
-            style={{ backgroundColor: 'var(--bg-surface)' }}
+            className="h-[3px] w-full rounded-full overflow-hidden"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+            }}
           >
             <div
               className="h-full rounded-full transition-all duration-300"
@@ -461,7 +464,7 @@ export function DuaReaderView({
         {hasTranslit && (
           <div className="space-y-1">
             <div
-              className="text-[11px] font-semibold uppercase tracking-wide"
+              className="text-xs font-medium"
               style={{ color: 'var(--accent)' }}
             >
               বাংলা উচ্চারণ
@@ -475,12 +478,9 @@ export function DuaReaderView({
           </div>
         )}
 
-        <div
-          className={`space-y-1 ${hasTranslit ? 'pt-3 border-t' : ''}`}
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
+        <div className="space-y-1">
           <div
-            className="text-[11px] font-semibold uppercase tracking-wide"
+            className="text-xs font-medium"
             style={{ color: 'var(--gold)' }}
           >
             {meaningLabel}
@@ -569,6 +569,7 @@ export function DuaReaderView({
     >
       <TopBar
         mode="sticky"
+        surface="tinted"
         onBack={onClose}
         backLabel="ফিরুন"
         title={dua.titleBangla}
@@ -627,23 +628,17 @@ export function DuaReaderView({
         }
       />
 
-      <main className="max-w-2xl mx-auto px-4 pt-5 space-y-5">
-        {/* Occasion & Repeat Badges */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {dua.occasionNote && (
-            <span
-              className="text-[11px] font-medium px-2.5 py-1 rounded-full border"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              {dua.occasionNote}
-            </span>
-          )}
+      {/* Full-Bleed Tinted Context Band */}
+      <section
+        className="w-full"
+        style={{ backgroundColor: 'var(--bg-surface)' }}
+      >
+        <div className="max-w-2xl mx-auto px-5 pt-1 pb-4 flex items-center justify-between gap-2 flex-wrap text-xs">
+          <span style={{ color: 'var(--text-secondary)' }}>
+            {dua.occasionNote ?? chapter?.titleBangla ?? 'দুআ ও জিকির'}
+          </span>
           <span
-            className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+            className="text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0"
             style={{
               backgroundColor: 'var(--accent-soft)',
               color: 'var(--accent)',
@@ -654,10 +649,13 @@ export function DuaReaderView({
               : `${toBanglaDigits(targetCount)} বার`}
           </span>
         </div>
+      </section>
 
+      {/* Open Pure Book-Page Reading Canvas (Zero Box Stack) */}
+      <main className="max-w-2xl mx-auto px-5 pt-6 space-y-7">
         {parts ? (
           <>
-            <div className="space-y-4">
+            <div className="space-y-10">
               {parts.map((part, idx) => {
                 const partTarget = Math.max(
                   1,
@@ -672,28 +670,19 @@ export function DuaReaderView({
                     ref={(el) => {
                       partRefs.current[part.id] = el;
                     }}
-                    className="rounded-3xl border p-5 space-y-4 scroll-mt-16"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: partDone
-                        ? 'var(--accent)'
-                        : 'var(--border-subtle)',
-                    }}
+                    className="space-y-4 scroll-mt-16"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className="w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold"
-                        style={{
-                          backgroundColor: 'var(--bg-surface)',
-                          color: 'var(--accent)',
-                        }}
+                        className="text-xs font-medium tabular-nums"
+                        style={{ color: partDone ? 'var(--accent)' : 'var(--text-muted)' }}
                       >
-                        {toBanglaDigits(idx + 1)}
+                        অংশ {toBanglaDigits(idx + 1)}
                       </span>
                       <span
-                        className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
+                        className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
                         style={{
-                          backgroundColor: 'var(--accent-soft)',
+                          backgroundColor: 'var(--bg-surface)',
                           color: 'var(--accent)',
                         }}
                       >
@@ -713,10 +702,7 @@ export function DuaReaderView({
                       {normalizeIndoPakText(part.arabic)}
                     </p>
 
-                    <div
-                      className="pt-3 border-t space-y-3"
-                      style={{ borderColor: 'var(--border-subtle)' }}
-                    >
+                    <div className="space-y-3.5 pt-1">
                       {renderTransliterationAndMeaning({
                         transliteration: part.transliteration,
                         meaning: part.translationBangla,
@@ -728,8 +714,6 @@ export function DuaReaderView({
                       renderTasbihCounter({
                         count: partTapCount,
                         target: partTarget,
-                        surfaceBg: 'var(--bg-page)',
-                        resetBg: 'var(--bg-elevated)',
                         isSheetActive:
                           counterSheetOpen &&
                           activeCounter.mode === 'part' &&
@@ -744,27 +728,15 @@ export function DuaReaderView({
             </div>
 
             {(dua.reference || dua.quranRef) && (
-              <section
-                className="rounded-3xl border px-5 py-4 flex items-center justify-between gap-3 flex-wrap text-xs"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              >
+              <section className="flex items-center justify-between gap-3 flex-wrap text-xs pt-2">
                 {renderReferenceFooter()}
               </section>
             )}
           </>
         ) : (
           <>
-            {/* Arabic Box */}
-            <section
-              className="rounded-3xl border p-5 sm:p-7"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
+            {/* Pure Unboxed Arabic Recitation Directly on Page */}
+            <section className="py-1">
               <p
                 dir="rtl"
                 lang="ar"
@@ -778,13 +750,11 @@ export function DuaReaderView({
               </p>
             </section>
 
-            {/* Tasbih Counter (opens half-screen tap sheet) or 1-time Dua read marker */}
+            {/* Single Clean Interactive Action Strip (Tasbih or Mark-as-Read) */}
             {targetCount > 1 || routine ? (
               renderTasbihCounter({
                 count: tapCount,
                 target: targetCount,
-                surfaceBg: 'var(--bg-elevated)',
-                resetBg: 'var(--bg-page)',
                 isSheetActive:
                   counterSheetOpen && activeCounter.mode === 'single',
                 onReset: handleResetCounter,
@@ -792,18 +762,15 @@ export function DuaReaderView({
               })
             ) : (
               <div
-                className="rounded-2xl border px-4 py-3 flex items-center justify-between gap-3 transition-colors"
+                className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3 transition-colors"
                 style={{
                   backgroundColor: isStandaloneMarkedToday
                     ? 'var(--accent-soft)'
-                    : 'var(--bg-elevated)',
-                  borderColor: isStandaloneMarkedToday
-                    ? 'var(--accent)'
-                    : 'var(--border-subtle)',
+                    : 'var(--bg-surface)',
                 }}
               >
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold">
+                  <div className="text-xs font-medium">
                     {isStandaloneMarkedToday ? 'আজ পড়া হয়েছে' : 'আজকের আমল'}
                   </div>
                   <div
@@ -818,17 +785,14 @@ export function DuaReaderView({
                 <button
                   type="button"
                   onClick={() => void handleToggleStandaloneRead()}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-transform active:scale-95 cursor-pointer"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer"
                   style={{
                     backgroundColor: isStandaloneMarkedToday
-                      ? 'var(--bg-page)'
+                      ? 'var(--bg-elevated)'
                       : 'var(--accent)',
                     color: isStandaloneMarkedToday
                       ? 'var(--accent)'
                       : 'var(--accent-text)',
-                    border: isStandaloneMarkedToday
-                      ? '1px solid var(--accent)'
-                      : '1px solid transparent',
                   }}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -837,14 +801,8 @@ export function DuaReaderView({
               </div>
             )}
 
-            {/* Bangla Transliteration & Meaning */}
-            <section
-              className="rounded-3xl border p-5 space-y-4"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
+            {/* Open Bangla Transliteration, Meaning & Reference */}
+            <section className="space-y-5">
               {renderTransliterationAndMeaning({
                 transliteration: dua.transliteration,
                 meaning: dua.translationBangla,
@@ -852,10 +810,7 @@ export function DuaReaderView({
               })}
 
               {(dua.reference || dua.quranRef) && (
-                <div
-                  className="pt-3 border-t flex items-center justify-between gap-3 flex-wrap text-xs"
-                  style={{ borderColor: 'var(--border-subtle)' }}
-                >
+                <div className="flex items-center justify-between gap-3 flex-wrap text-xs pt-1">
                   {renderReferenceFooter()}
                 </div>
               )}
@@ -866,11 +821,8 @@ export function DuaReaderView({
         {/* Bottom Routine Progression or Chapter Navigation */}
         {routineNav ? (
           <div
-            className="rounded-3xl border p-6 text-center space-y-3"
-            style={{
-              backgroundColor: 'var(--bg-surface)',
-              borderColor: 'var(--border-subtle)',
-            }}
+            className="rounded-2xl p-6 text-center space-y-3"
+            style={{ backgroundColor: 'var(--bg-surface)' }}
           >
             {routineNav.nextItem && (
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -896,22 +848,24 @@ export function DuaReaderView({
           </div>
         ) : (
           onSelectDuaInChapter && (
-            <ReaderFreePager
-              prevLabel="পূর্ববর্তী দুআ"
-              prevTitle={prevChapterDua?.titleBangla ?? null}
-              onPrev={
-                prevChapterDua
-                  ? () => onSelectDuaInChapter(prevChapterDua)
-                  : undefined
-              }
-              nextLabel="পরবর্তী দুআ"
-              nextTitle={nextChapterDua?.titleBangla ?? null}
-              onNext={
-                nextChapterDua
-                  ? () => onSelectDuaInChapter(nextChapterDua)
-                  : undefined
-              }
-            />
+            <div className="pt-2">
+              <ReaderFreePager
+                prevLabel="পূর্ববর্তী দুআ"
+                prevTitle={prevChapterDua?.titleBangla ?? null}
+                onPrev={
+                  prevChapterDua
+                    ? () => onSelectDuaInChapter(prevChapterDua)
+                    : undefined
+                }
+                nextLabel="পরবর্তী দুআ"
+                nextTitle={nextChapterDua?.titleBangla ?? null}
+                onNext={
+                  nextChapterDua
+                    ? () => onSelectDuaInChapter(nextChapterDua)
+                    : undefined
+                }
+              />
+            </div>
           )
         )}
       </main>
@@ -956,15 +910,12 @@ export function DuaReaderView({
       >
         {hasAnyTransliteration && (
           <div
-            className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
-            }}
+            className="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl"
+            style={{ backgroundColor: 'var(--bg-surface)' }}
           >
             <div>
-              <div className="text-xs font-semibold">বাংলা উচ্চারণ দেখান</div>
-              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              <div className="text-xs font-medium">বাংলা উচ্চারণ দেখান</div>
+              <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                 আরবির নিচে বাংলা উচ্চারণ প্রদর্শন করবে
               </div>
             </div>
@@ -981,7 +932,7 @@ export function DuaReaderView({
               style={{
                 backgroundColor: showTransliteration
                   ? 'var(--accent)'
-                  : 'var(--border-subtle)',
+                  : 'color-mix(in srgb, var(--text-primary) 16%, transparent)',
               }}
             >
               <span

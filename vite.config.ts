@@ -4,6 +4,39 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalized = id.replace(/\\/g, '/');
+          if (normalized.includes('/node_modules/')) {
+            if (
+              normalized.includes('/react/') ||
+              normalized.includes('/react-dom/') ||
+              normalized.includes('/scheduler/')
+            ) {
+              return 'vendor-react';
+            }
+            if (normalized.includes('/dexie')) {
+              return 'vendor-db';
+            }
+            if (
+              normalized.includes('/adhan/') ||
+              normalized.includes('/lucide-react/')
+            ) {
+              return 'vendor-libs';
+            }
+          }
+          if (normalized.includes('/src/data/duas')) {
+            return 'data-duas';
+          }
+          if (normalized.includes('/src/data/surahs')) {
+            return 'data-surahs';
+          }
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),

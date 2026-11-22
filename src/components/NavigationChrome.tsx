@@ -12,10 +12,17 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Search,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import type { Settings, ThemeMode } from '../db/database';
+import {
+  clampGlassOpacity,
+  inferGlassModeFromOpacity,
+  type GlassMode,
+  type Settings,
+  type ThemeMode,
+} from '../db/database';
 import { toBanglaDigits } from '../utils/formatters';
 
 /**
@@ -148,7 +155,7 @@ export function TabHeader({
       {badge}
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold tracking-tight truncate min-w-0 flex items-center">
+          <h1 className="text-2xl font-semibold truncate min-w-0 flex items-center">
             {title}
           </h1>
           {rightAction && <div className="shrink-0">{rightAction}</div>}
@@ -174,7 +181,7 @@ interface TopBarIconButtonProps {
 }
 
 /**
- * Unified 36px circular action button for TopBar right slots.
+ * Minimal borderless circular icon button for TopBar & TabHeader slots.
  */
 export function TopBarIconButton({
   onClick,
@@ -188,11 +195,12 @@ export function TopBarIconButton({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
+      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
       style={{
-        backgroundColor: active ? 'var(--accent-soft)' : 'var(--bg-elevated)',
-        borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
-        color: active ? 'var(--accent)' : 'var(--text-primary)',
+        backgroundColor: active
+          ? 'var(--accent-soft)'
+          : 'color-mix(in srgb, var(--text-primary) 4.5%, transparent)',
+        color: active ? 'var(--accent)' : 'var(--text-secondary)',
       }}
     >
       {children}
@@ -200,9 +208,132 @@ export function TopBarIconButton({
   );
 }
 
+export interface UnderlineTabOption<T extends string> {
+  id: T;
+  label: string;
+  count?: string;
+}
+
+interface UnderlineTabsProps<T extends string> {
+  tabs: ReadonlyArray<UnderlineTabOption<T>>;
+  value: T;
+  onChange: (value: T) => void;
+  ariaLabel: string;
+  accentColor?: string;
+}
+
+/**
+ * Plain, minimal editorial underline tab bar (zero box/pill clutter).
+ */
+export function UnderlineTabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+  ariaLabel,
+  accentColor = 'var(--accent)',
+}: UnderlineTabsProps<T>) {
+  return (
+    <div
+      className="grid border-b"
+      style={{
+        gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+        borderColor: 'var(--border-subtle)',
+      }}
+      role="tablist"
+      aria-label={ariaLabel}
+    >
+      {tabs.map((tab) => {
+        const active = value === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.id)}
+            className="relative py-2.5 px-1 text-xs font-medium transition-colors cursor-pointer flex items-center justify-center gap-1 min-w-0"
+            style={{
+              color: active ? accentColor : 'var(--text-muted)',
+            }}
+          >
+            <span className="truncate">{tab.label}</span>
+            {tab.count !== undefined && (
+              <span className="text-[11px] font-medium tabular-nums opacity-70 shrink-0">
+                {tab.count}
+              </span>
+            )}
+            {active && (
+              <span
+                className="absolute inset-x-3 sm:inset-x-6 bottom-0 h-[2px] rounded-full"
+                style={{ backgroundColor: accentColor }}
+              />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface SoftSearchInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+  compact?: boolean;
+  elevated?: boolean;
+}
+
+/**
+ * Clean pill search field — uses --bg-elevated inside tinted top bands and --bg-surface on page canvas.
+ */
+export function SoftSearchInput({
+  value,
+  onChange,
+  placeholder,
+  autoFocus = false,
+  compact = false,
+  elevated = false,
+}: SoftSearchInputProps) {
+  return (
+    <div className="relative">
+      <Search
+        className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ color: 'var(--text-muted)' }}
+      />
+      <input
+        type="text"
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full pl-11 pr-9 rounded-full outline-none transition-colors ${
+          compact ? 'py-2 text-xs' : 'py-2.5 text-sm'
+        }`}
+        style={{
+          backgroundColor: elevated ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+          color: 'var(--text-primary)',
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="অনুসন্ধান মুছুন"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full cursor-pointer transition-opacity active:opacity-70"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 interface TopBarProps {
   mode?: 'sticky' | 'fixed';
   visible?: boolean;
+  surface?: 'page' | 'tinted';
   onBack: () => void;
   backLabel?: string;
   title: string;
@@ -218,6 +349,7 @@ interface TopBarProps {
 export function TopBar({
   mode = 'sticky',
   visible = true,
+  surface = 'page',
   onBack,
   backLabel = 'ফিরে যান',
   title,
@@ -237,23 +369,21 @@ export function TopBar({
 
   return (
     <header
-      className={`${positionClass} border-b backdrop-blur-md safe-top`}
-      style={{
-        backgroundColor: 'color-mix(in srgb, var(--bg-page) 92%, transparent)',
-        borderColor: 'var(--border-subtle)',
-      }}
+      className={`${positionClass} ${
+        surface === 'tinted' ? 'sukoon-glass-bar-tinted' : 'sukoon-glass-bar'
+      } safe-top`}
     >
-      <div className="max-w-2xl mx-auto px-3 py-2 flex items-center gap-2.5 min-h-[3.25rem]">
+      <div className="max-w-2xl mx-auto px-5 py-2.5 flex items-center gap-3 min-h-[3.5rem]">
         <button
           type="button"
           onClick={onBack}
           aria-label={backLabel}
           title={backLabel}
-          className="w-9 h-9 rounded-full border flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
           style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--text-primary)',
+            backgroundColor:
+              'color-mix(in srgb, var(--text-primary) 4.5%, transparent)',
+            color: 'var(--text-secondary)',
           }}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -261,7 +391,7 @@ export function TopBar({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <h1 className="font-bold text-sm sm:text-base truncate">{title}</h1>
+            <h1 className="font-semibold text-sm sm:text-base truncate">{title}</h1>
             {titleBadge}
           </div>
           {subtitle && (
@@ -279,7 +409,7 @@ export function TopBar({
         )}
       </div>
       {subRow && (
-        <div className="max-w-2xl mx-auto px-3 pb-2.5">{subRow}</div>
+        <div className="max-w-2xl mx-auto px-5 pb-2.5">{subRow}</div>
       )}
     </header>
   );
@@ -294,6 +424,7 @@ export const THEME_OPTIONS: Array<{
 }> = [
   { id: 'paper', label: 'কাগজ', desc: 'উষ্ণ মুসহাফ', swatch: '#FAF6EE', ink: '#1F241E' },
   { id: 'olive', label: 'জলপাই', desc: 'স্নিগ্ধ সবুজ', swatch: '#EEF2EA', ink: '#1A241B' },
+  { id: 'sky', label: 'আকাশ', desc: 'স্নিগ্ধ নীল', swatch: '#E6ECF3', ink: '#0077D8' },
   { id: 'black', label: 'রাত', desc: 'ওলেড কালো', swatch: '#070807', ink: '#E8E2D5' },
 ];
 
@@ -310,7 +441,7 @@ export function ThemePicker({
 }: ThemePickerProps) {
   return (
     <div
-      className="grid grid-cols-3 gap-1 p-1 rounded-2xl"
+      className="grid grid-cols-4 gap-1 p-1 rounded-2xl"
       style={{
         backgroundColor:
           'color-mix(in srgb, var(--text-primary) 5%, transparent)',
@@ -324,7 +455,7 @@ export function ThemePicker({
             type="button"
             onClick={() => onSelect(t.id, t.label)}
             aria-pressed={active}
-            className="flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl text-xs font-medium transition-colors cursor-pointer active:scale-[0.98]"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-1.5 sm:px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
             style={{
               backgroundColor: active ? 'var(--accent)' : 'transparent',
               color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
@@ -344,6 +475,176 @@ export function ThemePicker({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+export const GLASS_OPTIONS: Array<{
+  id: GlassMode;
+  label: string;
+  desc: string;
+  fillOpacity: number;
+}> = [
+  { id: 'clear', label: 'স্বচ্ছ', desc: 'বেশি স্বচ্ছ ও গ্লাসি', fillOpacity: 0.2 },
+  { id: 'frosted', label: 'ফ্রস্টেড', desc: 'সুষম গ্লাস (ডিফল্ট)', fillOpacity: 0.58 },
+  { id: 'solid', label: 'ঘন', desc: 'কম স্বচ্ছ ও স্থির', fillOpacity: 0.96 },
+];
+
+interface GlassPickerProps {
+  value: GlassMode;
+  onSelect: (mode: GlassMode, label: string) => void;
+}
+
+/** Apple-style 3-step glass transparency selector (Clear / Frosted / Solid). */
+export function GlassPicker({ value, onSelect }: GlassPickerProps) {
+  return (
+    <div
+      className="grid grid-cols-3 gap-1 p-1 rounded-2xl"
+      style={{
+        backgroundColor:
+          'color-mix(in srgb, var(--text-primary) 5%, transparent)',
+      }}
+    >
+      {GLASS_OPTIONS.map((opt) => {
+        const active = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onSelect(opt.id, opt.label)}
+            aria-pressed={active}
+            className="flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors cursor-pointer active:scale-[0.98]"
+            style={{
+              backgroundColor: active ? 'var(--accent)' : 'transparent',
+              color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+            }}
+          >
+            <span
+              className="w-3.5 h-3.5 rounded-full border shrink-0 relative overflow-hidden"
+              style={{
+                borderColor: active
+                  ? 'color-mix(in srgb, var(--accent-text) 70%, transparent)'
+                  : 'color-mix(in srgb, var(--text-primary) 30%, transparent)',
+              }}
+              aria-hidden="true"
+            >
+              <span
+                className="absolute inset-0"
+                style={{
+                  backgroundColor: active
+                    ? 'var(--accent-text)'
+                    : 'var(--text-secondary)',
+                  opacity: opt.fillOpacity,
+                }}
+              />
+            </span>
+            <span>{opt.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface GlassOpacityControlProps {
+  value: number;
+  onChange: (opacity: number, inferredMode: GlassMode) => void;
+}
+
+const GLASS_OPACITY_MIN = 20;
+const GLASS_OPACITY_MAX = 96;
+
+/** Continuous live glass opacity slider matching FontSizeControl's tactile track & thumb. */
+export function GlassOpacityControl({
+  value,
+  onChange,
+}: GlassOpacityControlProps) {
+  const clamped = clampGlassOpacity(value);
+  const percent =
+    ((clamped - GLASS_OPACITY_MIN) / (GLASS_OPACITY_MAX - GLASS_OPACITY_MIN)) *
+    100;
+
+  const handleChange = (raw: number) => {
+    const next = clampGlassOpacity(raw);
+    const nextMode = inferGlassModeFromOpacity(next);
+    // Apply immediately to DOM for lag-free live preview while dragging
+    const root = document.documentElement;
+    root.setAttribute('data-glass', nextMode);
+    root.style.setProperty('--glass-pill-opacity', `${next}%`);
+    root.style.setProperty(
+      '--glass-bar-opacity',
+      `${Math.min(98, next + 6)}%`
+    );
+    root.style.setProperty(
+      '--glass-sheet-opacity',
+      `${Math.min(98, next + 14)}%`
+    );
+    onChange(next, nextMode);
+  };
+
+  return (
+    <div className="space-y-1.5 pt-1">
+      <div className="flex items-center justify-between text-xs">
+        <span style={{ color: 'var(--text-secondary)' }}>অপাসিটি (স্বচ্ছতা)</span>
+        <span
+          className="font-medium tabular-nums"
+          style={{ color: 'var(--accent)' }}
+        >
+          {toBanglaDigits(clamped)}%
+        </span>
+      </div>
+
+      <div className="relative h-7 flex items-center select-none">
+        <div className="relative w-full mx-2.5 h-1.5 rounded-full overflow-visible">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              backgroundColor:
+                'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+            }}
+          />
+          <div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{
+              width: `${percent}%`,
+              backgroundColor: 'var(--accent)',
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 rounded-full border shadow-sm pointer-events-none"
+            style={{
+              left: `${percent}%`,
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor:
+                'color-mix(in srgb, var(--accent) 45%, var(--border-subtle))',
+            }}
+          />
+        </div>
+
+        <input
+          type="range"
+          min={GLASS_OPACITY_MIN}
+          max={GLASS_OPACITY_MAX}
+          step={1}
+          value={clamped}
+          aria-label="গ্লাস অপাসিটি"
+          aria-valuemin={GLASS_OPACITY_MIN}
+          aria-valuemax={GLASS_OPACITY_MAX}
+          aria-valuenow={clamped}
+          aria-valuetext={`${toBanglaDigits(clamped)} শতাংশ`}
+          onChange={(e) => handleChange(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+      </div>
+
+      <div
+        className="flex items-center justify-between text-[11px]"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <span>বেশি স্বচ্ছ ({toBanglaDigits(GLASS_OPACITY_MIN)}%)</span>
+        <span>ঘন ({toBanglaDigits(GLASS_OPACITY_MAX)}%)</span>
+      </div>
     </div>
   );
 }
@@ -430,7 +731,7 @@ export function FontSizeControl({
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium">{label}</span>
         <span
-          className="font-semibold tabular-nums"
+          className="font-medium tabular-nums"
           style={{ color: 'var(--accent)' }}
         >
           {toBanglaDigits(activeStop.size)} px
@@ -547,7 +848,7 @@ export function ReaderQuickSettingsSheet({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:px-4 sukoon-sheet-backdrop ${
+      className={`fixed inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-[2px] sm:px-4 sukoon-sheet-backdrop ${
         visible ? '' : 'pointer-events-none'
       }`}
       style={backdropStyle}
@@ -555,12 +856,10 @@ export function ReaderQuickSettingsSheet({
     >
       <div
         ref={panelRef}
-        className={`w-full sm:max-w-md rounded-t-[28px] border-t border-x space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel safe-bottom ${
+        className={`w-full sm:max-w-md rounded-t-[28px] space-y-5 max-h-[88dvh] overflow-y-auto sukoon-sheet-panel sukoon-glass-sheet safe-bottom ${
           dragging ? 'sukoon-sheet-panel--dragging' : ''
         }`}
         style={{
-          backgroundColor: 'var(--bg-page)',
-          borderColor: 'var(--border-subtle)',
           transform: panelTransform,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -578,7 +877,7 @@ export function ReaderQuickSettingsSheet({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-              <h2 className="font-bold text-base">পাঠ সেটিংস</h2>
+              <h2 className="font-semibold text-base">পাঠ সেটিংস</h2>
             </div>
             <button
               type="button"
@@ -599,7 +898,7 @@ export function ReaderQuickSettingsSheet({
 
         {/* Theme Selection */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold">পড়ার থিম</label>
+          <label className="block text-xs font-medium">পড়ার থিম</label>
           <ThemePicker
             value={settings.theme}
             onSelect={(theme) => onUpdateSettings({ theme })}
@@ -614,21 +913,18 @@ export function ReaderQuickSettingsSheet({
 
         {/* Keep Screen Awake */}
         <div
-          className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)',
-          }}
+          className="flex items-center justify-between gap-4 px-4 py-3 rounded-2xl"
+          style={{ backgroundColor: 'var(--bg-surface)' }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             {settings.keepScreenAwake ? (
-              <Eye className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <Eye className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
             ) : (
-              <EyeOff className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+              <EyeOff className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
             )}
-            <div>
-              <div className="text-xs font-semibold">স্ক্রিন চালু রাখুন</div>
-              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            <div className="min-w-0">
+              <div className="text-xs font-medium">স্ক্রিন চালু রাখুন</div>
+              <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                 {wakeLockSubtitle}
               </div>
             </div>
@@ -644,7 +940,7 @@ export function ReaderQuickSettingsSheet({
             style={{
               backgroundColor: settings.keepScreenAwake
                 ? 'var(--accent)'
-                : 'var(--border-subtle)',
+                : 'color-mix(in srgb, var(--text-primary) 16%, transparent)',
             }}
           >
             <span
@@ -669,6 +965,7 @@ interface ReaderFreePagerProps {
   nextTitle?: string | null;
   nextLabel: string;
   onNext?: () => void;
+  elevated?: boolean;
 }
 
 /**
@@ -681,27 +978,28 @@ export function ReaderFreePager({
   nextTitle,
   nextLabel,
   onNext,
+  elevated = false,
 }: ReaderFreePagerProps) {
+  const neutralBg = elevated ? 'var(--bg-elevated)' : 'var(--bg-surface)';
   return (
-    <div className="grid grid-cols-2 gap-2.5 pt-2">
+    <div className="grid grid-cols-2 gap-2.5">
       <button
         type="button"
         disabled={!onPrev}
         onClick={onPrev}
-        className="flex items-center gap-2 px-3.5 py-3 rounded-2xl border text-left transition-colors disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
+        className="flex items-center gap-2 px-3.5 py-3 rounded-2xl text-left transition-opacity active:opacity-80 disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
         style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
+          backgroundColor: neutralBg,
           color: 'var(--text-secondary)',
         }}
       >
         <ArrowLeft className="w-4 h-4 shrink-0" />
         <div className="min-w-0">
-          <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
             {prevLabel}
           </div>
           {prevTitle && (
-            <div className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+            <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>
               {prevTitle}
             </div>
           )}
@@ -712,17 +1010,16 @@ export function ReaderFreePager({
         type="button"
         disabled={!onNext}
         onClick={onNext}
-        className="flex items-center justify-end gap-2 px-3.5 py-3 rounded-2xl border text-right transition-colors disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
+        className="flex items-center justify-end gap-2 px-3.5 py-3 rounded-2xl text-right transition-opacity active:opacity-80 disabled:opacity-35 cursor-pointer disabled:cursor-default min-w-0"
         style={{
-          backgroundColor: onNext ? 'var(--accent-soft)' : 'var(--bg-elevated)',
-          borderColor: onNext ? 'var(--accent)' : 'var(--border-subtle)',
+          backgroundColor: onNext ? 'var(--accent-soft)' : neutralBg,
           color: onNext ? 'var(--accent)' : 'var(--text-secondary)',
         }}
       >
         <div className="min-w-0">
-          <div className="text-[10px] opacity-80">{nextLabel}</div>
+          <div className="text-[11px] opacity-80">{nextLabel}</div>
           {nextTitle && (
-            <div className="text-xs font-semibold truncate">{nextTitle}</div>
+            <div className="text-xs font-medium truncate">{nextTitle}</div>
           )}
         </div>
         <ArrowRight className="w-4 h-4 shrink-0" />
@@ -768,10 +1065,9 @@ export function ReaderRoutinePager({
           <button
             type="button"
             onClick={onPrev}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border text-xs font-medium cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-medium transition-opacity active:opacity-80 cursor-pointer"
             style={{
               backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
               color: 'var(--text-secondary)',
             }}
           >
@@ -784,7 +1080,7 @@ export function ReaderRoutinePager({
           <button
             type="button"
             onClick={onNext}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold transition-opacity active:opacity-85 cursor-pointer"
             style={{
               backgroundColor: 'var(--accent)',
               color: 'var(--accent-text)',
@@ -797,7 +1093,7 @@ export function ReaderRoutinePager({
           <button
             type="button"
             onClick={onComplete}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-semibold transition-opacity active:opacity-85 cursor-pointer"
             style={{
               backgroundColor: 'var(--accent)',
               color: 'var(--accent-text)',

@@ -1066,14 +1066,19 @@ function tokenMatchesHaystack(
     if (!alt) continue;
     if (haystack === alt) return 'exact';
 
+    const isPureDigits = /^\d+$/.test(alt);
+
     for (const tok of tokens) {
       if (tok === alt) return 'exact';
-      if (tok.startsWith(alt) && alt.length >= 2) {
+      if (
+        tok.startsWith(alt) &&
+        (isPureDigits ? alt.length >= 3 : alt.length >= 2)
+      ) {
         best = 'prefix';
       }
     }
 
-    if (!best && haystack.includes(alt)) {
+    if (!best && !isPureDigits && haystack.includes(alt)) {
       best = 'contains';
     }
   }
@@ -1634,6 +1639,42 @@ export function searchDuas(
   const chapterFilter = options?.chapterId ?? null;
   const bookmarkedIds = options?.bookmarkedIds;
   const flatHighlightTerms = pq.meaningfulGroups.flat();
+
+  // Direct numeric Quran coordinate (e.g. "2:23", "২:২৫৫") should only match
+  // Duas whose quranRef actually covers that surah & ayah, not random digits.
+  const coordMatch =
+    /^(?:(?:আয়াত|আযাত|ayah|ayat|সূরা|সুরা|surah|sura)\s+)?(\d{1,3})\s*[:./-]\s*(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?$/i.exec(
+      pq.ascii
+    );
+  if (coordMatch) {
+    const surahId = Number.parseInt(coordMatch[1], 10);
+    const startAyah = Number.parseInt(coordMatch[2], 10);
+    const surah = SURAH_MAP[surahId];
+    if (surah && startAyah >= 1 && startAyah <= surah.versesCount) {
+      const coordResults: DuaSearchResult[] = [];
+      for (const item of index) {
+        if (chapterFilter !== null && item.dua.chapterId !== chapterFilter) {
+          continue;
+        }
+        const ref = item.dua.quranRef;
+        if (
+          ref &&
+          ref.surahId === surahId &&
+          startAyah >= ref.startAyah &&
+          startAyah <= ref.endAyah
+        ) {
+          coordResults.push({
+            dua: item.dua,
+            chapter: item.chapter,
+            score: 100 + (bookmarkedIds?.has(item.dua.id) ? 5 : 0),
+            matchField: 'reference',
+            snippet: item.dua.reference,
+          });
+        }
+      }
+      return coordResults;
+    }
+  }
 
   const results: DuaSearchResult[] = [];
 

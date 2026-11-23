@@ -19,16 +19,15 @@ import {
   X,
 } from 'lucide-react';
 import type { DuaItem } from '../data/duas';
-import { SURAH_MAP } from '../data/surahs';
 import { db, type Routine } from '../db/database';
 import {
+  fetchSingleVerseByKey,
   mergeVerseSearchResults,
   searchCachedVerses,
   searchQuranOnline,
   type VerseSearchResult,
 } from '../services/quranSearch';
-import { toBanglaDigits } from '../utils/formatters';
-import { JUMMAH_SURAH_ID } from '../utils/islamicTime';
+import { normalizeIndoPakText, toBanglaDigits } from '../utils/formatters';
 import {
   buildOnlineQuranQuery,
   getHighlightSegments,
@@ -41,7 +40,7 @@ import {
 } from '../utils/searchEngine';
 
 const RECENT_STORAGE_KEY = 'sukoon-recent-searches';
-const MAX_RECENT_SEARCHES = 6;
+const MAX_RECENT_SEARCHES = 8;
 const ONLINE_DEBOUNCE_MS = 320;
 
 const QUICK_SUGGESTIONS = [
@@ -152,9 +151,6 @@ export interface GlobalSearchOverlayProps {
 export function GlobalSearchOverlay({
   open,
   bookmarkedDuaIds,
-  isJummah,
-  waqtSurahId,
-  waqtLabel,
   onClose,
   onOpenSurah,
   onOpenDua,
@@ -178,11 +174,18 @@ export function GlobalSearchOverlay({
   const [onlineHasMore, setOnlineHasMore] = useState(false);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [onlineLoadingMore, setOnlineLoadingMore] = useState(false);
+  const [fetchedJumpVerses, setFetchedJumpVerses] = useState<
+    Record<string, string>
+  >({});
+  const [loadingJumpVerses, setLoadingJumpVerses] = useState<
+    Record<string, boolean>
+  >({});
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const itemRefs = useRef<Map<number, HTMLButtonElement | null>>(new Map());
   const pushedHistoryRef = useRef(false);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
+  const latestValidQueryRef = useRef('');
 
   // Load live DB data ONLY while overlay is open
   const routines = useLiveQuery(
@@ -206,37 +209,38 @@ export function GlobalSearchOverlay({
   const recordRecent = useCallback((rawTerm: string) => {
     const clean = rawTerm.trim();
     if (clean.length < 2) return;
-    setRecentSearches((prev) => {
-      const next = [
-        clean,
-        ...prev.filter((item) => item.toLowerCase() !== clean.toLowerCase()),
-      ].slice(0, MAX_RECENT_SEARCHES);
-      saveRecentSearches(next);
-      return next;
-    });
+    const current = loadRecentSearches();
+    const next = [
+      clean,
+      ...current.filter((item) => item.toLowerCase() !== clean.toLowerCase()),
+    ].slice(0, MAX_RECENT_SEARCHES);
+    saveRecentSearches(next);
+    setRecentSearches(next);
   }, []);
 
   const removeRecent = useCallback((term: string) => {
-    setRecentSearches((prev) => {
-      const next = prev.filter((item) => item !== term);
-      saveRecentSearches(next);
-      return next;
-    });
+    const next = loadRecentSearches().filter((item) => item !== term);
+    saveRecentSearches(next);
+    setRecentSearches(next);
   }, []);
 
   const clearRecents = useCallback(() => {
-    setRecentSearches([]);
     saveRecentSearches([]);
+    setRecentSearches([]);
   }, []);
 
   // Dismiss without navigating: cleanly pop our overlay history entry if present
   const dismissOverlay = useCallback(() => {
+    if (latestValidQueryRef.current) {
+      recordRecent(latestValidQueryRef.current);
+      latestValidQueryRef.current = '';
+    }
     if (pushedHistoryRef.current) {
       pushedHistoryRef.current = false;
       window.history.back();
     }
     onClose();
-  }, [onClose]);
+  }, [onClose, recordRecent]);
 
   // Dismiss because user picked a result that navigates elsewhere
   const closeForNavigation = useCallback(() => {
@@ -257,6 +261,8 @@ export function GlobalSearchOverlay({
       setOnlineHasMore(false);
       setOnlineLoading(false);
       setOnlineLoadingMore(false);
+      setLoadingJumpVerses({});
+      latestValidQueryRef.current = '';
       return;
     }
 
@@ -279,6 +285,10 @@ export function GlobalSearchOverlay({
     const handlePopState = () => {
       if (pushedHistoryRef.current) {
         pushedHistoryRef.current = false;
+        if (latestValidQueryRef.current) {
+          recordRecent(latestValidQueryRef.current);
+          latestValidQueryRef.current = '';
+        }
         onClose();
       }
     };
@@ -293,7 +303,7 @@ export function GlobalSearchOverlay({
       window.removeEventListener('popstate', handlePopState);
       document.body.style.overflow = prevOverflow;
     };
-  }, [open, onClose]);
+  }, [open, onClose, recordRecent]);
 
   const trimmed = query.trim();
   const onlineQuery = useMemo(() => buildOnlineQuranQuery(trimmed), [trimmed]);
@@ -400,6 +410,80 @@ export function GlobalSearchOverlay({
     [offlineVerses, onlineVerses]
   );
 
+  // Resolve Arabic text for Ayah/Famous Smart Jumps instantly from offline cache
+  const cachedJumpVerses = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (!cachedSurahs || cachedSurahs.length === 0) return map;
+    for (const j of localResults.jumps) {
+      if (j.kind !== 'ayah' && j.kind !== 'famous') continue;
+      const key = `${j.surah.id}:${j.ayah}`;
+      const surahCache = cachedSurahs.find((c) => c.surahId === j.surah.id);
+      const verse = surahCache?.verses.find((v) => v.verse_number === j.ayah);
+      if (verse?.text_indopak) {
+        map[key] = normalizeIndoPakText(verse.text_indopak);
+      }
+    }
+    return map;
+  }, [localResults.jumps, cachedSurahs]);
+
+  // Fetch single Arabic verse online for uncached Ayah/Famous Smart Jumps (e.g. "2:23")
+  const pendingJumpKeys = useMemo(() => {
+    const keys: Array<{ key: string; surahId: number; ayah: number }> = [];
+    const seen = new Set<string>();
+    for (const j of localResults.jumps) {
+      if (j.kind !== 'ayah' && j.kind !== 'famous') continue;
+      const key = `${j.surah.id}:${j.ayah}`;
+      if (seen.has(key) || cachedJumpVerses[key] || fetchedJumpVerses[key]) {
+        continue;
+      }
+      seen.add(key);
+      keys.push({ key, surahId: j.surah.id, ayah: j.ayah });
+    }
+    return keys;
+  }, [localResults.jumps, cachedJumpVerses, fetchedJumpVerses]);
+
+  useEffect(() => {
+    if (!open || isOffline || pendingJumpKeys.length === 0) {
+      setLoadingJumpVerses({});
+      return;
+    }
+
+    const controller = new AbortController();
+    const loadingMap: Record<string, boolean> = {};
+    for (const item of pendingJumpKeys) {
+      loadingMap[item.key] = true;
+    }
+    setLoadingJumpVerses(loadingMap);
+
+    const timer = window.setTimeout(() => {
+      for (const item of pendingJumpKeys) {
+        fetchSingleVerseByKey(item.surahId, item.ayah, controller.signal)
+          .then((text) => {
+            if (controller.signal.aborted) return;
+            if (text) {
+              setFetchedJumpVerses((prev) => ({ ...prev, [item.key]: text }));
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (!controller.signal.aborted) {
+              setLoadingJumpVerses((prev) => {
+                if (!prev[item.key]) return prev;
+                const next = { ...prev };
+                delete next[item.key];
+                return next;
+              });
+            }
+          });
+      }
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, isOffline, pendingJumpKeys]);
+
   // Resolve exact first ayah on Mushaf page if cached locally
   const resolveJumpAyah = useCallback(
     (jump: SmartJumpResult): number => {
@@ -456,11 +540,29 @@ export function GlobalSearchOverlay({
     ]
   );
 
+  const ayahJumps = useMemo(
+    () =>
+      localResults.jumps.filter(
+        (j) => j.kind === 'ayah' || j.kind === 'famous'
+      ),
+    [localResults.jumps]
+  );
+
+  const dedupedVerses = useMemo(() => {
+    if (ayahJumps.length === 0) return mergedVerses;
+    const jumpKeys = new Set(ayahJumps.map((j) => `${j.surah.id}:${j.ayah}`));
+    return mergedVerses.filter((v) => !jumpKeys.has(v.verseKey));
+  }, [ayahJumps, mergedVerses]);
+
   // Build visible slices based on active category tab
   const visible = useMemo(() => {
     const isAll = activeTab === 'all';
     return {
-      jumps: isAll ? localResults.jumps : [],
+      jumps: isAll
+        ? localResults.jumps
+        : activeTab === 'verses'
+          ? ayahJumps
+          : [],
       actions:
         isAll
           ? localResults.actions.slice(0, 3)
@@ -493,12 +595,12 @@ export function GlobalSearchOverlay({
             : [],
       verses:
         isAll
-          ? mergedVerses.slice(0, 5)
+          ? dedupedVerses.slice(0, 5)
           : activeTab === 'verses'
-            ? mergedVerses
+            ? dedupedVerses
             : [],
     };
-  }, [activeTab, localResults, mergedVerses]);
+  }, [activeTab, localResults, ayahJumps, dedupedVerses]);
 
   // Flat ordered executor list for ArrowUp / ArrowDown / Enter keyboard navigation
   const flatExecutors = useMemo(() => {
@@ -511,16 +613,6 @@ export function GlobalSearchOverlay({
         onOpenSurah(j.surah.id, resolveJumpAyah(j));
       });
     }
-    for (const act of visible.actions) {
-      list.push(() => runAction(act.id));
-    }
-    for (const r of visible.routines) {
-      list.push(() => {
-        recordRecent(trimmed);
-        closeForNavigation();
-        onOpenRoutineDetails(r.routine);
-      });
-    }
     for (const s of visible.surahs) {
       list.push(() => {
         recordRecent(trimmed);
@@ -528,11 +620,11 @@ export function GlobalSearchOverlay({
         onOpenSurah(s.surah.id, 1);
       });
     }
-    for (const ch of visible.chapters) {
+    for (const v of visible.verses) {
       list.push(() => {
         recordRecent(trimmed);
         closeForNavigation();
-        onOpenDuaChapter(ch.chapter.id);
+        onOpenSurah(v.surah.id, v.ayahNumber);
       });
     }
     for (const d of visible.duas) {
@@ -542,12 +634,22 @@ export function GlobalSearchOverlay({
         onOpenDua(d.dua);
       });
     }
-    for (const v of visible.verses) {
+    for (const ch of visible.chapters) {
       list.push(() => {
         recordRecent(trimmed);
         closeForNavigation();
-        onOpenSurah(v.surah.id, v.ayahNumber);
+        onOpenDuaChapter(ch.chapter.id);
       });
+    }
+    for (const r of visible.routines) {
+      list.push(() => {
+        recordRecent(trimmed);
+        closeForNavigation();
+        onOpenRoutineDetails(r.routine);
+      });
+    }
+    for (const act of visible.actions) {
+      list.push(() => runAction(act.id));
     }
 
     return list;
@@ -607,7 +709,11 @@ export function GlobalSearchOverlay({
 
   if (!open) return null;
 
-  const verseDisplayTotal = Math.max(mergedVerses.length, onlineTotalResults);
+  const verseDisplayTotal = Math.max(dedupedVerses.length, onlineTotalResults);
+  const verseTabTotal = Math.max(
+    ayahJumps.length + dedupedVerses.length,
+    onlineTotalResults
+  );
   const showOfflineVerseHint =
     isOffline && Boolean(onlineQuery) && !hasArabicChars(trimmed);
 
@@ -618,9 +724,11 @@ export function GlobalSearchOverlay({
     localResults.surahs.length +
     localResults.chapters.length +
     localResults.duas.length +
-    mergedVerses.length;
+    dedupedVerses.length;
 
   const hasResults = totalCount > 0;
+  latestValidQueryRef.current =
+    trimmed.length >= 2 && hasResults ? trimmed : '';
 
   const allTabs: Array<{
     id: SearchTab;
@@ -633,7 +741,7 @@ export function GlobalSearchOverlay({
     {
       id: 'verses',
       label: 'আয়াত',
-      count: verseDisplayTotal,
+      count: verseTabTotal,
       loading: onlineLoading,
     },
     { id: 'duas', label: 'দুআ', count: localResults.duas.length },
@@ -687,22 +795,16 @@ export function GlobalSearchOverlay({
     };
   };
 
-  const suggestedSurah = isJummah
-    ? SURAH_MAP[JUMMAH_SURAH_ID]
-    : waqtSurahId
-      ? SURAH_MAP[waqtSurahId]
-      : undefined;
-
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="অনুসন্ধান"
-      className="fixed inset-0 z-50 paper-frame flex flex-col safe-top safe-bottom"
+      className="fixed inset-0 z-50 paper-frame flex flex-col safe-bottom"
     >
       {/* Full-Bleed Tinted Top Search Band */}
       <div
-        className="shrink-0"
+        className="shrink-0 safe-top"
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
         <div className="max-w-2xl mx-auto px-5 pt-3 pb-3 space-y-2.5">
@@ -742,6 +844,10 @@ export function GlobalSearchOverlay({
                 <button
                   type="button"
                   onClick={() => {
+                    if (trimmed.length >= 2 && hasResults) {
+                      recordRecent(trimmed);
+                    }
+                    latestValidQueryRef.current = '';
                     setQuery('');
                     inputRef.current?.focus();
                   }}
@@ -827,11 +933,11 @@ export function GlobalSearchOverlay({
                       সব মুছুন
                     </button>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 max-h-[4.375rem] overflow-hidden">
                     {recentSearches.map((term) => (
                       <div
                         key={term}
-                        className="inline-flex items-center rounded-full text-xs overflow-hidden"
+                        className="inline-flex items-center rounded-full text-xs whitespace-nowrap overflow-hidden"
                         style={{
                           backgroundColor: 'var(--bg-surface)',
                           color: 'var(--text-primary)',
@@ -849,7 +955,7 @@ export function GlobalSearchOverlay({
                             className="w-3 h-3 shrink-0"
                             style={{ color: 'var(--text-muted)' }}
                           />
-                          <span>{term}</span>
+                          <span className="max-w-[12rem] truncate">{term}</span>
                         </button>
                         <button
                           type="button"
@@ -862,92 +968,6 @@ export function GlobalSearchOverlay({
                         </button>
                       </div>
                     ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Contextual Quick Access */}
-              {(lastRead || suggestedSurah) && (
-                <section className="space-y-2">
-                  <h2
-                    className="text-xs font-medium"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    দ্রুত প্রবেশ
-                  </h2>
-                  <div className="space-y-2">
-                    {lastRead && SURAH_MAP[lastRead.surahId] && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeForNavigation();
-                          onOpenSurah(lastRead.surahId, lastRead.ayahNumber);
-                        }}
-                        className="w-full rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-left cursor-pointer transition-opacity active:opacity-80"
-                        style={{ backgroundColor: 'var(--bg-surface)' }}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <BookOpen
-                            className="w-4 h-4 shrink-0"
-                            style={{ color: 'var(--accent)' }}
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">
-                              সর্বশেষ: সূরা {lastRead.surahNameBangla}
-                            </div>
-                            <div
-                              className="text-[11px]"
-                              style={{ color: 'var(--text-secondary)' }}
-                            >
-                              আয়াত {toBanglaDigits(lastRead.ayahNumber)} থেকে চালিয়ে যান
-                            </div>
-                          </div>
-                        </div>
-                        <ArrowRight
-                          className="w-4 h-4 shrink-0"
-                          style={{ color: 'var(--accent)' }}
-                        />
-                      </button>
-                    )}
-
-                    {suggestedSurah && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeForNavigation();
-                          onOpenSurah(suggestedSurah.id, 1);
-                        }}
-                        className="w-full rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-left cursor-pointer transition-opacity active:opacity-80"
-                        style={{ backgroundColor: 'var(--bg-surface)' }}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Sparkles
-                            className="w-4 h-4 shrink-0"
-                            style={{ color: 'var(--gold)' }}
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">
-                              সূরা {suggestedSurah.nameBangla}
-                            </div>
-                            <div
-                              className="text-[11px]"
-                              style={{ color: 'var(--text-secondary)' }}
-                            >
-                              {isJummah
-                                ? 'জুমুআর দিনের বিশেষ আমল'
-                                : waqtLabel || 'সময়োপযোগী তিলাওয়াত'}
-                            </div>
-                          </div>
-                        </div>
-                        <span
-                          className="font-surah-names font-surah-names-end text-2xl leading-none shrink-0 select-none"
-                          style={{ color: 'var(--text-primary)' }}
-                          aria-hidden="true"
-                        >
-                          {String(suggestedSurah.id).padStart(3, '0')}
-                        </span>
-                      </button>
-                    )}
                   </div>
                 </section>
               )}
@@ -1027,13 +1047,106 @@ export function GlobalSearchOverlay({
             <>
               {/* 1. Smart Direct Jumps (Ayah, Surah+Ayah, Juz, Page, Famous Ayahs) */}
               {visible.jumps.length > 0 && (
-                <section className="space-y-2">
+                <section className="space-y-2.5">
                   {visible.jumps.map((jump) => {
                     const row = registerRowProps(() => {
                       recordRecent(trimmed);
                       closeForNavigation();
                       onOpenSurah(jump.surah.id, resolveJumpAyah(jump));
                     });
+
+                    if (jump.kind === 'ayah' || jump.kind === 'famous') {
+                      const verseKey = `${jump.surah.id}:${jump.ayah}`;
+                      const arabicText =
+                        cachedJumpVerses[verseKey] ?? fetchedJumpVerses[verseKey];
+                      const isVerseLoading = Boolean(loadingJumpVerses[verseKey]);
+
+                      return (
+                        <button
+                          key={jump.id}
+                          ref={row.ref}
+                          type="button"
+                          onMouseEnter={row.onMouseEnter}
+                          onClick={row.onClick}
+                          className="w-full px-4 py-3.5 rounded-2xl border text-left cursor-pointer transition-colors active:opacity-80 space-y-3"
+                          style={{
+                            backgroundColor: 'var(--bg-surface)',
+                            borderColor: row.isActive
+                              ? 'var(--accent)'
+                              : 'var(--border-subtle)',
+                          }}
+                        >
+                          {arabicText ? (
+                            <div className="flex items-start gap-3">
+                              <BookOpen
+                                className="w-4 h-4 shrink-0 mt-1.5"
+                                style={{ color: 'var(--text-muted)' }}
+                              />
+                              <p
+                                dir="rtl"
+                                lang="ar"
+                                className="flex-1 min-w-0 font-indopak text-right text-xl leading-[1.95] line-clamp-3"
+                                style={{ color: 'var(--text-primary)' }}
+                              >
+                                {arabicText}
+                              </p>
+                            </div>
+                          ) : isVerseLoading ? (
+                            <div className="flex items-center gap-3 py-1">
+                              <BookOpen
+                                className="w-4 h-4 shrink-0"
+                                style={{ color: 'var(--text-muted)' }}
+                              />
+                              <div className="flex-1 flex items-center justify-end gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>আয়াত লোড হচ্ছে…</span>
+                              </div>
+                            </div>
+                          ) : null}
+
+                          <div
+                            className={`flex items-center justify-between gap-2 ${
+                              arabicText || isVerseLoading ? 'pt-2.5 border-t' : ''
+                            }`}
+                            style={{ borderColor: 'var(--border-subtle)' }}
+                          >
+                            <div className="min-w-0 flex items-center gap-2">
+                              {!arabicText && !isVerseLoading && (
+                                <BookOpen
+                                  className="w-4 h-4 shrink-0"
+                                  style={{ color: 'var(--accent)' }}
+                                />
+                              )}
+                              <div className="min-w-0">
+                                <span
+                                  className="block text-xs font-medium truncate"
+                                  style={{ color: 'var(--accent)' }}
+                                >
+                                  {jump.kind === 'famous'
+                                    ? `${jump.titleBangla} • ${jump.subtitleBangla}`
+                                    : jump.titleBangla}
+                                </span>
+                                {!arabicText &&
+                                  !isVerseLoading &&
+                                  jump.kind === 'ayah' && (
+                                    <span
+                                      className="block text-[11px] truncate"
+                                      style={{ color: 'var(--text-secondary)' }}
+                                    >
+                                      {jump.subtitleBangla}
+                                    </span>
+                                  )}
+                              </div>
+                            </div>
+                            <ArrowRight
+                              className="w-3.5 h-3.5 shrink-0"
+                              style={{ color: 'var(--text-muted)' }}
+                            />
+                          </div>
+                        </button>
+                      );
+                    }
+
                     return (
                       <button
                         key={jump.id}
@@ -1075,150 +1188,7 @@ export function GlobalSearchOverlay({
                 </section>
               )}
 
-              {/* 2. App Quick Actions */}
-              {visible.actions.length > 0 && (
-                <section className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      অ্যাপ ও দ্রুত অ্যাকশন
-                    </h2>
-                  </div>
-                  <div className="space-y-0.5">
-                    {visible.actions.map((act) => {
-                      const row = registerRowProps(() => runAction(act.id));
-                      return (
-                        <button
-                          key={act.id}
-                          ref={row.ref}
-                          type="button"
-                          onMouseEnter={row.onMouseEnter}
-                          onClick={row.onClick}
-                          className="w-full px-2.5 -mx-2.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left cursor-pointer transition-colors active:opacity-70"
-                          style={{
-                            backgroundColor: row.isActive
-                              ? 'var(--bg-surface)'
-                              : 'transparent',
-                          }}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {renderActionIcon(act.id)}
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium truncate">
-                                <HighlightedText
-                                  text={act.titleBangla}
-                                  query={trimmed}
-                                />
-                              </div>
-                              <div
-                                className="text-[11px] truncate"
-                                style={{ color: 'var(--text-muted)' }}
-                              >
-                                {act.subtitleBangla}
-                              </div>
-                            </div>
-                          </div>
-                          <ArrowRight
-                            className="w-3.5 h-3.5 shrink-0"
-                            style={{ color: 'var(--text-muted)' }}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              {/* 3. Routines */}
-              {visible.routines.length > 0 && (
-                <section className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      রুটিন ({toBanglaDigits(localResults.routines.length)})
-                    </h2>
-                    {activeTab === 'all' &&
-                      localResults.routines.length > visible.routines.length && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveTab('routines')}
-                          className="inline-flex items-center gap-0.5 text-xs font-medium cursor-pointer"
-                          style={{ color: 'var(--accent)' }}
-                        >
-                          <span>
-                            আরও{' '}
-                            {toBanglaDigits(
-                              localResults.routines.length -
-                                visible.routines.length
-                            )}
-                            টি
-                          </span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                  </div>
-                  <div className="space-y-0.5">
-                    {visible.routines.map((item) => {
-                      const row = registerRowProps(() => {
-                        recordRecent(trimmed);
-                        closeForNavigation();
-                        onOpenRoutineDetails(item.routine);
-                      });
-                      return (
-                        <button
-                          key={item.routine.id}
-                          ref={row.ref}
-                          type="button"
-                          onMouseEnter={row.onMouseEnter}
-                          onClick={row.onClick}
-                          className="w-full px-2.5 -mx-2.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left cursor-pointer transition-colors active:opacity-70"
-                          style={{
-                            backgroundColor: row.isActive
-                              ? 'var(--bg-surface)'
-                              : 'transparent',
-                          }}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <CalendarCheck2
-                              className="w-4 h-4 shrink-0"
-                              style={{ color: 'var(--accent)' }}
-                            />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium truncate">
-                                <HighlightedText
-                                  text={item.routine.title}
-                                  query={trimmed}
-                                />
-                              </div>
-                              {item.matchHint && (
-                                <div
-                                  className="text-[11px] truncate"
-                                  style={{ color: 'var(--text-muted)' }}
-                                >
-                                  <HighlightedText
-                                    text={item.matchHint}
-                                    query={trimmed}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <ArrowRight
-                            className="w-3.5 h-3.5 shrink-0"
-                            style={{ color: 'var(--text-muted)' }}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              {/* 4. Surahs */}
+              {/* 2. Surahs */}
               {visible.surahs.length > 0 && (
                 <section className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -1323,94 +1293,171 @@ export function GlobalSearchOverlay({
                 </section>
               )}
 
-              {/* 5. Dua Chapters */}
-              {visible.chapters.length > 0 && (
+              {/* 3. Quran Verses (Offline IndexedDB + Online Quran.com Full-Text) */}
+              {(visible.verses.length > 0 ||
+                ((onlineLoading || showOfflineVerseHint) &&
+                  (activeTab === 'all' || activeTab === 'verses'))) && (
                 <section className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <h2
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      দুআর অধ্যায় ({toBanglaDigits(localResults.chapters.length)})
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2
+                        className="text-xs font-medium"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        কুরআনের আয়াত
+                        {verseDisplayTotal > 0
+                          ? ` (${toBanglaDigits(verseDisplayTotal)})`
+                          : ''}
+                      </h2>
+                      {onlineLoading && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[11px]"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>খোঁজা হচ্ছে…</span>
+                        </span>
+                      )}
+                    </div>
                     {activeTab === 'all' &&
-                      localResults.chapters.length > visible.chapters.length && (
+                      (dedupedVerses.length > visible.verses.length ||
+                        onlineHasMore) && (
                         <button
                           type="button"
-                          onClick={() => setActiveTab('chapters')}
+                          onClick={() => setActiveTab('verses')}
                           className="inline-flex items-center gap-0.5 text-xs font-medium cursor-pointer"
                           style={{ color: 'var(--accent)' }}
                         >
                           <span>
                             আরও{' '}
                             {toBanglaDigits(
-                              localResults.chapters.length -
-                                visible.chapters.length
+                              Math.max(
+                                dedupedVerses.length - visible.verses.length,
+                                verseDisplayTotal - visible.verses.length
+                              )
                             )}
-                            টি
+                            টি আয়াত
                           </span>
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       )}
                   </div>
-                  <div className="space-y-0.5">
-                    {visible.chapters.map((item) => {
-                      const row = registerRowProps(() => {
-                        recordRecent(trimmed);
-                        closeForNavigation();
-                        onOpenDuaChapter(item.chapter.id);
-                      });
-                      return (
-                        <button
-                          key={item.chapter.id}
-                          ref={row.ref}
-                          type="button"
-                          onMouseEnter={row.onMouseEnter}
-                          onClick={row.onClick}
-                          className="w-full px-2.5 -mx-2.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left cursor-pointer transition-colors active:opacity-70"
-                          style={{
-                            backgroundColor: row.isActive
-                              ? 'var(--bg-surface)'
-                              : 'transparent',
-                          }}
-                        >
-                          <div className="flex items-start gap-2.5 min-w-0">
-                            <FolderOpen
-                              className="w-4 h-4 shrink-0 mt-0.5"
-                              style={{ color: 'var(--accent)' }}
-                            />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium truncate">
-                                <HighlightedText
-                                  text={item.chapter.titleBangla}
-                                  query={trimmed}
-                                />
-                              </div>
-                              <div
-                                className="text-[11px] truncate"
-                                style={{ color: 'var(--text-muted)' }}
-                              >
-                                <HighlightedText
-                                  text={item.chapter.subtitleBangla}
-                                  query={trimmed}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                          <span
-                            className="text-[11px] font-medium tabular-nums shrink-0"
-                            style={{ color: 'var(--text-secondary)' }}
+
+                  {showOfflineVerseHint && visible.verses.length === 0 && (
+                    <div
+                      className="rounded-xl px-3.5 py-2.5 flex items-center gap-2 text-xs"
+                      style={{
+                        backgroundColor: 'var(--bg-surface)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      <WifiOff className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        অফলাইনে আরবি আয়াত সার্চ চালু আছে • বাংলা অনুবাদে আয়াত খুঁজতে ইন্টারনেট সংযোগ প্রয়োজন।
+                      </span>
+                    </div>
+                  )}
+
+                  {visible.verses.length > 0 && (
+                    <div className="space-y-2.5">
+                      {visible.verses.map((v) => {
+                        const row = registerRowProps(() => {
+                          recordRecent(trimmed);
+                          closeForNavigation();
+                          onOpenSurah(v.surah.id, v.ayahNumber);
+                        });
+                        return (
+                          <button
+                            key={v.verseKey}
+                            ref={row.ref}
+                            type="button"
+                            onMouseEnter={row.onMouseEnter}
+                            onClick={row.onClick}
+                            className="w-full px-4 py-3.5 rounded-2xl border text-left cursor-pointer transition-colors active:opacity-80 space-y-3"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              borderColor: row.isActive
+                                ? 'var(--accent)'
+                                : 'var(--border-subtle)',
+                            }}
                           >
-                            {toBanglaDigits(item.duaCount)}টি
+                            {v.arabicText && (
+                              <div className="flex items-start gap-3">
+                                <BookOpen
+                                  className="w-4 h-4 shrink-0 mt-1.5"
+                                  style={{ color: 'var(--text-muted)' }}
+                                />
+                                <p
+                                  dir="rtl"
+                                  lang="ar"
+                                  className="flex-1 min-w-0 font-indopak text-right text-xl leading-[1.95] line-clamp-3"
+                                  style={{ color: 'var(--text-primary)' }}
+                                >
+                                  {v.arabicHighlightedSegments ? (
+                                    <HighlightedSegments
+                                      segments={v.arabicHighlightedSegments}
+                                    />
+                                  ) : (
+                                    v.arabicText
+                                  )}
+                                </p>
+                              </div>
+                            )}
+
+                            <div
+                              className={`flex items-center justify-between gap-2 ${
+                                v.arabicText ? 'pt-2.5 border-t' : ''
+                              }`}
+                              style={{ borderColor: 'var(--border-subtle)' }}
+                            >
+                              <span
+                                className="text-xs font-medium truncate"
+                                style={{ color: 'var(--accent)' }}
+                              >
+                                সূরা {v.surah.nameBangla} • আয়াত{' '}
+                                {toBanglaDigits(v.ayahNumber)}
+                              </span>
+                              <ArrowRight
+                                className="w-3.5 h-3.5 shrink-0"
+                                style={{ color: 'var(--text-muted)' }}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {activeTab === 'verses' && onlineHasMore && (
+                    <div className="pt-2 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={handleLoadMoreOnlineVerses}
+                        disabled={onlineLoadingMore}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-80 disabled:opacity-60"
+                        style={{
+                          backgroundColor: 'var(--bg-surface)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {onlineLoadingMore ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>আরও আয়াত লোড হচ্ছে…</span>
+                          </>
+                        ) : (
+                          <span>
+                            আরও আয়াত লোড করুন ({toBanglaDigits(mergedVerses.length)}/
+                            {toBanglaDigits(verseDisplayTotal)})
                           </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
 
-              {/* 6. Duas (with match field badge + highlighted context snippet) */}
+              {/* 4. Duas (with match field badge + highlighted context snippet) */}
               {visible.duas.length > 0 && (
                 <section className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -1536,167 +1583,233 @@ export function GlobalSearchOverlay({
                 </section>
               )}
 
-              {/* 7. Quran Verses (Offline IndexedDB + Online Quran.com Full-Text) */}
-              {(visible.verses.length > 0 ||
-                ((onlineLoading || showOfflineVerseHint) &&
-                  (activeTab === 'all' || activeTab === 'verses'))) && (
+              {/* 5. Dua Chapters */}
+              {visible.chapters.length > 0 && (
                 <section className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <h2
-                        className="text-xs font-medium"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        কুরআনের আয়াত
-                        {verseDisplayTotal > 0
-                          ? ` (${toBanglaDigits(verseDisplayTotal)})`
-                          : ''}
-                      </h2>
-                      {onlineLoading && (
-                        <span
-                          className="inline-flex items-center gap-1 text-[11px]"
-                          style={{ color: 'var(--text-muted)' }}
-                        >
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>খোঁজা হচ্ছে…</span>
-                        </span>
-                      )}
-                    </div>
+                    <h2
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      দুআর অধ্যায় ({toBanglaDigits(localResults.chapters.length)})
+                    </h2>
                     {activeTab === 'all' &&
-                      (mergedVerses.length > visible.verses.length ||
-                        onlineHasMore) && (
+                      localResults.chapters.length > visible.chapters.length && (
                         <button
                           type="button"
-                          onClick={() => setActiveTab('verses')}
+                          onClick={() => setActiveTab('chapters')}
                           className="inline-flex items-center gap-0.5 text-xs font-medium cursor-pointer"
                           style={{ color: 'var(--accent)' }}
                         >
                           <span>
                             আরও{' '}
                             {toBanglaDigits(
-                              Math.max(
-                                mergedVerses.length - visible.verses.length,
-                                verseDisplayTotal - visible.verses.length
-                              )
+                              localResults.chapters.length -
+                                visible.chapters.length
                             )}
-                            টি আয়াত
+                            টি
                           </span>
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       )}
                   </div>
-
-                  {showOfflineVerseHint && visible.verses.length === 0 && (
-                    <div
-                      className="rounded-xl px-3.5 py-2.5 flex items-center gap-2 text-xs"
-                      style={{
-                        backgroundColor: 'var(--bg-surface)',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      <WifiOff className="w-3.5 h-3.5 shrink-0" />
-                      <span>
-                        অফলাইনে আরবি আয়াত সার্চ চালু আছে • বাংলা অনুবাদে আয়াত খুঁজতে ইন্টারনেট সংযোগ প্রয়োজন।
-                      </span>
-                    </div>
-                  )}
-
-                  {visible.verses.length > 0 && (
-                    <div className="space-y-1">
-                      {visible.verses.map((v) => {
-                        const row = registerRowProps(() => {
-                          recordRecent(trimmed);
-                          closeForNavigation();
-                          onOpenSurah(v.surah.id, v.ayahNumber);
-                        });
-                        return (
-                          <button
-                            key={v.verseKey}
-                            ref={row.ref}
-                            type="button"
-                            onMouseEnter={row.onMouseEnter}
-                            onClick={row.onClick}
-                            className="w-full px-3 -mx-3 py-3 rounded-xl text-left cursor-pointer transition-colors active:opacity-75 space-y-1.5"
-                            style={{
-                              backgroundColor: row.isActive
-                                ? 'var(--bg-surface)'
-                                : 'transparent',
-                            }}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span
-                                className="text-xs font-semibold truncate"
-                                style={{ color: 'var(--accent)' }}
-                              >
-                                সূরা {v.surah.nameBangla} • আয়াত{' '}
-                                {toBanglaDigits(v.ayahNumber)}
-                              </span>
-                              <ArrowRight
-                                className="w-3.5 h-3.5 shrink-0"
+                  <div className="space-y-0.5">
+                    {visible.chapters.map((item) => {
+                      const row = registerRowProps(() => {
+                        recordRecent(trimmed);
+                        closeForNavigation();
+                        onOpenDuaChapter(item.chapter.id);
+                      });
+                      return (
+                        <button
+                          key={item.chapter.id}
+                          ref={row.ref}
+                          type="button"
+                          onMouseEnter={row.onMouseEnter}
+                          onClick={row.onClick}
+                          className="w-full px-2.5 -mx-2.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left cursor-pointer transition-colors active:opacity-70"
+                          style={{
+                            backgroundColor: row.isActive
+                              ? 'var(--bg-surface)'
+                              : 'transparent',
+                          }}
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <FolderOpen
+                              className="w-4 h-4 shrink-0 mt-0.5"
+                              style={{ color: 'var(--accent)' }}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                <HighlightedText
+                                  text={item.chapter.titleBangla}
+                                  query={trimmed}
+                                />
+                              </div>
+                              <div
+                                className="text-[11px] truncate"
                                 style={{ color: 'var(--text-muted)' }}
-                              />
-                            </div>
-
-                            {v.arabicText && (
-                              <p
-                                dir="rtl"
-                                lang="ar"
-                                className="font-indopak text-right text-lg leading-[1.9] line-clamp-2"
-                                style={{ color: 'var(--text-primary)' }}
                               >
-                                {v.arabicHighlightedSegments ? (
-                                  <HighlightedSegments
-                                    segments={v.arabicHighlightedSegments}
-                                  />
-                                ) : (
-                                  v.arabicText
-                                )}
-                              </p>
-                            )}
-
-                            {v.translationSegments &&
-                              v.translationSegments.length > 0 && (
-                                <p
-                                  className="text-xs leading-relaxed line-clamp-2"
-                                  style={{ color: 'var(--text-secondary)' }}
-                                >
-                                  <HighlightedSegments
-                                    segments={v.translationSegments}
-                                  />
-                                </p>
-                              )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {activeTab === 'verses' && onlineHasMore && (
-                    <div className="pt-2 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={handleLoadMoreOnlineVerses}
-                        disabled={onlineLoadingMore}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-80 disabled:opacity-60"
-                        style={{
-                          backgroundColor: 'var(--bg-surface)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        {onlineLoadingMore ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>আরও আয়াত লোড হচ্ছে…</span>
-                          </>
-                        ) : (
-                          <span>
-                            আরও আয়াত লোড করুন ({toBanglaDigits(mergedVerses.length)}/
-                            {toBanglaDigits(verseDisplayTotal)})
+                                <HighlightedText
+                                  text={item.chapter.subtitleBangla}
+                                  query={trimmed}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <span
+                            className="text-[11px] font-medium tabular-nums shrink-0"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {toBanglaDigits(item.duaCount)}টি
                           </span>
-                        )}
-                      </button>
-                    </div>
-                  )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* 6. Routines */}
+              {visible.routines.length > 0 && (
+                <section className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      রুটিন ({toBanglaDigits(localResults.routines.length)})
+                    </h2>
+                    {activeTab === 'all' &&
+                      localResults.routines.length > visible.routines.length && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('routines')}
+                          className="inline-flex items-center gap-0.5 text-xs font-medium cursor-pointer"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          <span>
+                            আরও{' '}
+                            {toBanglaDigits(
+                              localResults.routines.length -
+                                visible.routines.length
+                            )}
+                            টি
+                          </span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                  </div>
+                  <div className="space-y-0.5">
+                    {visible.routines.map((item) => {
+                      const row = registerRowProps(() => {
+                        recordRecent(trimmed);
+                        closeForNavigation();
+                        onOpenRoutineDetails(item.routine);
+                      });
+                      return (
+                        <button
+                          key={item.routine.id}
+                          ref={row.ref}
+                          type="button"
+                          onMouseEnter={row.onMouseEnter}
+                          onClick={row.onClick}
+                          className="w-full px-2.5 -mx-2.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left cursor-pointer transition-colors active:opacity-70"
+                          style={{
+                            backgroundColor: row.isActive
+                              ? 'var(--bg-surface)'
+                              : 'transparent',
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <CalendarCheck2
+                              className="w-4 h-4 shrink-0"
+                              style={{ color: 'var(--accent)' }}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                <HighlightedText
+                                  text={item.routine.title}
+                                  query={trimmed}
+                                />
+                              </div>
+                              {item.matchHint && (
+                                <div
+                                  className="text-[11px] truncate"
+                                  style={{ color: 'var(--text-muted)' }}
+                                >
+                                  <HighlightedText
+                                    text={item.matchHint}
+                                    query={trimmed}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight
+                            className="w-3.5 h-3.5 shrink-0"
+                            style={{ color: 'var(--text-muted)' }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* 7. App Quick Actions */}
+              {visible.actions.length > 0 && (
+                <section className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      অ্যাপ ও দ্রুত অ্যাকশন
+                    </h2>
+                  </div>
+                  <div className="space-y-0.5">
+                    {visible.actions.map((act) => {
+                      const row = registerRowProps(() => runAction(act.id));
+                      return (
+                        <button
+                          key={act.id}
+                          ref={row.ref}
+                          type="button"
+                          onMouseEnter={row.onMouseEnter}
+                          onClick={row.onClick}
+                          className="w-full px-2.5 -mx-2.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-left cursor-pointer transition-colors active:opacity-70"
+                          style={{
+                            backgroundColor: row.isActive
+                              ? 'var(--bg-surface)'
+                              : 'transparent',
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {renderActionIcon(act.id)}
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                <HighlightedText
+                                  text={act.titleBangla}
+                                  query={trimmed}
+                                />
+                              </div>
+                              <div
+                                className="text-[11px] truncate"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                {act.subtitleBangla}
+                              </div>
+                            </div>
+                          </div>
+                          <ArrowRight
+                            className="w-3.5 h-3.5 shrink-0"
+                            style={{ color: 'var(--text-muted)' }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
                 </section>
               )}
             </>

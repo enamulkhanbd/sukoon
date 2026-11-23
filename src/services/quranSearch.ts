@@ -158,6 +158,70 @@ export function parseQuranHighlightHtml(html: string): HighlightSegment[] {
 }
 
 const onlineCache = new Map<string, OnlineVerseSearchPage>();
+const singleVerseCache = new Map<string, string>();
+const SINGLE_VERSE_CACHE_MAX = 60;
+
+interface QuranApiSingleVerseResponse {
+  verse?: {
+    text_indopak_nastaleeq?: string;
+    text_indopak?: string;
+  };
+}
+
+/**
+ * Fetches a single IndoPak verse text by surah:ayah key (used to enrich Ayah Smart Jumps
+ * like "2:23" when the Surah isn't cached offline in IndexedDB yet).
+ */
+export async function fetchSingleVerseByKey(
+  surahId: number,
+  ayahNumber: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  const verseKey = `${surahId}:${ayahNumber}`;
+  const cached = singleVerseCache.get(verseKey);
+  if (cached) return cached;
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    ONLINE_SEARCH_TIMEOUT_MS
+  );
+  const onExternalAbort = () => controller.abort();
+  signal?.addEventListener('abort', onExternalAbort, { once: true });
+
+  try {
+    const url = `${QURAN_API_BASE}/verses/by_key/${encodeURIComponent(
+      verseKey
+    )}?fields=text_indopak_nastaleeq,text_indopak`;
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as QuranApiSingleVerseResponse;
+    const raw =
+      data.verse?.text_indopak_nastaleeq ?? data.verse?.text_indopak ?? '';
+    const text = raw ? normalizeIndoPakText(raw) : '';
+    if (!text) return null;
+
+    if (singleVerseCache.size >= SINGLE_VERSE_CACHE_MAX) {
+      const oldestKey = singleVerseCache.keys().next().value;
+      if (oldestKey !== undefined) singleVerseCache.delete(oldestKey);
+    }
+    singleVerseCache.set(verseKey, text);
+    return text;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err;
+    }
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+    signal?.removeEventListener('abort', onExternalAbort);
+  }
+}
 
 function cacheOnlineResult(key: string, value: OnlineVerseSearchPage) {
   if (onlineCache.size >= ONLINE_CACHE_MAX) {

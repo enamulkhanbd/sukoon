@@ -167,6 +167,19 @@ describe('searchEngine entity search & ranking', () => {
     // Exact title match ranks above mere body mention
     const sayyidul = searchDuas('সাইয়েদুল ইস্তেগফার');
     expect(sayyidul[0]?.dua.id).toBe('ch1-sayyidul-istighfar');
+
+    // Direct numeric Quran coordinates only match Duas with a matching quranRef
+    expect(searchDuas('2:23')).toHaveLength(0);
+    const kursiByCoord = searchDuas('2:255');
+    expect(kursiByCoord.length).toBeGreaterThan(0);
+    expect(
+      kursiByCoord.every(
+        (r) =>
+          r.dua.quranRef?.surahId === 2 &&
+          255 >= r.dua.quranRef.startAyah &&
+          255 <= r.dua.quranRef.endAyah
+      )
+    ).toBe(true);
   });
 
   it('searches Dua Chapters and App Quick Actions', () => {

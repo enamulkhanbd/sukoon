@@ -6,7 +6,7 @@ import {
   type FastingCalculationMethod,
   type FastingLocation,
 } from '../utils/fasting';
-import { formatHijriDateBn } from '../utils/hijri';
+import { formatHijriDateBn, type HijriMonthAnchor } from '../utils/hijri';
 
 interface FastingCardProps {
   now: Date;
@@ -15,6 +15,7 @@ interface FastingCardProps {
   method: FastingCalculationMethod;
   timeFormat: '12h' | '24h';
   hijriOffsetDays: number;
+  monthAnchors?: readonly HijriMonthAnchor[];
   onOpenSchedule: () => void;
 }
 
@@ -28,6 +29,7 @@ export function FastingCard({
   method,
   timeFormat,
   hijriOffsetDays,
+  monthAnchors,
   onOpenSchedule,
 }: FastingCardProps) {
   const baseContext = resolveActiveFastingContext(
@@ -35,7 +37,9 @@ export function FastingCard({
     location,
     method,
     timeFormat,
-    hijriOffsetDays
+    hijriOffsetDays,
+    undefined,
+    monthAnchors
   );
   const isBaseFastingDay =
     baseContext.hijri.isRamadan ||
@@ -51,7 +55,9 @@ export function FastingCard({
           location,
           method,
           timeFormat,
-          hijriOffsetDays
+          hijriOffsetDays,
+          undefined,
+          monthAnchors
         )
       : baseContext;
 

@@ -13,6 +13,7 @@ import {
   isMonthlySunnahFastDay,
   isWeeklySunnahFastDay,
   type HijriDateInfo,
+  type HijriMonthAnchor,
 } from './hijri';
 import { addDays, formatDateKey } from './stats';
 
@@ -24,6 +25,7 @@ export type FastingCalculationMethod =
   | 'egyptian';
 
 export type HijriOffsetMode = 'auto' | 'manual';
+export type HijriCalendarRegion = 'bd' | 'sa' | 'default';
 
 const SOUTH_ASIA_TIMEZONES = new Set([
   'Asia/Dhaka',
@@ -180,16 +182,16 @@ export const FASTING_CALCULATION_METHODS: ReadonlyArray<{
 ];
 
 /**
- * Returns the regional default Hijri offset relative to Umm al-Qura:
- * -1 for Bangladesh & South Asia (local moon sighting), 0 for Saudi Arabia & other regions.
+ * Maps a location to a regional moon-sighting calendar bucket.
  */
-export function getDefaultHijriOffsetDays(
+export function getHijriCalendarRegion(
   location: FastingLocation = DEFAULT_FASTING_LOCATION
-): number {
+): HijriCalendarRegion {
   if (location.timeZone) {
-    return SOUTH_ASIA_TIMEZONES.has(location.timeZone) ? -1 : 0;
+    if (SOUTH_ASIA_TIMEZONES.has(location.timeZone)) return 'bd';
+    if (location.timeZone === 'Asia/Riyadh') return 'sa';
+    return 'default';
   }
-  // Custom GPS location without an explicit timeZone: check South Asia bounding box
   if (
     Number.isFinite(location.latitude) &&
     Number.isFinite(location.longitude) &&
@@ -198,9 +200,19 @@ export function getDefaultHijriOffsetDays(
     location.longitude >= 60 &&
     location.longitude <= 98
   ) {
-    return -1;
+    return 'bd';
   }
-  return 0;
+  return 'default';
+}
+
+/**
+ * Returns the regional default Hijri offset relative to Umm al-Qura:
+ * -1 for Bangladesh & South Asia (local moon sighting), 0 for Saudi Arabia & other regions.
+ */
+export function getDefaultHijriOffsetDays(
+  location: FastingLocation = DEFAULT_FASTING_LOCATION
+): number {
+  return getHijriCalendarRegion(location) === 'bd' ? -1 : 0;
 }
 
 /**
@@ -666,13 +678,14 @@ export function resolveActiveFastingContext(
   method: FastingCalculationMethod = 'karachi',
   timeFormat: '12h' | '24h' = '12h',
   hijriOffsetDays = 0,
-  timeZone?: string
+  timeZone?: string,
+  monthAnchors?: readonly HijriMonthAnchor[]
 ): ActiveFastingContext {
   const effectiveTimeZone = timeZone ?? location.timeZone;
   const { gregorianDate, islamicDate, isAfterMaghrib } =
     resolveIslamicCalendarDate(now, location, method, effectiveTimeZone);
 
-  const hijri = getHijriDate(islamicDate, hijriOffsetDays);
+  const hijri = getHijriDate(islamicDate, hijriOffsetDays, monthAnchors);
   const dailyTimes = computePrayerTimesForCalendarDate(
     islamicDate,
     location,
@@ -704,6 +717,7 @@ export function buildHijriMonthSchedule(
     timeFormat?: '12h' | '24h';
     hijriOffsetDays?: number;
     timeZone?: string;
+    monthAnchors?: readonly HijriMonthAnchor[];
   }
 ): {
   hijriYear: number;
@@ -717,6 +731,7 @@ export function buildHijriMonthSchedule(
   const timeFormat = options?.timeFormat ?? '12h';
   const hijriOffsetDays = clampHijriOffsetDays(options?.hijriOffsetDays ?? 0);
   const effectiveTimeZone = options?.timeZone ?? location.timeZone;
+  const monthAnchors = options?.monthAnchors;
 
   const { islamicDate } = resolveIslamicCalendarDate(
     referenceDate,
@@ -725,7 +740,11 @@ export function buildHijriMonthSchedule(
     effectiveTimeZone
   );
 
-  const monthDates = getHijriMonthGregorianDates(islamicDate, hijriOffsetDays);
+  const monthDates = getHijriMonthGregorianDates(
+    islamicDate,
+    hijriOffsetDays,
+    monthAnchors
+  );
   const todayKey = formatDateKey(islamicDate);
 
   const days: MonthlyScheduleDay[] = monthDates.map(({ gregorianDate, hijri }) => {
@@ -756,7 +775,8 @@ export function buildHijriMonthSchedule(
     };
   });
 
-  const firstHijri = days[0]?.hijri ?? getHijriDate(islamicDate, hijriOffsetDays);
+  const firstHijri =
+    days[0]?.hijri ?? getHijriDate(islamicDate, hijriOffsetDays, monthAnchors);
 
   return {
     hijriYear: firstHijri.year,

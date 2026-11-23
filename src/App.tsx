@@ -44,6 +44,7 @@ import {
   DEFAULT_FASTING_LOCATION,
   resolveHijriOffsetSettings,
 } from './utils/fasting';
+import { syncHijriCalendarConfig } from './services/hijriCalendarService';
 
 export function App() {
   const toast = useToast();
@@ -204,6 +205,25 @@ export function App() {
     settings.fastingLocation,
     settings.fastingMethod,
   ]);
+
+  // Background offline-first sync for regional Hijri moon-sighting calendar overrides
+  useEffect(() => {
+    void syncHijriCalendarConfig();
+    const handleOnline = () => {
+      void syncHijriCalendarConfig();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void syncHijriCalendarConfig();
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   const routineReadId = route.type === 'routineRead' ? route.routineId : '';
   const activeRouteRoutineQuery = useLiveQuery(

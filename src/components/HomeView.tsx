@@ -22,6 +22,10 @@ import {
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import { countCompleteCachedSurahs } from '../services/quranApi';
 import {
+  getActiveAnchorsForSettings,
+  useHijriCalendarConfig,
+} from '../services/hijriCalendarService';
+import {
   DEFAULT_FASTING_LOCATION,
   resolveHijriOffsetSettings,
 } from '../utils/fasting';
@@ -70,10 +74,16 @@ export function HomeView({
   const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const fastingMethod = settings.fastingMethod ?? 'karachi';
   const fastingTimeFormat = settings.fastingTimeFormat ?? '12h';
-  const { hijriOffsetDays } = resolveHijriOffsetSettings(
+  const { hijriOffsetDays, hijriOffsetMode } = resolveHijriOffsetSettings(
     fastingLocation,
     settings.hijriOffsetDays,
     settings.hijriOffsetMode
+  );
+  const hijriConfig = useHijriCalendarConfig();
+  const hijriMonthAnchors = getActiveAnchorsForSettings(
+    hijriConfig,
+    fastingLocation,
+    hijriOffsetMode
   );
   const dailyGoalMinutes = Math.max(0, Math.floor(settings.dailyGoalMinutes ?? 0));
 
@@ -307,6 +317,7 @@ export function HomeView({
           method={fastingMethod}
           timeFormat={fastingTimeFormat}
           hijriOffsetDays={hijriOffsetDays}
+          monthAnchors={hijriMonthAnchors}
           onOpenSchedule={onOpenFastingSchedule}
         />
         {/* Continue Reading — Single Focal Surface */}

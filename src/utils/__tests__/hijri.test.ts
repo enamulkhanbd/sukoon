@@ -130,4 +130,78 @@ describe('hijri utilities', () => {
       true
     );
   });
+
+  it('resolves confirmed moon-sighting anchors for exact 29/30-day months and boundaries', () => {
+    // 1) Bounded 29-day Ramadan followed by 30-day Shawwal (even if Umm al-Qura differs)
+    const anchors = [
+      { year: 1448, month: 9, startDate: '2027-02-08' },
+      { year: 1448, month: 10, startDate: '2027-03-09' }, // 29-day Ramadan
+      { year: 1448, month: 11, startDate: '2027-04-08' }, // 30-day Shawwal
+    ];
+
+    const ramadanDays = getHijriMonthGregorianDates(
+      new Date(2027, 1, 15, 12, 0, 0),
+      -1,
+      anchors
+    );
+    expect(ramadanDays).toHaveLength(29);
+    expect(ramadanDays[0].hijri.day).toBe(1);
+    expect(ramadanDays[0].hijri.source).toBe('confirmed');
+    expect(ramadanDays[28].hijri.day).toBe(29);
+    expect(ramadanDays[28].hijri.month).toBe(9);
+
+    const eidDay = getHijriDate(new Date(2027, 2, 9, 12, 0, 0), -1, anchors);
+    expect(eidDay.year).toBe(1448);
+    expect(eidDay.month).toBe(10);
+    expect(eidDay.day).toBe(1);
+    expect(eidDay.source).toBe('confirmed');
+
+    const shawwalDays = getHijriMonthGregorianDates(
+      new Date(2027, 2, 20, 12, 0, 0),
+      -1,
+      anchors
+    );
+    expect(shawwalDays).toHaveLength(30);
+    expect(shawwalDays[0].hijri.day).toBe(1);
+    expect(shawwalDays[29].hijri.day).toBe(30);
+
+    // 2) Open-ended confirmed month (Bangladesh Jumada al-Thani 1448 starting 2026-11-12)
+    const bdAnchor = [{ year: 1448, month: 6, startDate: '2026-11-12' }];
+    const nov24 = getHijriDate(new Date(2026, 10, 24, 12, 0, 0), -1, bdAnchor);
+    expect(nov24.year).toBe(1448);
+    expect(nov24.month).toBe(6);
+    expect(nov24.day).toBe(13);
+    expect(nov24.source).toBe('confirmed');
+
+    // 3) Extending previous unannounced month to Day 30 when confirmed next month starts 1 day later
+    // Umm al-Qura with offset 0 says 2026-02-17 = 29 Shaban 1447, 2026-02-18 = 1 Ramadan 1447.
+    // If confirmed anchor sets Ramadan to 2026-02-19, 2026-02-18 must become 30 Shaban 1447.
+    const delayedRamadan = [{ year: 1447, month: 9, startDate: '2026-02-19' }];
+    const feb18 = getHijriDate(new Date(2026, 1, 18, 12, 0, 0), 0, delayedRamadan);
+    expect(feb18.year).toBe(1447);
+    expect(feb18.month).toBe(8);
+    expect(feb18.day).toBe(30);
+    expect(feb18.source).toBe('confirmed');
+    const feb19 = getHijriDate(new Date(2026, 1, 19, 12, 0, 0), 0, delayedRamadan);
+    expect(feb19.year).toBe(1447);
+    expect(feb19.month).toBe(9);
+    expect(feb19.day).toBe(1);
+    expect(feb19.source).toBe('confirmed');
+
+    // 4) Shortening previous unannounced month when confirmed next month starts 1 day earlier
+    // Umm al-Qura with offset 0 says 2026-03-19 = 30 Ramadan 1447, 2026-03-20 = 1 Shawwal 1447.
+    // If confirmed anchor sets Shawwal to 2026-03-19, Ramadan ends at Day 29 (2026-03-18).
+    const earlyShawwal = [{ year: 1447, month: 10, startDate: '2026-03-19' }];
+    const mar18 = getHijriDate(new Date(2026, 2, 18, 12, 0, 0), 0, earlyShawwal);
+    expect(mar18.month).toBe(9);
+    expect(mar18.day).toBe(29);
+    const mar19 = getHijriDate(new Date(2026, 2, 19, 12, 0, 0), 0, earlyShawwal);
+    expect(mar19.month).toBe(10);
+    expect(mar19.day).toBe(1);
+    expect(mar19.source).toBe('confirmed');
+
+    // 5) Far outside anchored range falls back to calculated Umm al-Qura
+    const farFuture = getHijriDate(new Date(2028, 5, 1, 12, 0, 0), -1, bdAnchor);
+    expect(farFuture.source).toBe('calculated');
+  });
 });

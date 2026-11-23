@@ -9,10 +9,16 @@ import {
   LocateFixed,
   MapPin,
   Moon,
+  RefreshCw,
   X,
 } from 'lucide-react';
 import type { Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
+import {
+  getActiveAnchorsForSettings,
+  syncHijriCalendarConfig,
+  useHijriCalendarConfig,
+} from '../services/hijriCalendarService';
 import {
   DEFAULT_FASTING_LOCATION,
   FASTING_CALCULATION_METHODS,
@@ -192,6 +198,7 @@ export function RamadanPrayerSettings({
 }: RamadanPrayerSettingsProps) {
   const toast = useToast();
   const [locatingGps, setLocatingGps] = useState(false);
+  const [syncingHijri, setSyncingHijri] = useState(false);
   const [locationSheetOpen, setLocationSheetOpen] = useState(false);
 
   const clock = useIslamicClock(settings);
@@ -203,14 +210,34 @@ export function RamadanPrayerSettings({
     settings.hijriOffsetDays,
     settings.hijriOffsetMode
   );
+  const hijriConfig = useHijriCalendarConfig();
+  const hijriMonthAnchors = getActiveAnchorsForSettings(
+    hijriConfig,
+    fastingLocation,
+    hijriOffsetMode
+  );
 
   const fastingContext = resolveActiveFastingContext(
     clock.now,
     fastingLocation,
     fastingMethod,
     fastingTimeFormat,
-    hijriOffsetDays
+    hijriOffsetDays,
+    undefined,
+    hijriMonthAnchors
   );
+
+  const handleRefreshHijriCalendar = async () => {
+    if (syncingHijri) return;
+    setSyncingHijri(true);
+    const ok = await syncHijriCalendarConfig({ force: true });
+    setSyncingHijri(false);
+    if (ok) {
+      toast.success('হিজরি ক্যালেন্ডার হালনাগাদ করা হয়েছে।');
+    } else {
+      toast.info('অফলাইন বা নতুন কোনো আপডেট পাওয়া যায়নি।');
+    }
+  };
 
   const handleUseBrowserLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -501,13 +528,29 @@ export function RamadanPrayerSettings({
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium shrink-0">হিজরি তারিখ সমন্বয়</span>
           {hijriOffsetMode === 'auto' ? (
-            <span
-              className="text-[11px] truncate"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              অটো ({fastingLocation.nameBn}:{' '}
-              {formatHijriOffsetLabelBn(hijriOffsetDays)})
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="text-[11px] truncate"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {fastingContext.hijri.source === 'confirmed'
+                  ? `অটো (${fastingLocation.nameBn}: চাঁদ দেখা)`
+                  : `অটো (${fastingLocation.nameBn}: ${formatHijriOffsetLabelBn(hijriOffsetDays)})`}
+              </span>
+              <button
+                type="button"
+                onClick={handleRefreshHijriCalendar}
+                disabled={syncingHijri}
+                aria-label="হিজরি ক্যালেন্ডার হালনাগাদ করুন"
+                title="হিজরি ক্যালেন্ডার হালনাগাদ করুন"
+                className="p-1 rounded-full shrink-0 transition-opacity active:opacity-70 disabled:opacity-50 cursor-pointer"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${syncingHijri ? 'animate-spin' : ''}`}
+                />
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2 shrink-0">
               <span

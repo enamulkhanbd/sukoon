@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-23",
+  "regions": {
+    "bd": {
+      "defaultOffsetDays": -1,
+      "months": [
+        { "year": 1448, "month": 6, "startDate": "2026-11-12" }
+      ]
+    },
+    "sa": {
+      "defaultOffsetDays": 0,
+      "months": []
+    }
+  }
+}

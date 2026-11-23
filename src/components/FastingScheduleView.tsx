@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Moon } from 'lucide-react';
 import type { Settings } from '../db/database';
 import { useLiveSecondNow } from '../hooks/useLiveSecondNow';
+import {
+  getActiveAnchorsForSettings,
+  useHijriCalendarConfig,
+} from '../services/hijriCalendarService';
 import { toBanglaDigits } from '../utils/formatters';
 import {
   buildHijriMonthSchedule,
@@ -60,10 +64,16 @@ export function FastingScheduleView({
   const location = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const method = settings.fastingMethod ?? 'karachi';
   const timeFormat = settings.fastingTimeFormat ?? '12h';
-  const { hijriOffsetDays } = resolveHijriOffsetSettings(
+  const { hijriOffsetDays, hijriOffsetMode } = resolveHijriOffsetSettings(
     location,
     settings.hijriOffsetDays,
     settings.hijriOffsetMode
+  );
+  const hijriConfig = useHijriCalendarConfig();
+  const hijriMonthAnchors = getActiveAnchorsForSettings(
+    hijriConfig,
+    location,
+    hijriOffsetMode
   );
 
   const { islamicDate } = resolveIslamicCalendarDate(now, location, method);
@@ -76,8 +86,16 @@ export function FastingScheduleView({
         method,
         timeFormat,
         hijriOffsetDays,
+        monthAnchors: hijriMonthAnchors,
       }),
-    [islamicDateKey, location, method, timeFormat, hijriOffsetDays]
+    [
+      islamicDateKey,
+      location,
+      method,
+      timeFormat,
+      hijriOffsetDays,
+      hijriMonthAnchors,
+    ]
   );
 
   const todayEntry = useMemo(
@@ -146,7 +164,9 @@ export function FastingScheduleView({
         location,
         method,
         timeFormat,
-        hijriOffsetDays
+        hijriOffsetDays,
+        undefined,
+        hijriMonthAnchors
       )
     : null;
 

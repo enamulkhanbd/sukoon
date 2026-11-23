@@ -30,7 +30,10 @@ export default defineConfig({
           if (normalized.includes('/src/data/duas')) {
             return 'data-duas';
           }
-          if (normalized.includes('/src/data/surahs')) {
+          if (
+            normalized.includes('/src/data/surahs') ||
+            normalized.includes('/src/data/surahDescriptions')
+          ) {
             return 'data-surahs';
           }
         },

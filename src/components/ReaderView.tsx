@@ -8,6 +8,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
+import { SURAH_DESCRIPTIONS } from '../data/surahDescriptions';
 import {
   getRoutineItems,
   getSurahResumeAyah,
@@ -476,11 +477,11 @@ export function ReaderView({
       >
         {/* Borderless Tonal Surah Title Header */}
         <div
-          className="rounded-2xl px-5 py-5 sm:px-6 sm:py-6 mb-7 space-y-2.5"
+          className="rounded-2xl px-5 py-5 sm:px-6 sm:py-6 mb-7 space-y-3 text-left"
           style={{ backgroundColor: 'var(--bg-surface)' }}
         >
           {routine && (
-            <div className="text-center">
+            <div>
               <span
                 className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full"
                 style={{
@@ -492,7 +493,7 @@ export function ReaderView({
               </span>
             </div>
           )}
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-start gap-4">
             <span
               className="font-surah-names font-surah-names-tight shrink-0 select-none text-[3.25rem] sm:text-[3.75rem]"
               style={{ color: 'var(--text-primary)' }}
@@ -515,8 +516,16 @@ export function ReaderView({
               </p>
             </div>
           </div>
+          {SURAH_DESCRIPTIONS[meta.id] && (
+            <p
+              className="text-[13px] sm:text-sm leading-relaxed"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {SURAH_DESCRIPTIONS[meta.id]}
+            </p>
+          )}
           <div
-            className="text-xs text-center leading-relaxed tabular-nums"
+            className="text-xs leading-relaxed tabular-nums"
             style={{ color: 'var(--text-muted)' }}
           >
             {meta.revelationPlace === 'makkah' ? 'মক্কায় অবতীর্ণ' : 'মদীনায় অবতীর্ণ'} •{' '}

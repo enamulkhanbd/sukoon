@@ -5,7 +5,6 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
-  Compass,
   Flame,
   Search,
   Sparkles,
@@ -235,20 +234,10 @@ export function HomeView({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
-          <span
-            className="text-xs font-medium tabular-nums"
-            style={{
-              color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
-            }}
-          >
-            {toBanglaDigits(percentage)}%
-          </span>
-          <ChevronRight
-            className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
-            style={{ color: 'var(--text-muted)' }}
-          />
-        </div>
+        <ChevronRight
+          className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+          style={{ color: 'var(--text-muted)' }}
+        />
       </div>
     );
   };
@@ -364,18 +353,6 @@ export function HomeView({
                   সূরা ফাতিহা
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={onGoToSurahs}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-80"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <Compass className="w-3.5 h-3.5" />
-                  সব সূরা
-                </button>
               </div>
             </div>
           ) : null}
@@ -481,12 +458,6 @@ export function HomeView({
                       পূর্ণ
                     </span>
                   )}
-                </span>
-                <span
-                  className="text-[11px] font-medium tabular-nums shrink-0"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  {toBanglaDigits(goalPercent)}%
                 </span>
               </div>
               <div

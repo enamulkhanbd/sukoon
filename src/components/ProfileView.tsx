@@ -160,7 +160,7 @@ export function ProfileView({
                   style={{ color: 'var(--text-secondary)' }}
                 >
                   {dailyGoalMinutes > 0
-                    ? `আজ ${toBanglaDigits(todayReadingMinutes)} / ${toBanglaDigits(dailyGoalMinutes)} মিনিট (${toBanglaDigits(goalPercent)}%)`
+                    ? `আজ ${toBanglaDigits(todayReadingMinutes)} / ${toBanglaDigits(dailyGoalMinutes)} মিনিট`
                     : todayStats.readingSeconds > 0
                       ? `আজ ${formatReadingDurationBn(todayStats.readingSeconds)} পড়া হয়েছে • কোনো লক্ষ্য সেট করা নেই`
                       : 'প্রতিদিনের তিলাওয়াতের সময়-লক্ষ্য নির্ধারণ করুন'}

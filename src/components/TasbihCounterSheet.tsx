@@ -171,18 +171,7 @@ export function TasbihCounterSheet({
             style={{ backgroundColor: 'var(--text-muted)' }}
           />
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <h2 className="font-semibold text-sm truncate">{title}</h2>
-              <span
-                className="text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0"
-                style={{
-                  backgroundColor: done ? 'var(--accent-soft)' : 'var(--bg-surface)',
-                  color: done ? 'var(--accent)' : 'var(--text-secondary)',
-                }}
-              >
-                লক্ষ্য {toBanglaDigits(target)} বার
-              </span>
-            </div>
+            <h2 className="font-semibold text-sm truncate min-w-0">{title}</h2>
 
             <div className="flex items-center gap-1.5 shrink-0">
               <button

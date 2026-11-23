@@ -11,7 +11,6 @@ import {
 import { DUA_CHAPTER_MAP, DUA_MAP } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 import {
-  computeRoutineTotalAyahs,
   db,
   getCompletedItemIndexes,
   getRoutineItems,
@@ -105,9 +104,6 @@ export function RoutineDetailView({
   const completedIndexes = getCompletedItemIndexes(routine, progress);
   const completedSet = new Set(completedIndexes);
 
-  const totalUnits =
-    progress?.totalAyahsCount ?? computeRoutineTotalAyahs(routine);
-  const completedUnits = progress?.completedAyahsCount ?? 0;
   const percentage = progress?.percentage ?? 0;
   const isAllCompleted = percentage >= 100 || completedSet.size === items.length;
 
@@ -154,7 +150,7 @@ export function RoutineDetailView({
             borderColor: 'var(--border-subtle)',
           }}
         >
-          <div className="flex items-baseline justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p
                 className="text-xs font-medium"
@@ -166,23 +162,12 @@ export function RoutineDetailView({
                 className="text-[11px] mt-0.5 tabular-nums"
                 style={{ color: 'var(--text-secondary)' }}
               >
-                {toBanglaDigits(completedSet.size)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন •{' '}
-                {toBanglaDigits(completedUnits)}/{toBanglaDigits(totalUnits)} ইউনিট
+                {toBanglaDigits(completedSet.size)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন
               </p>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {isAllCompleted && (
-                <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-              )}
-              <span
-                className="text-xl font-semibold tabular-nums leading-none"
-                style={{
-                  color: percentage > 0 ? 'var(--accent)' : 'var(--text-muted)',
-                }}
-              >
-                {toBanglaDigits(percentage)}%
-              </span>
-            </div>
+            {isAllCompleted && (
+              <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--accent)' }} />
+            )}
           </div>
 
           <div
@@ -350,27 +335,11 @@ export function RoutineDetailView({
                   >
                     {isSurah && surahMeta ? (
                       <>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1 text-xs">
-                            <p style={{ color: 'var(--text-secondary)' }}>
-                              অর্থ: <span className="font-medium">{surahMeta.meaningBangla}</span> •{' '}
-                              {surahMeta.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
-                            </p>
-                            <p style={{ color: 'var(--text-muted)' }}>
-                              নির্ধারিত অংশ: আয়াত {toBanglaDigits(item.startAyah)} থেকে{' '}
-                              {toBanglaDigits(item.endAyah)} (সূরার মোট{' '}
-                              {toBanglaDigits(surahMeta.versesCount)} আয়াতের মধ্যে{' '}
-                              {toBanglaDigits(span)} আয়াত)
-                            </p>
-                          </div>
-                          <span
-                            className="font-surah-names font-surah-names-end text-[2rem] leading-none shrink-0 select-none"
-                            style={{ color: 'var(--text-primary)' }}
-                            aria-hidden="true"
-                          >
-                            {String(surahMeta.id).padStart(3, '0')}
-                          </span>
-                        </div>
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          অর্থ: <span className="font-medium">{surahMeta.meaningBangla}</span> •{' '}
+                          {surahMeta.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'} • মোট{' '}
+                          {toBanglaDigits(surahMeta.versesCount)} আয়াত
+                        </p>
 
                         <div className="flex items-center justify-end gap-2">
                           <button

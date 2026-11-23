@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowDown,
-  ArrowRight,
   ArrowUp,
   Check,
   ChevronDown,
+  ChevronRight,
   Edit3,
   Plus,
   RotateCcw,
@@ -26,7 +26,6 @@ import {
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import {
   computeRoutineProgressMetrics,
-  computeRoutineTotalAyahs,
   db,
   getCompletedItemIndexes,
   getRoutineItems,
@@ -720,9 +719,10 @@ export function RoutinesView({
               const prog = progressMap.get(routine.id);
               const routineItems = getRoutineItems(routine);
               const summary = getRoutineSummaryCounts(routine);
-              const total =
-                prog?.totalAyahsCount ?? computeRoutineTotalAyahs(routine);
-              const completed = prog?.completedAyahsCount ?? 0;
+              const completedItemsCount = getCompletedItemIndexes(
+                routine,
+                prog
+              ).length;
               const percentage = prog?.percentage ?? 0;
               const itemLabels = routineItems
                 .map((item) => formatNormalizedRoutineItemLabel(item))
@@ -820,18 +820,15 @@ export function RoutinesView({
                     </p>
                   )}
 
-                  {/* Slim Editorial Progress + Inline Action */}
+                  {/* Slim Editorial Progress + Subtle Chevron */}
                   <div className="flex items-center justify-between gap-4 pt-1">
                     <div className="flex-1 space-y-1.5">
                       <div
-                        className="flex justify-between text-[11px] tabular-nums"
+                        className="text-[11px] tabular-nums"
                         style={{ color: 'var(--text-muted)' }}
                       >
-                        <span>অগ্রগতি</span>
-                        <span>
-                          {toBanglaDigits(completed)}/{toBanglaDigits(total)} (
-                          {toBanglaDigits(percentage)}%)
-                        </span>
+                        {toBanglaDigits(completedItemsCount)}/
+                        {toBanglaDigits(routineItems.length)}টি অংশ সম্পন্ন
                       </div>
                       <div
                         className="h-[3px] rounded-full overflow-hidden"
@@ -849,20 +846,10 @@ export function RoutinesView({
                         />
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenRoutineDetails(routine);
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-medium shrink-0 transition-opacity active:opacity-70 cursor-pointer"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      {prog && prog.percentage > 0 && prog.percentage < 100
-                        ? 'চালিয়ে যান'
-                        : 'শুরু করুন'}
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                    </button>
+                    <ChevronRight
+                      className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+                      style={{ color: 'var(--text-muted)' }}
+                    />
                   </div>
                 </div>
               );

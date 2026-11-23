@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ChevronUp,
   Copy,
-  RotateCcw,
   SlidersHorizontal,
 } from 'lucide-react';
 import {
@@ -352,7 +351,6 @@ export function DuaReaderView({
     target: number;
     nested?: boolean;
     isSheetActive: boolean;
-    onReset: () => void;
     onOpenSheet: () => void;
   }) => {
     const {
@@ -360,15 +358,13 @@ export function DuaReaderView({
       target,
       nested = false,
       isSheetActive,
-      onReset,
       onOpenSheet,
     } = params;
     const done = count >= target;
-    const percent = Math.min(100, target > 0 ? Math.round((count / target) * 100) : 0);
     const buttonLabel = done
-      ? `সম্পন্ন (${toBanglaDigits(count)})`
+      ? 'সম্পন্ন'
       : count > 0
-        ? `চালিয়ে যান (${toBanglaDigits(count)}/${toBanglaDigits(target)})`
+        ? 'চালিয়ে যান'
         : 'জিকির শুরু করুন';
 
     return (
@@ -382,7 +378,7 @@ export function DuaReaderView({
             onOpenSheet();
           }
         }}
-        className="rounded-2xl px-4 py-3 space-y-2.5 transition-opacity active:opacity-85 cursor-pointer"
+        className="rounded-2xl px-4 py-3 transition-opacity active:opacity-85 cursor-pointer"
         style={{
           backgroundColor:
             done || isSheetActive
@@ -396,58 +392,26 @@ export function DuaReaderView({
           <div className="min-w-0">
             <div className="text-xs font-medium">জিকির গণনা</div>
             <div className="text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>
-              লক্ষ্য: {toBanglaDigits(target)} বার • সম্পন্ন:{' '}
-              <strong>{toBanglaDigits(count)}</strong> বার
+              {count > 0 ? (
+                <>
+                  সম্পন্ন: <strong>{toBanglaDigits(count)}</strong>/{toBanglaDigits(target)}
+                </>
+              ) : (
+                `${toBanglaDigits(target)} বার গণনা করুন`
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {count > 0 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReset();
-                }}
-                aria-label="গণনা রিসেট"
-                className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-opacity active:opacity-75"
-                style={{
-                  backgroundColor: nested ? 'var(--bg-surface)' : 'var(--bg-elevated)',
-                  color: 'var(--text-muted)',
-                }}
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <span
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium"
-              style={{
-                backgroundColor: 'var(--accent)',
-                color: 'var(--accent-text)',
-              }}
-            >
-              <span>{buttonLabel}</span>
-              <ChevronUp className="w-3.5 h-3.5" />
-            </span>
-          </div>
-        </div>
-
-        {count > 0 && (
-          <div
-            className="h-[3px] w-full rounded-full overflow-hidden"
+          <span
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium shrink-0"
             style={{
-              backgroundColor:
-                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+              backgroundColor: 'var(--accent)',
+              color: 'var(--accent-text)',
             }}
           >
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{
-                width: `${percent}%`,
-                backgroundColor: 'var(--accent)',
-              }}
-            />
-          </div>
-        )}
+            <span>{buttonLabel}</span>
+            <ChevronUp className="w-3.5 h-3.5" />
+          </span>
+        </div>
       </div>
     );
   };
@@ -636,7 +600,11 @@ export function DuaReaderView({
           style={{ borderColor: 'var(--border-subtle)' }}
         >
           <span style={{ color: 'var(--text-secondary)' }}>
-            {dua.occasionNote ?? chapter?.titleBangla ?? 'দুআ ও জিকির'}
+            {(dua.occasionNote
+              ? dua.occasionNote.replace(/\s*\([০-৯0-9]+\s*বার\)\s*$/, '').trim()
+              : '') ||
+              chapter?.titleBangla ||
+              'দুআ ও জিকির'}
           </span>
           <span
             className="text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0"
@@ -716,7 +684,6 @@ export function DuaReaderView({
                           counterSheetOpen &&
                           activeCounter.mode === 'part' &&
                           activeCounter.partIndex === idx,
-                        onReset: () => handleResetPartCounter(part.id),
                         onOpenSheet: () =>
                           openCounterSheet({ mode: 'part', partIndex: idx }),
                       })}
@@ -801,7 +768,6 @@ export function DuaReaderView({
                 target: targetCount,
                 isSheetActive:
                   counterSheetOpen && activeCounter.mode === 'single',
-                onReset: handleResetCounter,
                 onOpenSheet: () => openCounterSheet({ mode: 'single' }),
               })
             ) : (

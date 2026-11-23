@@ -13,7 +13,6 @@ import {
   searchSurahs,
   toAsciiDigits,
 } from '../utils/searchEngine';
-import { LastReadSurahCard } from './LastReadSurahCard';
 import {
   SoftSearchInput,
   TabHeader,
@@ -126,11 +125,6 @@ export function SurahListView({
           .map((c) => c.surahId)
       ),
     [cachedRows]
-  );
-
-  const currentLastRead = useMemo(
-    () => (lastReadRows ?? []).find((row) => row.id === 'current'),
-    [lastReadRows]
   );
 
   const surahLastReadMap = useMemo(() => {
@@ -523,16 +517,6 @@ export function SurahListView({
           </section>
         )}
 
-        {currentLastRead && SURAH_MAP[currentLastRead.surahId] && !query.trim() && (
-          <div className="space-y-2.5">
-            <h2 className="text-sm font-semibold">সর্বশেষ তিলাওয়াত</h2>
-            <LastReadSurahCard
-              lastRead={currentLastRead}
-              onOpenSurah={onOpenSurah}
-            />
-          </div>
-        )}
-
         <section className="space-y-3">
           <UnderlineTabs
             value={browseTab}
@@ -632,18 +616,12 @@ export function SurahListView({
 
                       {showProgress && (
                         <div className="mt-2 pl-10.5 space-y-1">
-                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                          <div className="text-[11px]">
                             <span
                               className="font-medium tabular-nums"
                               style={{ color: 'var(--accent)' }}
                             >
                               সর্বশেষ: আয়াত {toBanglaDigits(lastAyah)}/{toBanglaDigits(surah.versesCount)}
-                            </span>
-                            <span
-                              className="font-medium tabular-nums"
-                              style={{ color: 'var(--text-secondary)' }}
-                            >
-                              {toBanglaDigits(percent)}%
                             </span>
                           </div>
                           <div

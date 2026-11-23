@@ -121,7 +121,7 @@ export function App() {
       }
     }
 
-    if (route.type === 'surah' && route.initialAyah > 1) return;
+    if (route.type === 'surah' && (route.initialAyah > 1 || route.initialPage)) return;
     if (route.type === 'routineRead' && route.ayah && route.ayah > 1) return;
 
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -365,8 +365,8 @@ export function App() {
   }, [route, navigate]);
 
   const handleOpenSurah = useCallback(
-    (surahId: number, initialAyah = 1) => {
-      navigate({ type: 'surah', surahId, initialAyah });
+    (surahId: number, initialAyah = 1, initialPage?: number) => {
+      navigate({ type: 'surah', surahId, initialAyah, initialPage });
     },
     [navigate]
   );
@@ -520,6 +520,7 @@ export function App() {
           key={`${route.surahId}-free`}
           surahId={route.surahId}
           initialAyah={route.initialAyah}
+          initialPage={route.initialPage}
           settings={settings}
           onClose={closeReader}
           onSelectSurah={(surahId, initialAyah = 1) =>
@@ -664,7 +665,7 @@ export function App() {
       {activeTab === 'surahs' && (
         <SurahListView
           settings={settings}
-          onOpenSurah={(id, initialAyah = 1) => handleOpenSurah(id, initialAyah)}
+          onOpenSurah={handleOpenSurah}
         />
       )}
       {activeTab === 'duas' && (

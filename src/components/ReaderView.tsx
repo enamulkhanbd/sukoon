@@ -43,6 +43,7 @@ import { useToast } from './ToastProvider';
 interface ReaderViewProps {
   surahId: number;
   initialAyah?: number;
+  initialPage?: number;
   routine?: Routine;
   routineItemIndex?: number;
   settings: Settings;
@@ -59,6 +60,7 @@ interface ReaderViewProps {
 export function ReaderView({
   surahId,
   initialAyah = 1,
+  initialPage,
   routine,
   routineItemIndex,
   settings,
@@ -128,7 +130,11 @@ export function ReaderView({
       if (signal?.aborted) return;
       setSurahData(data);
       const targetVerse =
-        data.verses.find((v) => v.verse_number === initialAyah) ?? data.verses[0];
+        (initialAyah <= 1 && initialPage
+          ? data.verses.find((v) => v.page_number === initialPage)
+          : undefined) ??
+        data.verses.find((v) => v.verse_number === initialAyah) ??
+        data.verses[0];
       if (targetVerse) {
         setActiveAyah(targetVerse.verse_number);
         setActivePage(targetVerse.page_number);
@@ -146,7 +152,7 @@ export function ReaderView({
         setLoading(false);
       }
     }
-  }, [surahId, initialAyah]);
+  }, [surahId, initialAyah, initialPage]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -164,16 +170,24 @@ export function ReaderView({
     );
   }, [surahData, activeRoutineItem]);
 
-  // Restore scroll position to initialAyah once verses mount + flash target ayah
+  // Restore scroll position to initialAyah / initialPage once verses mount + flash target ayah
   useEffect(() => {
     if (loading || !surahData || hasRestoredScrollRef.current) return;
     hasRestoredScrollRef.current = true;
 
     const startAnchor = activeRoutineItem?.startAyah ?? 1;
-    if (initialAyah > startAnchor) {
-      setFlashedAyah(initialAyah);
+    const resolvedTargetAyah =
+      initialAyah > startAnchor
+        ? initialAyah
+        : initialPage
+          ? (surahData.verses.find((v) => v.page_number === initialPage)
+              ?.verse_number ?? startAnchor)
+          : startAnchor;
+
+    if (resolvedTargetAyah > startAnchor) {
+      setFlashedAyah(resolvedTargetAyah);
       requestAnimationFrame(() => {
-        const el = document.querySelector(`[data-ayah="${initialAyah}"]`);
+        const el = document.querySelector(`[data-ayah="${resolvedTargetAyah}"]`);
         if (el) {
           el.scrollIntoView({ behavior: 'auto', block: 'center' });
         }
@@ -183,7 +197,7 @@ export function ReaderView({
     } else {
       window.scrollTo({ top: 0, behavior: 'auto' });
     }
-  }, [loading, surahData, initialAyah, activeRoutineItem?.startAyah]);
+  }, [loading, surahData, initialAyah, initialPage, activeRoutineItem?.startAyah]);
 
   // Persist last read & increment today's newly visited ayahs
   const persistAyah = useCallback(

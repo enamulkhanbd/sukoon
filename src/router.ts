@@ -4,7 +4,7 @@ import { SURAH_MAP } from './data/surahs';
 
 export type AppRoute =
   | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
-  | { type: 'surah'; surahId: number; initialAyah: number }
+  | { type: 'surah'; surahId: number; initialAyah: number; initialPage?: number }
   | { type: 'dua'; duaId: string }
   | { type: 'ramadan' }
   | { type: 'routineDetail'; routineId: string }
@@ -70,10 +70,16 @@ export function parseRoute(
     const meta = surahId ? SURAH_MAP[surahId] : undefined;
     if (surahId && meta) {
       const ayah = parsePositiveInt(params.get('ayah')) ?? 1;
+      const pageRaw = parsePositiveInt(params.get('page'));
+      const initialPage =
+        pageRaw && pageRaw >= meta.pages[0] && pageRaw <= meta.pages[1]
+          ? pageRaw
+          : undefined;
       return {
         type: 'surah',
         surahId,
         initialAyah: Math.min(Math.max(ayah, 1), meta.versesCount),
+        initialPage,
       };
     }
     return { type: 'tab', tab: 'surahs' };
@@ -149,9 +155,13 @@ export function buildPath(route: AppRoute): string {
       }
     }
     case 'surah':
-      return route.initialAyah > 1
-        ? `/surah/${route.surahId}?ayah=${route.initialAyah}`
-        : `/surah/${route.surahId}`;
+      if (route.initialAyah > 1) {
+        return `/surah/${route.surahId}?ayah=${route.initialAyah}`;
+      }
+      if (route.initialPage) {
+        return `/surah/${route.surahId}?page=${route.initialPage}`;
+      }
+      return `/surah/${route.surahId}`;
     case 'dua':
       return `/dua/${encodeURIComponent(route.duaId)}`;
     case 'ramadan':

@@ -1,13 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowRight, BookOpen, Clock, Sparkles } from 'lucide-react';
-import { SURAH_MAP, SURAHS } from '../data/surahs';
+import { SURAH_MAP, SURAHS, type SurahMeta } from '../data/surahs';
 import { db, type GlobalLastRead, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 import { JUMMAH_SURAH_ID } from '../utils/islamicTime';
-import { parseSmartJumps, searchSurahs } from '../utils/searchEngine';
+import {
+  JUZ_START_MAP,
+  parseSmartJumps,
+  searchSurahs,
+  toAsciiDigits,
+} from '../utils/searchEngine';
 import { LastReadSurahCard } from './LastReadSurahCard';
 import {
   SoftSearchInput,
@@ -17,25 +22,97 @@ import {
 
 interface SurahListViewProps {
   settings: Settings;
-  onOpenSurah: (surahId: number, initialAyah?: number) => void;
+  onOpenSurah: (
+    surahId: number,
+    initialAyah?: number,
+    initialPage?: number
+  ) => void;
 }
 
-type FilterMode = 'all' | 'offline' | 'makkah' | 'madinah';
+type BrowseTab = 'surah' | 'juz' | 'page';
 
 const TOTAL_SURAHS_COUNT = SURAHS.length;
-const MAKKAH_SURAHS_COUNT = SURAHS.filter(
-  (s) => s.revelationPlace === 'makkah'
-).length;
-const MADINAH_SURAHS_COUNT = SURAHS.filter(
-  (s) => s.revelationPlace === 'madinah'
-).length;
+const TOTAL_JUZ_COUNT = 30;
+const TOTAL_PAGES_COUNT = 604;
+const PAGE_BATCH_SIZE = 60;
+
+interface JuzEntry {
+  juz: number;
+  startSurah: SurahMeta;
+  startAyah: number;
+  endSurah: SurahMeta;
+  endAyah: number;
+  surahIds: Set<number>;
+  rangeLabel: string;
+}
+
+interface PageEntry {
+  page: number;
+  surahs: SurahMeta[];
+  surahIds: Set<number>;
+  surahsLabel: string;
+}
+
+const JUZ_LIST: JuzEntry[] = Array.from({ length: TOTAL_JUZ_COUNT }, (_, idx) => {
+  const juz = idx + 1;
+  const start = JUZ_START_MAP[juz];
+  const startSurah = SURAH_MAP[start.surahId];
+
+  let endSurahId = 114;
+  let endAyah = SURAH_MAP[114].versesCount;
+  if (juz < TOTAL_JUZ_COUNT) {
+    const next = JUZ_START_MAP[juz + 1];
+    if (next.ayah > 1) {
+      endSurahId = next.surahId;
+      endAyah = next.ayah - 1;
+    } else {
+      endSurahId = next.surahId - 1;
+      endAyah = SURAH_MAP[endSurahId].versesCount;
+    }
+  }
+  const endSurah = SURAH_MAP[endSurahId];
+  const surahIds = new Set<number>();
+  for (let s = startSurah.id; s <= endSurah.id; s++) {
+    surahIds.add(s);
+  }
+
+  const rangeLabel =
+    startSurah.id === endSurah.id
+      ? `সূরা ${startSurah.nameBangla} ${toBanglaDigits(start.ayah)}–${toBanglaDigits(endAyah)}`
+      : `সূরা ${startSurah.nameBangla} ${toBanglaDigits(start.ayah)} – ${endSurah.nameBangla} ${toBanglaDigits(endAyah)}`;
+
+  return {
+    juz,
+    startSurah,
+    startAyah: start.ayah,
+    endSurah,
+    endAyah,
+    surahIds,
+    rangeLabel,
+  };
+});
+
+const PAGE_LIST: PageEntry[] = Array.from(
+  { length: TOTAL_PAGES_COUNT },
+  (_, idx) => {
+    const page = idx + 1;
+    const surahs = SURAHS.filter(
+      (s) => page >= s.pages[0] && page <= s.pages[1]
+    );
+    const surahIds = new Set(surahs.map((s) => s.id));
+    const surahsLabel = surahs.map((s) => `সূরা ${s.nameBangla}`).join(' • ');
+    return { page, surahs, surahIds, surahsLabel };
+  }
+);
 
 export function SurahListView({
   settings,
   onOpenSurah,
 }: SurahListViewProps) {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<FilterMode>('all');
+  const [browseTab, setBrowseTab] = useState<BrowseTab>('surah');
+  const [visiblePageCount, setVisiblePageCount] = useState(PAGE_BATCH_SIZE);
+  const pageSentinelRef = useRef<HTMLDivElement | null>(null);
   const clock = useIslamicClock(settings);
 
   const cachedRows = useLiveQuery(() => db.cachedSurahs.toArray(), []);
@@ -73,26 +150,88 @@ export function SurahListView({
     return trimmed ? parseSmartJumps(trimmed) : [];
   }, [query]);
 
-  const resolveJumpAyah = (jump: (typeof smartJumps)[number]): number => {
-    if (jump.kind !== 'page' || !jump.page) return jump.ayah;
-    const cached = (cachedRows ?? []).find((c) => c.surahId === jump.surah.id);
-    const match = cached?.verses.find((v) => v.page_number === jump.page);
-    return match?.verse_number ?? jump.ayah;
+  const resolvePageAyah = (surahId: number, page: number): number => {
+    const cached = (cachedRows ?? []).find((c) => c.surahId === surahId);
+    const match = cached?.verses.find((v) => v.page_number === page);
+    return match?.verse_number ?? 1;
   };
 
-  const filtered = useMemo(() => {
-    const trimmed = query.trim();
-    const baseList = trimmed
-      ? searchSurahs(trimmed).map((r) => r.surah)
-      : SURAHS;
+  const resolveJumpAyah = (jump: (typeof smartJumps)[number]): number => {
+    if (jump.kind !== 'page' || !jump.page) return jump.ayah;
+    return resolvePageAyah(jump.surah.id, jump.page);
+  };
 
-    return baseList.filter((s) => {
-      if (filter === 'offline' && !cachedSet.has(s.id)) return false;
-      if (filter === 'makkah' && s.revelationPlace !== 'makkah') return false;
-      if (filter === 'madinah' && s.revelationPlace !== 'madinah') return false;
-      return true;
-    });
-  }, [query, filter, cachedSet]);
+  const filteredSurahs = useMemo(() => {
+    const trimmed = query.trim();
+    return trimmed ? searchSurahs(trimmed).map((r) => r.surah) : SURAHS;
+  }, [query]);
+
+  const filteredJuz = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return JUZ_LIST;
+    const ascii = toAsciiDigits(trimmed).toLowerCase();
+    if (ascii.includes('আম্মাপারা') || ascii.includes('amma')) {
+      return JUZ_LIST.filter((j) => j.juz === 30);
+    }
+    const numMatch =
+      /^(?:(?:পারা|জুজ|juz|para|sipara)\s*[:#-]?\s*)?(\d{1,2})$/i.exec(ascii) ??
+      /^(\d{1,2})\s*(?:নং|তম)?\s*(?:পারা|জুজ|juz|para)$/i.exec(ascii);
+    if (numMatch) {
+      const n = Number.parseInt(numMatch[1], 10);
+      return JUZ_LIST.filter((j) => j.juz === n);
+    }
+    const matchedSurahIds = new Set(searchSurahs(trimmed).map((r) => r.surah.id));
+    if (matchedSurahIds.size === 0) return [];
+    return JUZ_LIST.filter((j) =>
+      Array.from(matchedSurahIds).some((id) => j.surahIds.has(id))
+    );
+  }, [query]);
+
+  const filteredPages = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return PAGE_LIST;
+    const ascii = toAsciiDigits(trimmed);
+    const numMatch =
+      /^(?:(?:পৃষ্ঠা|পৃঃ|পৃ|পেজ|page|pg|p)\s*[:#-]?\s*)?(\d{1,3})$/i.exec(ascii) ??
+      /^(\d{1,3})\s*(?:নং)?\s*(?:পৃষ্ঠা|পেজ|page)$/i.exec(ascii);
+    if (numMatch) {
+      const targetStr = String(Number.parseInt(numMatch[1], 10));
+      const exact = PAGE_LIST.filter((p) => String(p.page) === targetStr);
+      const prefix = PAGE_LIST.filter(
+        (p) => String(p.page) !== targetStr && String(p.page).startsWith(targetStr)
+      );
+      return [...exact, ...prefix];
+    }
+    const matchedSurahIds = new Set(searchSurahs(trimmed).map((r) => r.surah.id));
+    if (matchedSurahIds.size === 0) return [];
+    return PAGE_LIST.filter((p) =>
+      Array.from(matchedSurahIds).some((id) => p.surahIds.has(id))
+    );
+  }, [query]);
+
+  useEffect(() => {
+    setVisiblePageCount(PAGE_BATCH_SIZE);
+  }, [browseTab, query]);
+
+  useEffect(() => {
+    if (browseTab !== 'page') return;
+    if (visiblePageCount >= filteredPages.length) return;
+    const el = pageSentinelRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisiblePageCount((prev) =>
+            Math.min(filteredPages.length, prev + PAGE_BATCH_SIZE)
+          );
+        }
+      },
+      { rootMargin: '240px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [browseTab, visiblePageCount, filteredPages.length]);
 
   const kahfSurah = SURAH_MAP[JUMMAH_SURAH_ID];
   const waqtSurah = SURAH_MAP[clock.waqtSuggestion.surahId];
@@ -113,8 +252,8 @@ export function SurahListView({
       >
         <div className="max-w-2xl mx-auto px-5 pt-5 pb-6 space-y-4">
           <TabHeader
-            title="সূরা সমূহ"
-            subtitle={`মোট ১১৪টি সূরা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে সংরক্ষিত`}
+            title="আল-কুরআন"
+            subtitle={`১১৪ সূরা • ৩০ পারা • ৬০৪ পৃষ্ঠা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে`}
           />
 
           <SoftSearchInput
@@ -136,7 +275,11 @@ export function SurahListView({
                 key={jump.id}
                 type="button"
                 onClick={() =>
-                  onOpenSurah(jump.surah.id, resolveJumpAyah(jump))
+                  onOpenSurah(
+                    jump.surah.id,
+                    resolveJumpAyah(jump),
+                    jump.kind === 'page' ? jump.page : undefined
+                  )
                 }
                 className="w-full rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-80 cursor-pointer"
                 style={{ backgroundColor: 'var(--bg-surface)' }}
@@ -392,139 +535,294 @@ export function SurahListView({
 
         <section className="space-y-3">
           <UnderlineTabs
-            value={filter}
-            onChange={setFilter}
-            ariaLabel="সূরা ফিল্টার"
+            value={browseTab}
+            onChange={setBrowseTab}
+            ariaLabel="কুরআন বিভাগ"
             tabs={[
-              { id: 'all', label: 'সব', count: toBanglaDigits(TOTAL_SURAHS_COUNT) },
-              { id: 'offline', label: 'অফলাইন', count: toBanglaDigits(cachedSet.size) },
-              { id: 'makkah', label: 'মাক্কী', count: toBanglaDigits(MAKKAH_SURAHS_COUNT) },
-              { id: 'madinah', label: 'মাদানী', count: toBanglaDigits(MADINAH_SURAHS_COUNT) },
+              { id: 'surah', label: 'সূরা', count: toBanglaDigits(TOTAL_SURAHS_COUNT) },
+              { id: 'juz', label: 'পারা', count: toBanglaDigits(TOTAL_JUZ_COUNT) },
+              { id: 'page', label: 'পৃষ্ঠা', count: toBanglaDigits(TOTAL_PAGES_COUNT) },
             ]}
           />
 
-          {filtered.length === 0 ? (
-            smartJumps.length > 0 ? null : (
-              <div
-                className="py-12 text-center text-xs"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                কোনো সূরা পাওয়া যায়নি।
-              </div>
-            )
-          ) : (
-            <div>
-              {filtered.map((surah) => {
-                const lastRead = surahLastReadMap.get(surah.id);
-                const lastAyah = lastRead
-                  ? Math.min(Math.max(lastRead.ayahNumber, 1), surah.versesCount)
-                  : 0;
-                const showProgress = lastAyah > 0 && lastAyah < surah.versesCount;
-                const percent = showProgress
-                  ? Math.min(99, Math.round((lastAyah / surah.versesCount) * 100))
-                  : 0;
-                const resumeAyah = showProgress ? lastAyah : 1;
+          {browseTab === 'surah' &&
+            (filteredSurahs.length === 0 ? (
+              smartJumps.length > 0 ? null : (
+                <div
+                  className="py-12 text-center text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  কোনো সূরা পাওয়া যায়নি।
+                </div>
+              )
+            ) : (
+              <div>
+                {filteredSurahs.map((surah) => {
+                  const lastRead = surahLastReadMap.get(surah.id);
+                  const lastAyah = lastRead
+                    ? Math.min(Math.max(lastRead.ayahNumber, 1), surah.versesCount)
+                    : 0;
+                  const showProgress = lastAyah > 0 && lastAyah < surah.versesCount;
+                  const percent = showProgress
+                    ? Math.min(99, Math.round((lastAyah / surah.versesCount) * 100))
+                    : 0;
+                  const resumeAyah = showProgress ? lastAyah : 1;
 
-                return (
-                  <div
-                    key={surah.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onOpenSurah(surah.id, resumeAyah)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onOpenSurah(surah.id, resumeAyah);
-                      }
-                    }}
-                    className="py-3.5 border-b last:border-b-0 transition-opacity active:opacity-70 cursor-pointer"
+                  return (
+                    <div
+                      key={surah.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onOpenSurah(surah.id, resumeAyah)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onOpenSurah(surah.id, resumeAyah);
+                        }
+                      }}
+                      className="py-3.5 border-b last:border-b-0 transition-opacity active:opacity-70 cursor-pointer"
+                      style={{
+                        borderColor:
+                          'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <span
+                            className="w-7 text-xs font-medium tabular-nums shrink-0"
+                            style={{ color: 'var(--accent)' }}
+                          >
+                            {toBanglaDigits(surah.id)}.
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-baseline gap-1.5 min-w-0">
+                              <span className="font-semibold text-sm truncate">
+                                {surah.nameBangla}
+                              </span>
+                              <span
+                                className="text-[11px] truncate"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                ({surah.meaningBangla})
+                              </span>
+                            </div>
+                            <div
+                              className="text-[11px] flex items-center gap-1.5 mt-0.5 tabular-nums"
+                              style={{ color: 'var(--text-secondary)' }}
+                            >
+                              <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
+                              <span className="opacity-40">•</span>
+                              <span>
+                                {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
+                              </span>
+                              <span className="opacity-40">•</span>
+                              <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span
+                          className="font-surah-names font-surah-names-end text-[2rem] leading-none shrink-0 select-none"
+                          style={{ color: 'var(--text-primary)' }}
+                          aria-hidden="true"
+                        >
+                          {String(surah.id).padStart(3, '0')}
+                        </span>
+                      </div>
+
+                      {showProgress && (
+                        <div className="mt-2 pl-10.5 space-y-1">
+                          <div className="flex items-center justify-between gap-2 text-[11px]">
+                            <span
+                              className="font-medium tabular-nums"
+                              style={{ color: 'var(--accent)' }}
+                            >
+                              সর্বশেষ: আয়াত {toBanglaDigits(lastAyah)}/{toBanglaDigits(surah.versesCount)}
+                            </span>
+                            <span
+                              className="font-medium tabular-nums"
+                              style={{ color: 'var(--text-secondary)' }}
+                            >
+                              {toBanglaDigits(percent)}%
+                            </span>
+                          </div>
+                          <div
+                            className="h-[3px] w-full rounded-full overflow-hidden"
+                            style={{
+                              backgroundColor:
+                                'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+                            }}
+                          >
+                            <div
+                              className="h-full rounded-full transition-all duration-300"
+                              style={{
+                                width: `${percent}%`,
+                                backgroundColor: 'var(--accent)',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+
+          {browseTab === 'juz' &&
+            (filteredJuz.length === 0 ? (
+              smartJumps.length > 0 ? null : (
+                <div
+                  className="py-12 text-center text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  কোনো পারা পাওয়া যায়নি।
+                </div>
+              )
+            ) : (
+              <div>
+                {filteredJuz.map((item) => (
+                  <button
+                    key={item.juz}
+                    type="button"
+                    onClick={() => onOpenSurah(item.startSurah.id, item.startAyah)}
+                    className="w-full py-3.5 border-b last:border-b-0 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-70 cursor-pointer"
                     style={{
                       borderColor:
                         'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
                     }}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <span
-                          className="w-7 text-xs font-medium tabular-nums shrink-0"
-                          style={{ color: 'var(--accent)' }}
-                        >
-                          {toBanglaDigits(surah.id)}.
-                        </span>
-                        <div className="min-w-0">
-                          <div className="flex items-baseline gap-1.5 min-w-0">
-                            <span className="font-semibold text-sm truncate">
-                              {surah.nameBangla}
-                            </span>
-                            <span
-                              className="text-[11px] truncate"
-                              style={{ color: 'var(--text-muted)' }}
-                            >
-                              ({surah.meaningBangla})
-                            </span>
-                          </div>
-                          <div
-                            className="text-[11px] flex items-center gap-1.5 mt-0.5 tabular-nums"
-                            style={{ color: 'var(--text-secondary)' }}
-                          >
-                            <span>{toBanglaDigits(surah.versesCount)} আয়াত</span>
-                            <span className="opacity-40">•</span>
-                            <span>
-                              {surah.revelationPlace === 'makkah' ? 'মাক্কী' : 'মাদানী'}
-                            </span>
-                            <span className="opacity-40">•</span>
-                            <span>পৃষ্ঠা {toBanglaDigits(surah.pages[0])}</span>
-                          </div>
-                        </div>
-                      </div>
-
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <span
-                        className="font-surah-names font-surah-names-end text-[2rem] leading-none shrink-0 select-none"
-                        style={{ color: 'var(--text-primary)' }}
-                        aria-hidden="true"
+                        className="w-7 text-xs font-medium tabular-nums shrink-0"
+                        style={{ color: 'var(--accent)' }}
                       >
-                        {String(surah.id).padStart(3, '0')}
+                        {toBanglaDigits(item.juz)}.
                       </span>
-                    </div>
-
-                    {showProgress && (
-                      <div className="mt-2 pl-10.5 space-y-1">
-                        <div className="flex items-center justify-between gap-2 text-[11px]">
-                          <span
-                            className="font-medium tabular-nums"
-                            style={{ color: 'var(--accent)' }}
-                          >
-                            সর্বশেষ: আয়াত {toBanglaDigits(lastAyah)}/{toBanglaDigits(surah.versesCount)}
+                      <div className="min-w-0">
+                        <div className="flex items-baseline gap-1.5 min-w-0">
+                          <span className="font-semibold text-sm truncate">
+                            পারা {toBanglaDigits(item.juz)}
                           </span>
                           <span
-                            className="font-medium tabular-nums"
-                            style={{ color: 'var(--text-secondary)' }}
+                            className="text-[11px] tabular-nums shrink-0"
+                            style={{ color: 'var(--text-muted)' }}
                           >
-                            {toBanglaDigits(percent)}%
+                            • {toBanglaDigits(item.surahIds.size)}টি সূরা
                           </span>
                         </div>
                         <div
-                          className="h-[3px] w-full rounded-full overflow-hidden"
-                          style={{
-                            backgroundColor:
-                              'color-mix(in srgb, var(--text-primary) 10%, transparent)',
-                          }}
+                          className="text-[11px] truncate mt-0.5 tabular-nums"
+                          style={{ color: 'var(--text-secondary)' }}
                         >
-                          <div
-                            className="h-full rounded-full transition-all duration-300"
-                            style={{
-                              width: `${percent}%`,
-                              backgroundColor: 'var(--accent)',
-                            }}
-                          />
+                          {item.rangeLabel}
                         </div>
                       </div>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className="text-[11px] tabular-nums"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {toBanglaDigits(item.startSurah.id)}:
+                        {toBanglaDigits(item.startAyah)}
+                      </span>
+                      <ArrowRight
+                        className="w-3.5 h-3.5"
+                        style={{ color: 'var(--text-muted)' }}
+                      />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ))}
+
+          {browseTab === 'page' &&
+            (filteredPages.length === 0 ? (
+              smartJumps.length > 0 ? null : (
+                <div
+                  className="py-12 text-center text-xs"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  কোনো পৃষ্ঠা পাওয়া যায়নি।
+                </div>
+              )
+            ) : (
+              <div>
+                {filteredPages.slice(0, visiblePageCount).map((item) => {
+                  const primarySurah = item.surahs[0];
+                  if (!primarySurah) return null;
+                  return (
+                    <button
+                      key={item.page}
+                      type="button"
+                      onClick={() =>
+                        onOpenSurah(
+                          primarySurah.id,
+                          resolvePageAyah(primarySurah.id, item.page),
+                          item.page
+                        )
+                      }
+                      className="w-full py-3.5 border-b last:border-b-0 flex items-center justify-between gap-3 text-left transition-opacity active:opacity-70 cursor-pointer"
+                      style={{
+                        borderColor:
+                          'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+                      }}
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <span
+                          className="w-8 text-xs font-medium tabular-nums shrink-0"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          {toBanglaDigits(item.page)}.
+                        </span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm truncate">
+                            পৃষ্ঠা {toBanglaDigits(item.page)}
+                          </div>
+                          <div
+                            className="text-[11px] truncate mt-0.5"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {item.surahsLabel}
+                          </div>
+                        </div>
+                      </div>
+
+                      <ArrowRight
+                        className="w-3.5 h-3.5 shrink-0"
+                        style={{ color: 'var(--text-muted)' }}
+                      />
+                    </button>
+                  );
+                })}
+
+                {visiblePageCount < filteredPages.length && (
+                  <div
+                    ref={pageSentinelRef}
+                    className="pt-4 pb-2 flex justify-center"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVisiblePageCount((prev) =>
+                          Math.min(filteredPages.length, prev + PAGE_BATCH_SIZE)
+                        )
+                      }
+                      className="px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-80"
+                      style={{
+                        backgroundColor: 'var(--bg-surface)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      আরও পৃষ্ঠা দেখুন ({toBanglaDigits(visiblePageCount)}/
+                      {toBanglaDigits(filteredPages.length)})
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+              </div>
+            ))}
         </section>
       </div>
     </div>

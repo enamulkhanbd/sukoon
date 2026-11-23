@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   buildHijriMonthSchedule,
   computeDailyFastingTimes,
+  computeFastingCountdown,
   computeFastingProgress,
   DEFAULT_FASTING_LOCATION,
+  formatCountdownBn,
   formatPrayerTimeBn,
   getDefaultHijriOffsetDays,
   PRESET_FASTING_LOCATIONS,
@@ -524,5 +526,83 @@ describe('fasting utilities', () => {
     expect(nightCtx.hijri.year).toBe(1448);
     expect(nightCtx.hijri.month).toBe(6);
     expect(nightCtx.hijri.day).toBe(13);
+  });
+
+  it('computes live Sehri and Iftar reverse countdowns with ceiling-second safety', () => {
+    expect(formatCountdownBn((5 * 3600 + 24 * 60 + 18) * 1000)).toBe('০৫:২৪:১৮');
+    expect(formatCountdownBn(400)).toBe('০০:০০:০১');
+    expect(formatCountdownBn(0)).toBe('০০:০০:০০');
+    expect(formatCountdownBn(-5000)).toBe('০০:০০:০০');
+    expect(formatCountdownBn(Number.NaN)).toBe('--:--:--');
+
+    const sehri = new Date('2026-11-24T05:00:00+06:00');
+    const iftar = new Date('2026-11-24T17:11:00+06:00');
+
+    // Phase 1: before Sehri end (22:40 -> 05:00 = 06:20:00)
+    const beforeSehri = computeFastingCountdown(
+      new Date('2026-11-23T22:40:00+06:00'),
+      sehri,
+      iftar
+    );
+    expect(beforeSehri).toEqual({
+      target: 'sehri',
+      labelBn: 'সাহরি শেষ হতে বাকি',
+      remainingMs: (6 * 3600 + 20 * 60) * 1000,
+      formattedBn: '০৬:২০:০০',
+      isActive: true,
+    });
+
+    // Phase 2: during fasting (11:46:42 -> 17:11:00 = 05:24:18)
+    const duringFast = computeFastingCountdown(
+      new Date('2026-11-24T11:46:42+06:00'),
+      sehri,
+      iftar
+    );
+    expect(duringFast).toEqual({
+      target: 'iftar',
+      labelBn: 'ইফতারের বাকি',
+      remainingMs: (5 * 3600 + 24 * 60 + 18) * 1000,
+      formattedBn: '০৫:২৪:১৮',
+      isActive: true,
+    });
+
+    // Sub-second before Iftar still shows 00:00:01 (never premature 00:00:00)
+    const subSecondBeforeIftar = computeFastingCountdown(
+      new Date(iftar.getTime() - 250),
+      sehri,
+      iftar
+    );
+    expect(subSecondBeforeIftar.target).toBe('iftar');
+    expect(subSecondBeforeIftar.formattedBn).toBe('০০:০০:০১');
+
+    // At or after Iftar
+    const atIftar = computeFastingCountdown(iftar, sehri, iftar);
+    expect(atIftar).toEqual({
+      target: 'none',
+      labelBn: 'ইফতার সম্পন্ন',
+      remainingMs: 0,
+      formattedBn: '০০:০০:০০',
+      isActive: false,
+    });
+
+    // Invalid date guard
+    const invalid = computeFastingCountdown(new Date('invalid'), sehri, iftar);
+    expect(invalid.target).toBe('none');
+    expect(invalid.formattedBn).toBe('--:--:--');
+    expect(invalid.isActive).toBe(false);
+
+    // End-to-end integration via resolveActiveFastingContext
+    const dhakaDayCtx = resolveActiveFastingContext(
+      new Date('2026-11-24T12:00:00+06:00'),
+      DEFAULT_FASTING_LOCATION,
+      'karachi',
+      '24h',
+      -1,
+      'Asia/Dhaka'
+    );
+    expect(dhakaDayCtx.countdown.target).toBe('iftar');
+    expect(dhakaDayCtx.countdown.labelBn).toBe('ইফতারের বাকি');
+    expect(dhakaDayCtx.countdown.isActive).toBe(true);
+    expect(dhakaDayCtx.countdown.formattedBn).toMatch(/^[০-৯]{2}:[০-৯]{2}:[০-৯]{2}$/);
   });
 });

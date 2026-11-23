@@ -1,4 +1,5 @@
 import { ChevronRight, Moon, Sparkles } from 'lucide-react';
+import { useLiveSecondNow } from '../hooks/useLiveSecondNow';
 import { toBanglaDigits } from '../utils/formatters';
 import {
   resolveActiveFastingContext,
@@ -29,14 +30,30 @@ export function FastingCard({
   hijriOffsetDays,
   onOpenSchedule,
 }: FastingCardProps) {
-  const { hijri, dailyTimes, progress, weeklySunnah } =
-    resolveActiveFastingContext(
-      now,
-      location,
-      method,
-      timeFormat,
-      hijriOffsetDays
-    );
+  const baseContext = resolveActiveFastingContext(
+    now,
+    location,
+    method,
+    timeFormat,
+    hijriOffsetDays
+  );
+  const isBaseFastingDay =
+    baseContext.hijri.isRamadan ||
+    baseContext.weeklySunnah.isWeeklySunnah ||
+    baseContext.hijri.isAyyamAlBid;
+
+  const liveNow = useLiveSecondNow(isBaseFastingDay, now);
+
+  const { hijri, dailyTimes, progress, countdown, weeklySunnah } =
+    isBaseFastingDay && liveNow.getTime() !== now.getTime()
+      ? resolveActiveFastingContext(
+          liveNow,
+          location,
+          method,
+          timeFormat,
+          hijriOffsetDays
+        )
+      : baseContext;
 
   const isRamadan = hijri.isRamadan;
   const isWeeklyToday = weeklySunnah.isWeeklySunnah;
@@ -157,23 +174,23 @@ export function FastingCard({
         </div>
       </div>
 
-      {/* Slim Fasting Progress Bar on Fasting Days */}
+      {/* Live Countdown & Slim Fasting Progress Bar on Fasting Days */}
       {isFastingDay && (
         <div className="space-y-1.5 pt-0.5">
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between gap-2 text-[11px]">
             <span style={{ color: 'var(--text-secondary)' }}>
-              {progress.statusTextBn}
+              {countdown.labelBn}
             </span>
             <span
-              className="font-semibold tabular-nums"
+              className="font-semibold tabular-nums tracking-tight"
               style={{ color: highlightAccent }}
             >
-              {progress.percentTextBn}
+              {countdown.formattedBn}
             </span>
           </div>
           <div
             role="progressbar"
-            aria-label={progress.statusTextBn}
+            aria-label={countdown.labelBn}
             aria-valuenow={progress.percent}
             aria-valuemin={0}
             aria-valuemax={100}

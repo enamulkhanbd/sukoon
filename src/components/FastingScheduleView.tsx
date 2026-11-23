@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Moon } from 'lucide-react';
 import type { Settings } from '../db/database';
+import { useLiveSecondNow } from '../hooks/useLiveSecondNow';
 import { toBanglaDigits } from '../utils/formatters';
 import {
   buildHijriMonthSchedule,
   DEBUG_NOW_STORAGE_KEY,
   DEFAULT_FASTING_LOCATION,
   getCurrentNow,
+  resolveActiveFastingContext,
   resolveHijriOffsetSettings,
   resolveIslamicCalendarDate,
 } from '../utils/fasting';
@@ -131,6 +133,22 @@ export function FastingScheduleView({
 
   const accentColor = schedule.isRamadan ? 'var(--gold)' : 'var(--accent)';
   const accentSoft = schedule.isRamadan ? 'var(--gold-soft)' : 'var(--accent-soft)';
+  const isTodayFastingDay = Boolean(
+    todayEntry &&
+      (schedule.isRamadan ||
+        todayEntry.isWeeklySunnah ||
+        todayEntry.isMonthlySunnah)
+  );
+  const liveNow = useLiveSecondNow(isTodayFastingDay, now);
+  const activeFastingContext = isTodayFastingDay
+    ? resolveActiveFastingContext(
+        liveNow,
+        location,
+        method,
+        timeFormat,
+        hijriOffsetDays
+      )
+    : null;
 
   return (
     <div className="min-h-dvh paper-frame pb-16">
@@ -232,6 +250,42 @@ export function FastingScheduleView({
                 </div>
               </div>
             </div>
+
+            {activeFastingContext && (
+              <div className="space-y-1.5 pt-0.5">
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {activeFastingContext.countdown.labelBn}
+                  </span>
+                  <span
+                    className="font-semibold tabular-nums tracking-tight"
+                    style={{ color: accentColor }}
+                  >
+                    {activeFastingContext.countdown.formattedBn}
+                  </span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label={activeFastingContext.countdown.labelBn}
+                  aria-valuenow={activeFastingContext.progress.percent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  className="h-[3px] w-full rounded-full overflow-hidden"
+                  style={{
+                    backgroundColor:
+                      'color-mix(in srgb, var(--text-primary) 10%, transparent)',
+                  }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${activeFastingContext.progress.percent}%`,
+                      backgroundColor: accentColor,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </section>
         )}
 

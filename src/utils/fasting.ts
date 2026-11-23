@@ -59,6 +59,14 @@ export interface FastingProgress {
   statusTextBn: string;
 }
 
+export interface FastingCountdown {
+  target: 'sehri' | 'iftar' | 'none';
+  labelBn: string;
+  remainingMs: number;
+  formattedBn: string;
+  isActive: boolean;
+}
+
 export interface MonthlyScheduleDay {
   gregorianDate: Date;
   dateKey: string;
@@ -527,6 +535,75 @@ export function computeFastingProgress(
   };
 }
 
+/**
+ * Formats a remaining duration in milliseconds as Bangla HH:MM:SS.
+ * Uses Math.ceil on seconds so countdowns never reach ০০:০০:০০ before the exact boundary.
+ */
+export function formatCountdownBn(remainingMs: number): string {
+  if (!Number.isFinite(remainingMs)) {
+    return '--:--:--';
+  }
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${padTwoBn(hours)}:${padTwoBn(minutes)}:${padTwoBn(seconds)}`;
+}
+
+export function computeFastingCountdown(
+  now: Date,
+  sehri: Date,
+  iftar: Date
+): FastingCountdown {
+  const nowMs = now.getTime();
+  const sehriMs = sehri.getTime();
+  const iftarMs = iftar.getTime();
+
+  if (
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(sehriMs) ||
+    !Number.isFinite(iftarMs)
+  ) {
+    return {
+      target: 'none',
+      labelBn: 'সময় নির্ণয় করা যায়নি',
+      remainingMs: 0,
+      formattedBn: '--:--:--',
+      isActive: false,
+    };
+  }
+
+  if (nowMs < sehriMs) {
+    const remainingMs = sehriMs - nowMs;
+    return {
+      target: 'sehri',
+      labelBn: 'সাহরি শেষ হতে বাকি',
+      remainingMs,
+      formattedBn: formatCountdownBn(remainingMs),
+      isActive: true,
+    };
+  }
+
+  if (nowMs < iftarMs) {
+    const remainingMs = iftarMs - nowMs;
+    return {
+      target: 'iftar',
+      labelBn: 'ইফতারের বাকি',
+      remainingMs,
+      formattedBn: formatCountdownBn(remainingMs),
+      isActive: true,
+    };
+  }
+
+  return {
+    target: 'none',
+    labelBn: 'ইফতার সম্পন্ন',
+    remainingMs: 0,
+    formattedBn: '০০:০০:০০',
+    isActive: false,
+  };
+}
+
 export interface ActiveFastingContext {
   gregorianDate: Date;
   islamicDate: Date;
@@ -534,6 +611,7 @@ export interface ActiveFastingContext {
   hijri: HijriDateInfo;
   dailyTimes: DailyFastingTimes;
   progress: FastingProgress;
+  countdown: FastingCountdown;
   weeklySunnah: {
     isWeeklySunnah: boolean;
     weekday: 'monday' | 'thursday' | null;
@@ -603,6 +681,7 @@ export function resolveActiveFastingContext(
     effectiveTimeZone
   );
   const progress = computeFastingProgress(now, dailyTimes.sehri, dailyTimes.iftar);
+  const countdown = computeFastingCountdown(now, dailyTimes.sehri, dailyTimes.iftar);
   const weeklySunnah = isWeeklySunnahFastDay(islamicDate);
 
   return {
@@ -612,6 +691,7 @@ export function resolveActiveFastingContext(
     hijri,
     dailyTimes,
     progress,
+    countdown,
     weeklySunnah,
   };
 }

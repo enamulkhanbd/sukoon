@@ -492,7 +492,7 @@ export function ReaderView({
               </span>
             </div>
           )}
-          <div className="flex items-center justify-center gap-3 sm:gap-4">
+          <div className="flex items-center justify-center gap-4">
             <span
               className="font-surah-names font-surah-names-tight shrink-0 select-none text-[3.25rem] sm:text-[3.75rem]"
               style={{ color: 'var(--text-primary)' }}

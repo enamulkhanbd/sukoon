@@ -312,10 +312,10 @@ b {
   transform: translateX(14.5%);
 }
 
-/* Trims built-in ~0.26em side-bearings in flow for inline / centered rows */
+/* Trims built-in ~0.26em left side-bearing in flow (right side-bearing is ~0em) */
 .font-surah-names-tight {
   display: inline-block;
-  margin-inline: -0.24em;
+  margin-inline-start: -0.24em;
 }
 
 .font-brand-ar {

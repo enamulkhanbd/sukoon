@@ -4,8 +4,11 @@ import { SURAH_MAP } from '../data/surahs';
 import {
   DEFAULT_FASTING_LOCATION,
   getCurrentNow,
+  getDefaultHijriOffsetDays,
+  resolveHijriOffsetSettings,
   type FastingCalculationMethod,
   type FastingLocation,
+  type HijriOffsetMode,
 } from '../utils/fasting';
 import { getIslamicDayKeyForInstant } from '../utils/islamicTime';
 
@@ -183,6 +186,7 @@ export interface Settings {
   fastingMethod?: FastingCalculationMethod;
   fastingTimeFormat?: '12h' | '24h';
   hijriOffsetDays?: number;
+  hijriOffsetMode?: HijriOffsetMode;
   dailyGoalMinutes?: number; // 0 = disabled, otherwise daily target minutes
 }
 
@@ -201,7 +205,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fastingLocation: DEFAULT_FASTING_LOCATION,
   fastingMethod: 'karachi',
   fastingTimeFormat: '12h',
-  hijriOffsetDays: 0,
+  hijriOffsetDays: getDefaultHijriOffsetDays(DEFAULT_FASTING_LOCATION),
+  hijriOffsetMode: 'auto',
   dailyGoalMinutes: 0,
 };
 
@@ -873,15 +878,26 @@ export function ensureDatabaseInitialized(): Promise<void> {
           existingSettings.theme,
           existingSettings.colorMode
         );
-        if (
+        const existingLocation =
+          existingSettings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
+        const resolvedHijri = resolveHijriOffsetSettings(
+          existingLocation,
+          existingSettings.hijriOffsetDays,
+          existingSettings.hijriOffsetMode
+        );
+        const needsMigration =
           (existingSettings.theme as string) !== normalized.theme ||
-          existingSettings.colorMode !== normalized.colorMode
-        ) {
+          existingSettings.colorMode !== normalized.colorMode ||
+          existingSettings.hijriOffsetMode !== resolvedHijri.hijriOffsetMode ||
+          existingSettings.hijriOffsetDays !== resolvedHijri.hijriOffsetDays;
+        if (needsMigration) {
           const migrated: Settings = {
             ...DEFAULT_SETTINGS,
             ...existingSettings,
             theme: normalized.theme,
             colorMode: normalized.colorMode,
+            hijriOffsetMode: resolvedHijri.hijriOffsetMode,
+            hijriOffsetDays: resolvedHijri.hijriOffsetDays,
             key: 'app',
           };
           await db.settings.put(migrated);
@@ -1251,6 +1267,12 @@ export async function importUserData(raw: unknown): Promise<{
           Number.isFinite(settings.glassOpacity)
             ? clampGlassOpacity(settings.glassOpacity)
             : GLASS_PRESET_OPACITY[safeGlassMode];
+        const safeLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
+        const resolvedHijri = resolveHijriOffsetSettings(
+          safeLocation,
+          settings.hijriOffsetDays,
+          settings.hijriOffsetMode
+        );
         await db.settings.put({
           ...DEFAULT_SETTINGS,
           ...settings,
@@ -1258,6 +1280,8 @@ export async function importUserData(raw: unknown): Promise<{
           colorMode: safeColorMode,
           glassMode: safeGlassMode,
           glassOpacity: safeGlassOpacity,
+          hijriOffsetMode: resolvedHijri.hijriOffsetMode,
+          hijriOffsetDays: resolvedHijri.hijriOffsetDays,
           key: 'app',
           offlineDownloaded: cachedCount >= 114,
         });

@@ -17,13 +17,15 @@ import {
   DEFAULT_FASTING_LOCATION,
   FASTING_CALCULATION_METHODS,
   formatPrayerTimeBn,
+  getDefaultHijriOffsetDays,
   PRESET_FASTING_LOCATIONS,
   resolveActiveFastingContext,
+  resolveHijriOffsetSettings,
   type FastingCalculationMethod,
   type FastingLocation,
 } from '../utils/fasting';
 import { toBanglaDigits } from '../utils/formatters';
-import { clampHijriOffsetDays, formatHijriDateBn } from '../utils/hijri';
+import { formatHijriDateBn } from '../utils/hijri';
 import { useBottomSheet } from './NavigationChrome';
 import { useToast } from './ToastProvider';
 
@@ -176,6 +178,13 @@ interface RamadanPrayerSettingsProps {
   onOpenFastingSchedule: () => void;
 }
 
+function formatHijriOffsetLabelBn(offset: number): string {
+  if (offset === 0) return '০ দিন';
+  return offset > 0
+    ? `+${toBanglaDigits(offset)} দিন`
+    : `-${toBanglaDigits(Math.abs(offset))} দিন`;
+}
+
 export function RamadanPrayerSettings({
   settings,
   onUpdateSettings,
@@ -189,7 +198,11 @@ export function RamadanPrayerSettings({
   const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const fastingMethod = settings.fastingMethod ?? 'karachi';
   const fastingTimeFormat = settings.fastingTimeFormat ?? '12h';
-  const hijriOffsetDays = clampHijriOffsetDays(settings.hijriOffsetDays ?? 0);
+  const { hijriOffsetDays, hijriOffsetMode } = resolveHijriOffsetSettings(
+    fastingLocation,
+    settings.hijriOffsetDays,
+    settings.hijriOffsetMode
+  );
 
   const fastingContext = resolveActiveFastingContext(
     clock.now,
@@ -210,13 +223,17 @@ export function RamadanPrayerSettings({
         setLocatingGps(false);
         const lat = Number(pos.coords.latitude.toFixed(4));
         const lng = Number(pos.coords.longitude.toFixed(4));
+        const nextLocation: FastingLocation = {
+          id: 'custom',
+          nameBn: 'বর্তমান অবস্থান',
+          latitude: lat,
+          longitude: lng,
+        };
         await onUpdateSettings({
-          fastingLocation: {
-            id: 'custom',
-            nameBn: 'বর্তমান অবস্থান',
-            latitude: lat,
-            longitude: lng,
-          },
+          fastingLocation: nextLocation,
+          ...(hijriOffsetMode === 'auto'
+            ? { hijriOffsetDays: getDefaultHijriOffsetDays(nextLocation) }
+            : {}),
         });
         toast.success('বর্তমান অবস্থান অনুযায়ী সময়সূচি হালনাগাদ হয়েছে।');
       },
@@ -482,10 +499,38 @@ export function RamadanPrayerSettings({
       {/* Hijri Date Offset */}
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium">হিজরি তারিখ সমন্বয়</span>
-          <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            চাঁদ দেখার ভিত্তিতে (-২ থেকে +২ দিন)
-          </span>
+          <span className="text-xs font-medium shrink-0">হিজরি তারিখ সমন্বয়</span>
+          {hijriOffsetMode === 'auto' ? (
+            <span
+              className="text-[11px] truncate"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              অটো ({fastingLocation.nameBn}:{' '}
+              {formatHijriOffsetLabelBn(hijriOffsetDays)})
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className="text-[11px]"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                ম্যানুয়াল
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  await onUpdateSettings({
+                    hijriOffsetMode: 'auto',
+                    hijriOffsetDays: getDefaultHijriOffsetDays(fastingLocation),
+                  });
+                }}
+                className="text-[11px] font-medium underline underline-offset-2 cursor-pointer transition-opacity active:opacity-70"
+                style={{ color: 'var(--accent)' }}
+              >
+                অটোতে ফিরুন
+              </button>
+            </div>
+          )}
         </div>
         <div
           className="grid grid-cols-5 gap-1 p-1 rounded-2xl"
@@ -496,19 +541,17 @@ export function RamadanPrayerSettings({
         >
           {([-2, -1, 0, 1, 2] as const).map((offset) => {
             const active = hijriOffsetDays === offset;
-            const label =
-              offset === 0
-                ? '০ দিন'
-                : offset > 0
-                  ? `+${toBanglaDigits(offset)} দিন`
-                  : `-${toBanglaDigits(Math.abs(offset))} দিন`;
+            const label = formatHijriOffsetLabelBn(offset);
             return (
               <button
                 key={offset}
                 type="button"
                 aria-pressed={active}
                 onClick={async () => {
-                  await onUpdateSettings({ hijriOffsetDays: offset });
+                  await onUpdateSettings({
+                    hijriOffsetDays: offset,
+                    hijriOffsetMode: 'manual',
+                  });
                 }}
                 className="py-1.5 rounded-xl text-xs font-medium tabular-nums transition-colors cursor-pointer"
                 style={{
@@ -535,7 +578,12 @@ export function RamadanPrayerSettings({
         onClose={() => setLocationSheetOpen(false)}
         selectedId={fastingLocation.id}
         onSelect={async (selected) => {
-          await onUpdateSettings({ fastingLocation: selected });
+          await onUpdateSettings({
+            fastingLocation: selected,
+            ...(hijriOffsetMode === 'auto'
+              ? { hijriOffsetDays: getDefaultHijriOffsetDays(selected) }
+              : {}),
+          });
           toast.success(`অবস্থান নির্ধারিত হয়েছে: ${selected.nameBn}`);
         }}
       />

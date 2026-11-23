@@ -40,6 +40,10 @@ import {
 } from './router';
 import { applyThemeIcons } from './utils/themeIcons';
 import { getThemeVariantMeta } from './utils/themeRegistry';
+import {
+  DEFAULT_FASTING_LOCATION,
+  resolveHijriOffsetSettings,
+} from './utils/fasting';
 
 export function App() {
   const toast = useToast();
@@ -153,6 +157,15 @@ export function App() {
     normalizeThemeSettings(rawSettings?.theme, rawSettings?.colorMode);
   const resolvedGlassMode =
     rawSettings?.glassMode ?? DEFAULT_SETTINGS.glassMode ?? 'frosted';
+  const resolvedFastingLocation =
+    rawSettings?.fastingLocation ??
+    DEFAULT_SETTINGS.fastingLocation ??
+    DEFAULT_FASTING_LOCATION;
+  const resolvedHijri = resolveHijriOffsetSettings(
+    resolvedFastingLocation,
+    rawSettings?.hijriOffsetDays,
+    rawSettings?.hijriOffsetMode
+  );
   const settings: Settings = {
     ...DEFAULT_SETTINGS,
     ...rawSettings,
@@ -163,14 +176,13 @@ export function App() {
       typeof rawSettings?.glassOpacity === 'number'
         ? clampGlassOpacity(rawSettings.glassOpacity)
         : GLASS_PRESET_OPACITY[resolvedGlassMode],
-    fastingLocation:
-      rawSettings?.fastingLocation ?? DEFAULT_SETTINGS.fastingLocation,
+    fastingLocation: resolvedFastingLocation,
     fastingMethod:
       rawSettings?.fastingMethod ?? DEFAULT_SETTINGS.fastingMethod,
     fastingTimeFormat:
       rawSettings?.fastingTimeFormat ?? DEFAULT_SETTINGS.fastingTimeFormat,
-    hijriOffsetDays:
-      rawSettings?.hijriOffsetDays ?? DEFAULT_SETTINGS.hijriOffsetDays,
+    hijriOffsetDays: resolvedHijri.hijriOffsetDays,
+    hijriOffsetMode: resolvedHijri.hijriOffsetMode,
     dailyGoalMinutes:
       rawSettings?.dailyGoalMinutes ?? DEFAULT_SETTINGS.dailyGoalMinutes,
   };

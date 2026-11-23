@@ -5,8 +5,10 @@ import {
   computeFastingProgress,
   DEFAULT_FASTING_LOCATION,
   formatPrayerTimeBn,
+  getDefaultHijriOffsetDays,
   PRESET_FASTING_LOCATIONS,
   resolveActiveFastingContext,
+  resolveHijriOffsetSettings,
   resolveIslamicCalendarDate,
   toZonedCalendarDate,
 } from '../fasting';
@@ -422,5 +424,105 @@ describe('fasting utilities', () => {
     expect(shawwalCtx.hijri.month).toBe(10);
     expect(shawwalCtx.hijri.day).toBe(1);
     expect(shawwalCtx.hijri.isRamadan).toBe(false);
+  });
+
+  it('resolves location-aware Hijri defaults, legacy migration, and manual overrides', () => {
+    const dhaka = DEFAULT_FASTING_LOCATION;
+    const chattogram = PRESET_FASTING_LOCATIONS.find((l) => l.id === 'chattogram')!;
+    const makkah = PRESET_FASTING_LOCATIONS.find((l) => l.id === 'makkah')!;
+    const madinah = PRESET_FASTING_LOCATIONS.find((l) => l.id === 'madinah')!;
+    const london = PRESET_FASTING_LOCATIONS.find((l) => l.id === 'london')!;
+
+    // Regional defaults
+    expect(getDefaultHijriOffsetDays(dhaka)).toBe(-1);
+    expect(getDefaultHijriOffsetDays(chattogram)).toBe(-1);
+    expect(getDefaultHijriOffsetDays(makkah)).toBe(0);
+    expect(getDefaultHijriOffsetDays(madinah)).toBe(0);
+    expect(getDefaultHijriOffsetDays(london)).toBe(0);
+
+    // Custom GPS coordinates without timeZone
+    expect(
+      getDefaultHijriOffsetDays({
+        id: 'custom',
+        nameBn: 'বর্তমান অবস্থান',
+        latitude: 23.8103,
+        longitude: 90.4125,
+      })
+    ).toBe(-1);
+    expect(
+      getDefaultHijriOffsetDays({
+        id: 'custom',
+        nameBn: 'বর্তমান অবস্থান',
+        latitude: 21.3891,
+        longitude: 39.8579,
+      })
+    ).toBe(0);
+
+    // Legacy migration: untouched default (0 / undefined) migrates to regional auto
+    expect(resolveHijriOffsetSettings(dhaka, 0, undefined)).toEqual({
+      hijriOffsetMode: 'auto',
+      hijriOffsetDays: -1,
+    });
+    expect(resolveHijriOffsetSettings(makkah, 0, undefined)).toEqual({
+      hijriOffsetMode: 'auto',
+      hijriOffsetDays: 0,
+    });
+
+    // Legacy non-zero manual offset is preserved as manual
+    expect(resolveHijriOffsetSettings(dhaka, 1, undefined)).toEqual({
+      hijriOffsetMode: 'manual',
+      hijriOffsetDays: 1,
+    });
+    expect(resolveHijriOffsetSettings(makkah, -1, undefined)).toEqual({
+      hijriOffsetMode: 'manual',
+      hijriOffsetDays: -1,
+    });
+
+    // Explicit manual 0 in Dhaka is respected (never overwritten back to -1)
+    expect(resolveHijriOffsetSettings(dhaka, 0, 'manual')).toEqual({
+      hijriOffsetMode: 'manual',
+      hijriOffsetDays: 0,
+    });
+
+    // Auto mode dynamically tracks location changes (Dhaka <-> Makkah)
+    expect(resolveHijriOffsetSettings(dhaka, 0, 'auto')).toEqual({
+      hijriOffsetMode: 'auto',
+      hijriOffsetDays: -1,
+    });
+    expect(resolveHijriOffsetSettings(makkah, -1, 'auto')).toEqual({
+      hijriOffsetMode: 'auto',
+      hijriOffsetDays: 0,
+    });
+
+    // Concrete Bangladesh date verification: 2026-11-23 in Dhaka
+    const dhakaOffset = resolveHijriOffsetSettings(dhaka, undefined, 'auto').hijriOffsetDays;
+    const beforeMaghrib = new Date('2026-11-23T12:00:00+06:00');
+    const afterMaghrib = new Date('2026-11-23T22:14:00+06:00');
+
+    const dayCtx = resolveActiveFastingContext(
+      beforeMaghrib,
+      dhaka,
+      'karachi',
+      '12h',
+      dhakaOffset,
+      'Asia/Dhaka'
+    );
+    expect(dayCtx.isAfterMaghrib).toBe(false);
+    expect(dayCtx.hijri.year).toBe(1448);
+    expect(dayCtx.hijri.month).toBe(6);
+    expect(dayCtx.hijri.day).toBe(12);
+
+    const nightCtx = resolveActiveFastingContext(
+      afterMaghrib,
+      dhaka,
+      'karachi',
+      '12h',
+      dhakaOffset,
+      'Asia/Dhaka'
+    );
+    expect(nightCtx.isAfterMaghrib).toBe(true);
+    expect(nightCtx.hijri.year).toBe(1448);
+    expect(nightCtx.hijri.month).toBe(6);
+    expect(nightCtx.hijri.day).toBe(13);
   });
 });

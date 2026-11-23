@@ -7,9 +7,9 @@ import {
   DEBUG_NOW_STORAGE_KEY,
   DEFAULT_FASTING_LOCATION,
   getCurrentNow,
+  resolveHijriOffsetSettings,
   resolveIslamicCalendarDate,
 } from '../utils/fasting';
-import { clampHijriOffsetDays } from '../utils/hijri';
 import { formatDateKey, MONTH_SHORT_BN } from '../utils/stats';
 import { TopBar, UnderlineTabs } from './NavigationChrome';
 
@@ -58,7 +58,11 @@ export function FastingScheduleView({
   const location = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const method = settings.fastingMethod ?? 'karachi';
   const timeFormat = settings.fastingTimeFormat ?? '12h';
-  const hijriOffsetDays = clampHijriOffsetDays(settings.hijriOffsetDays ?? 0);
+  const { hijriOffsetDays } = resolveHijriOffsetSettings(
+    location,
+    settings.hijriOffsetDays,
+    settings.hijriOffsetMode
+  );
 
   const { islamicDate } = resolveIslamicCalendarDate(now, location, method);
   const islamicDateKey = formatDateKey(islamicDate);

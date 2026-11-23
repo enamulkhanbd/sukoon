@@ -21,8 +21,10 @@ import {
 } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import { countCompleteCachedSurahs } from '../services/quranApi';
-import { DEFAULT_FASTING_LOCATION } from '../utils/fasting';
-import { clampHijriOffsetDays } from '../utils/hijri';
+import {
+  DEFAULT_FASTING_LOCATION,
+  resolveHijriOffsetSettings,
+} from '../utils/fasting';
 import {
   DAY_NAMES_BN,
   DAY_SHORT_BN,
@@ -68,7 +70,11 @@ export function HomeView({
   const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
   const fastingMethod = settings.fastingMethod ?? 'karachi';
   const fastingTimeFormat = settings.fastingTimeFormat ?? '12h';
-  const hijriOffsetDays = clampHijriOffsetDays(settings.hijriOffsetDays ?? 0);
+  const { hijriOffsetDays } = resolveHijriOffsetSettings(
+    fastingLocation,
+    settings.hijriOffsetDays,
+    settings.hijriOffsetMode
+  );
   const dailyGoalMinutes = Math.max(0, Math.floor(settings.dailyGoalMinutes ?? 0));
 
   const lastRead = useLiveQuery(

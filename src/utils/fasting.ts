@@ -23,6 +23,17 @@ export type FastingCalculationMethod =
   | 'isna'
   | 'egyptian';
 
+export type HijriOffsetMode = 'auto' | 'manual';
+
+const SOUTH_ASIA_TIMEZONES = new Set([
+  'Asia/Dhaka',
+  'Asia/Kolkata',
+  'Asia/Calcutta',
+  'Asia/Karachi',
+  'Asia/Kathmandu',
+  'Asia/Colombo',
+]);
+
 export interface FastingLocation {
   id: string;
   nameBn: string;
@@ -159,6 +170,73 @@ export const FASTING_CALCULATION_METHODS: ReadonlyArray<{
   { id: 'isna', labelBn: 'ইসনা', hintBn: 'উত্তর আমেরিকা (১৫°/১৫°)' },
   { id: 'egyptian', labelBn: 'মিশরীয়', hintBn: '১৯.৫°/১৭.৫°' },
 ];
+
+/**
+ * Returns the regional default Hijri offset relative to Umm al-Qura:
+ * -1 for Bangladesh & South Asia (local moon sighting), 0 for Saudi Arabia & other regions.
+ */
+export function getDefaultHijriOffsetDays(
+  location: FastingLocation = DEFAULT_FASTING_LOCATION
+): number {
+  if (location.timeZone) {
+    return SOUTH_ASIA_TIMEZONES.has(location.timeZone) ? -1 : 0;
+  }
+  // Custom GPS location without an explicit timeZone: check South Asia bounding box
+  if (
+    Number.isFinite(location.latitude) &&
+    Number.isFinite(location.longitude) &&
+    location.latitude >= 5 &&
+    location.latitude <= 37 &&
+    location.longitude >= 60 &&
+    location.longitude <= 98
+  ) {
+    return -1;
+  }
+  return 0;
+}
+
+/**
+ * Resolves effective Hijri offset & mode for both modern and legacy settings records.
+ */
+export function resolveHijriOffsetSettings(
+  location: FastingLocation = DEFAULT_FASTING_LOCATION,
+  hijriOffsetDays?: number,
+  hijriOffsetMode?: HijriOffsetMode
+): { hijriOffsetDays: number; hijriOffsetMode: HijriOffsetMode } {
+  const defaultOffset = getDefaultHijriOffsetDays(location);
+
+  if (hijriOffsetMode === 'manual') {
+    return {
+      hijriOffsetMode: 'manual',
+      hijriOffsetDays: clampHijriOffsetDays(hijriOffsetDays ?? defaultOffset),
+    };
+  }
+
+  if (hijriOffsetMode === 'auto') {
+    return {
+      hijriOffsetMode: 'auto',
+      hijriOffsetDays: defaultOffset,
+    };
+  }
+
+  // Legacy settings (hijriOffsetMode === undefined):
+  // Migrate untouched legacy default (0 / undefined) to regional auto; preserve non-zero manual offsets.
+  if (
+    hijriOffsetDays === undefined ||
+    !Number.isFinite(hijriOffsetDays) ||
+    Math.trunc(hijriOffsetDays) === 0
+  ) {
+    return {
+      hijriOffsetMode: 'auto',
+      hijriOffsetDays: defaultOffset,
+    };
+  }
+
+  return {
+    hijriOffsetMode: 'manual',
+    hijriOffsetDays: clampHijriOffsetDays(hijriOffsetDays),
+  };
+}
 
 export function getCurrentNow(): Date {
   try {

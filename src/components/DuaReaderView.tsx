@@ -628,12 +628,13 @@ export function DuaReaderView({
         }
       />
 
-      {/* Full-Bleed Tinted Context Band */}
-      <section
-        className="w-full"
-        style={{ backgroundColor: 'var(--bg-surface)' }}
-      >
-        <div className="max-w-2xl mx-auto px-5 pt-1 pb-4 flex items-center justify-between gap-2 flex-wrap text-xs">
+      {/* Open Pure Book-Page Reading Canvas (Zero Box Stack) */}
+      <main className="max-w-2xl mx-auto px-5 pt-5 space-y-7">
+        {/* Editorial Context Row */}
+        <div
+          className="pb-3.5 border-b flex items-center justify-between gap-2 flex-wrap text-xs"
+          style={{ borderColor: 'var(--border-subtle)' }}
+        >
           <span style={{ color: 'var(--text-secondary)' }}>
             {dua.occasionNote ?? chapter?.titleBangla ?? 'দুআ ও জিকির'}
           </span>
@@ -649,10 +650,6 @@ export function DuaReaderView({
               : `${toBanglaDigits(targetCount)} বার`}
           </span>
         </div>
-      </section>
-
-      {/* Open Pure Book-Page Reading Canvas (Zero Box Stack) */}
-      <main className="max-w-2xl mx-auto px-5 pt-6 space-y-7">
         {parts ? (
           <>
             <div className="space-y-10">

@@ -12,8 +12,14 @@ describe('router profile & legacy URL handling', () => {
     expect(parseRoute('/settings', '')).toEqual({ type: 'tab', tab: 'home' });
   });
 
-  it('shows bottom nav on profile tab and hides it on ramadan schedule', () => {
+  it('shows bottom nav on profile tab and hides it on ramadan schedule and admin panel', () => {
     expect(hidesBottomNav({ type: 'tab', tab: 'profile' })).toBe(false);
     expect(hidesBottomNav({ type: 'ramadan' })).toBe(true);
+    expect(hidesBottomNav({ type: 'admin' })).toBe(true);
+  });
+
+  it('parses and builds /admin cleanly', () => {
+    expect(parseRoute('/admin', '')).toEqual({ type: 'admin' });
+    expect(buildPath({ type: 'admin' })).toBe('/admin');
   });
 });

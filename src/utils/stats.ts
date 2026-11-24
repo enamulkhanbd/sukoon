@@ -1,4 +1,4 @@
-import { DUA_MAP } from '../data/duas';
+import { getMergedDua } from '../services/catalogSnapshot';
 import type { ReadingHistory, Routine } from '../db/database';
 import { toBanglaDigits } from './formatters';
 
@@ -746,7 +746,7 @@ export function computeTopBreakdowns(
 
   const topDuas: TopDuaEntry[] = Array.from(duaStats.entries())
     .map(([duaId, val]) => {
-      const dua = DUA_MAP[duaId];
+      const dua = getMergedDua(duaId);
       return {
         duaId,
         titleBangla: dua?.titleBangla ?? 'দুআ ও জিকির',

@@ -1,17 +1,14 @@
-import {
-  DUA_CHAPTER_MAP,
-  DUA_CHAPTERS,
-  DUAS,
-  DUAS_BY_CHAPTER,
-  type DuaChapter,
-  type DuaItem,
-} from '../data/duas';
+import type { DuaChapter, DuaItem } from '../data/duas';
 import { SURAH_MAP, SURAHS, type SurahMeta } from '../data/surahs';
 import {
   getRoutineItems,
   type GlobalLastRead,
   type Routine,
 } from '../db/database';
+import {
+  getCatalogSnapshot,
+  subscribeCatalogSnapshot,
+} from '../services/catalogSnapshot';
 import {
   DAY_NAMES_BN,
   DAY_SHORT_BN,
@@ -754,6 +751,15 @@ let cachedSurahIndex: IndexedSurah[] | null = null;
 let cachedChapterIndex: IndexedDuaChapter[] | null = null;
 let cachedDuaIndex: IndexedDua[] | null = null;
 
+export function invalidateSearchCaches(): void {
+  cachedChapterIndex = null;
+  cachedDuaIndex = null;
+}
+
+subscribeCatalogSnapshot(() => {
+  invalidateSearchCaches();
+});
+
 function stripArabicDefiniteArticle(latin: string): string {
   return latin.replace(/^(al|ar|as|an|at|ad|az|ash|adh|ath|ali)\s+/, '');
 }
@@ -823,13 +829,16 @@ function getSurahIndex(): IndexedSurah[] {
 
 function getDuaChapterIndex(): IndexedDuaChapter[] {
   if (cachedChapterIndex) return cachedChapterIndex;
+  const catalog = getCatalogSnapshot();
 
-  cachedChapterIndex = DUA_CHAPTERS.map((chapter) => {
+  cachedChapterIndex = catalog.chapters.map((chapter) => {
     const titleBn = normalizeBanglaForSearch(chapter.titleBangla);
     const subtitleBn = normalizeBanglaForSearch(chapter.subtitleBangla);
-    const aliasesLatin = normalizeLatinForSearch(
-      (DUA_CHAPTER_ALIASES[chapter.id] ?? []).join(' ')
-    );
+    const mergedAliases = [
+      ...(DUA_CHAPTER_ALIASES[chapter.id] ?? []),
+      ...(chapter.searchAliases ?? []),
+    ];
+    const aliasesLatin = normalizeLatinForSearch(mergedAliases.join(' '));
     const allTokens = Array.from(
       new Set(
         [
@@ -842,7 +851,7 @@ function getDuaChapterIndex(): IndexedDuaChapter[] {
     );
     return {
       chapter,
-      count: DUAS_BY_CHAPTER[chapter.id]?.length ?? 0,
+      count: catalog.duasByChapter[chapter.id]?.length ?? 0,
       titleBn,
       subtitleBn,
       aliasesLatin,
@@ -855,9 +864,10 @@ function getDuaChapterIndex(): IndexedDuaChapter[] {
 
 function getDuaIndex(): IndexedDua[] {
   if (cachedDuaIndex) return cachedDuaIndex;
+  const catalog = getCatalogSnapshot();
 
-  cachedDuaIndex = DUAS.map((dua) => {
-    const chapter = DUA_CHAPTER_MAP[dua.chapterId];
+  cachedDuaIndex = catalog.duas.map((dua) => {
+    const chapter = catalog.chapterMap[dua.chapterId];
     const titleBn = normalizeBanglaForSearch(dua.titleBangla);
     const translitBn = normalizeBanglaForSearch(dua.transliteration ?? '');
     const translationBn = normalizeBanglaForSearch(dua.translationBangla);
@@ -895,7 +905,10 @@ function getDuaIndex(): IndexedDua[] {
     }
 
     const chapterAliasesLatin = normalizeLatinForSearch(
-      (DUA_CHAPTER_ALIASES[dua.chapterId] ?? []).join(' ')
+      [
+        ...(DUA_CHAPTER_ALIASES[dua.chapterId] ?? []),
+        ...(chapter?.searchAliases ?? []),
+      ].join(' ')
     );
 
     const allBn = [

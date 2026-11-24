@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { DuaItem } from '../data/duas';
 import { db, type Routine } from '../db/database';
+import { useCatalog } from '../services/contentCatalog';
 import {
   fetchSingleVerseByKey,
   mergeVerseSearchResults,
@@ -305,6 +306,7 @@ export function GlobalSearchOverlay({
     };
   }, [open, onClose, recordRecent]);
 
+  const catalogVersion = useCatalog().version;
   const trimmed = query.trim();
   const onlineQuery = useMemo(() => buildOnlineQuranQuery(trimmed), [trimmed]);
   const isOffline =
@@ -324,7 +326,7 @@ export function GlobalSearchOverlay({
         bookmarkedDuaIds: bookmarkedSet,
         lastRead: lastRead ?? null,
       }),
-    [trimmed, routines, bookmarkedSet, lastRead]
+    [trimmed, routines, bookmarkedSet, lastRead, catalogVersion]
   );
 
   // 2. Instant offline Arabic verse search across IndexedDB cachedSurahs

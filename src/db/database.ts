@@ -1,6 +1,14 @@
 import Dexie, { type Table } from 'dexie';
-import { DUA_MAP } from '../data/duas';
+import type {
+  CmsSyncMeta,
+  RemoteDuaChapterDoc,
+  RemoteDuaDoc,
+  RemoteFeaturedCardDoc,
+  RemoteRoutineTemplateDoc,
+  RemoteSurahOverrideDoc,
+} from '../data/cmsTypes';
 import { SURAH_MAP } from '../data/surahs';
+import { getMergedDua } from '../services/catalogSnapshot';
 import {
   DEFAULT_FASTING_LOCATION,
   getCurrentNow,
@@ -56,6 +64,8 @@ export interface Routine {
   assignedDays: number[]; // 0 = Sun, 5 = Fri, empty = manual
   surahIds: number[]; // Backwards compatibility + surah filter lookup
   items?: RoutineItem[]; // Ordered mixed surah + dua items
+  sourceTemplateId?: string; // Set when adopted from an Admin-published Routine Template
+  sourceTemplateVersion?: number; // Template version when adopted/last updated
   createdAt: number;
 }
 
@@ -188,6 +198,7 @@ export interface Settings {
   hijriOffsetDays?: number;
   hijriOffsetMode?: HijriOffsetMode;
   dailyGoalMinutes?: number; // 0 = disabled, otherwise daily target minutes
+  dismissedFeaturedCardIds?: string[]; // Home spotlight cards dismissed by user
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -208,6 +219,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hijriOffsetDays: getDefaultHijriOffsetDays(DEFAULT_FASTING_LOCATION),
   hijriOffsetMode: 'auto',
   dailyGoalMinutes: 0,
+  dismissedFeaturedCardIds: [],
 };
 
 export class SukoonDatabase extends Dexie {
@@ -217,6 +229,12 @@ export class SukoonDatabase extends Dexie {
   readingHistory!: Table<ReadingHistory, string>;
   cachedSurahs!: Table<CachedSurah, number>;
   settings!: Table<Settings, string>;
+  remoteDuas!: Table<RemoteDuaDoc, string>;
+  remoteDuaChapters!: Table<RemoteDuaChapterDoc, number>;
+  remoteRoutineTemplates!: Table<RemoteRoutineTemplateDoc, string>;
+  remoteSurahOverrides!: Table<RemoteSurahOverrideDoc, number>;
+  remoteFeaturedCards!: Table<RemoteFeaturedCardDoc, string>;
+  cmsSyncMeta!: Table<CmsSyncMeta, string>;
 
   constructor() {
     super('SukoonQuranDB');
@@ -227,6 +245,20 @@ export class SukoonDatabase extends Dexie {
       readingHistory: 'date',
       cachedSurahs: 'surahId',
       settings: 'key',
+    });
+    this.version(2).stores({
+      routines: 'id, createdAt',
+      routineProgress: 'routineId, lastUpdated',
+      globalLastRead: 'id',
+      readingHistory: 'date',
+      cachedSurahs: 'surahId',
+      settings: 'key',
+      remoteDuas: 'id, chapterId, updatedAt',
+      remoteDuaChapters: 'id, updatedAt',
+      remoteRoutineTemplates: 'id, updatedAt',
+      remoteSurahOverrides: 'surahId, updatedAt',
+      remoteFeaturedCards: 'id, updatedAt',
+      cmsSyncMeta: 'collection',
     });
   }
 }
@@ -516,7 +548,7 @@ export function getRoutineItems(
   const normalized: NormalizedRoutineItem[] = [];
   for (const item of source) {
     if (isDuaRoutineItem(item)) {
-      const dua = DUA_MAP[item.duaId];
+      const dua = getMergedDua(item.duaId);
       if (!dua) continue;
       normalized.push({
         kind: 'dua',
@@ -1079,7 +1111,7 @@ export async function updateDuaRoutineProgress(params: {
     completed,
     skipDuaHistoryLog = false,
   } = params;
-  if (!DUA_MAP[duaId]) return;
+  if (!getMergedDua(duaId)) return;
 
   const now = Date.now();
   const todayKey = getTodayDateKey();

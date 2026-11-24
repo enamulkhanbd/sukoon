@@ -20,6 +20,12 @@ export default defineConfig({
             if (normalized.includes('/dexie')) {
               return 'vendor-db';
             }
+            if (normalized.includes('/@firebase/auth') || normalized.includes('/firebase/auth')) {
+              return 'vendor-firebase-auth';
+            }
+            if (normalized.includes('/firebase/') || normalized.includes('/@firebase/')) {
+              return 'vendor-firebase';
+            }
             if (
               normalized.includes('/adhan/') ||
               normalized.includes('/lucide-react/')

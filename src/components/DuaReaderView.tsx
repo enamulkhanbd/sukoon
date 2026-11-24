@@ -9,11 +9,8 @@ import {
   Copy,
   SlidersHorizontal,
 } from 'lucide-react';
-import {
-  DUA_CHAPTER_MAP,
-  DUAS_BY_CHAPTER,
-  type DuaItem,
-} from '../data/duas';
+import type { DuaItem } from '../data/duas';
+import { useDuasCatalog } from '../services/contentCatalog';
 import {
   db,
   getRoutineItems,
@@ -104,6 +101,8 @@ export function DuaReaderView({
     settings.keepScreenAwake
   );
 
+  const { chapterMap: DUA_CHAPTER_MAP, duasByChapter: DUAS_BY_CHAPTER } =
+    useDuasCatalog();
   const chapter = DUA_CHAPTER_MAP[dua.chapterId];
   const chapterDuas = DUAS_BY_CHAPTER[dua.chapterId] ?? [];
   const chapterIdx = chapterDuas.findIndex((d) => d.id === dua.id);
@@ -122,8 +121,8 @@ export function DuaReaderView({
     if (!routine || routineItems.length === 0) return null;
     const idx =
       routineItemIndex !== undefined &&
-      routineItems[routineItemIndex]?.kind === 'dua' &&
-      routineItems[routineItemIndex].duaId === dua.id
+        routineItems[routineItemIndex]?.kind === 'dua' &&
+        routineItems[routineItemIndex].duaId === dua.id
         ? routineItemIndex
         : routineItems.findIndex((it) => it.kind === 'dua' && it.duaId === dua.id);
     if (idx === -1) return null;
@@ -152,7 +151,7 @@ export function DuaReaderView({
         routineItemIndex: routineNav.index,
         duaId: dua.id,
         completed: false,
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [dua.id, routine, routineNav]);
 
@@ -173,16 +172,16 @@ export function DuaReaderView({
   const handleCopy = async () => {
     const bodyText = parts
       ? parts
-          .map((part, idx) =>
-            [
-              `${toBanglaDigits(idx + 1)}. ${part.arabic}`,
-              part.transliteration ?? '',
-              part.translationBangla,
-            ]
-              .filter(Boolean)
-              .join('\n')
-          )
-          .join('\n\n')
+        .map((part, idx) =>
+          [
+            `${toBanglaDigits(idx + 1)}. ${part.arabic}`,
+            part.transliteration ?? '',
+            part.translationBangla,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        )
+        .join('\n\n')
       : [dua.arabic, dua.translationBangla].join('\n\n');
 
     const text = [
@@ -481,19 +480,19 @@ export function DuaReaderView({
   const routineNextAction = routineNav
     ? routineNav.nextItem
       ? {
-          label: `পরবর্তী অংশ: ${formatNormalizedRoutineItemLabel(routineNav.nextItem)}`,
-          action: () => {
-            setCounterSheetOpen(false);
-            void handleCompleteAndNext(routineNav.nextIndex);
-          },
-        }
+        label: `পরবর্তী অংশ: ${formatNormalizedRoutineItemLabel(routineNav.nextItem)}`,
+        action: () => {
+          setCounterSheetOpen(false);
+          void handleCompleteAndNext(routineNav.nextIndex);
+        },
+      }
       : {
-          label: 'রুটিন সমাপ্ত করে ফিরুন',
-          action: () => {
-            setCounterSheetOpen(false);
-            void handleCompleteRoutine();
-          },
-        }
+        label: 'রুটিন সমাপ্ত করে ফিরুন',
+        action: () => {
+          setCounterSheetOpen(false);
+          void handleCompleteRoutine();
+        },
+      }
     : null;
 
   const activePartIndex =
@@ -504,9 +503,9 @@ export function DuaReaderView({
     parts && activePartIndex !== null ? parts[activePartIndex] : null;
   const activePartTarget = activePart
     ? Math.max(
-        1,
-        routineTargetCount ?? activePart.repeatCount ?? dua.repeatCount ?? 1
-      )
+      1,
+      routineTargetCount ?? activePart.repeatCount ?? dua.repeatCount ?? 1
+    )
     : targetCount;
 
   const sheetTitle =
@@ -519,17 +518,16 @@ export function DuaReaderView({
   const sheetNextAction =
     parts && activePartIndex !== null && activePartIndex + 1 < parts.length
       ? {
-          label: `পরবর্তী জিকির (${toBanglaDigits(activePartIndex + 2)}/${toBanglaDigits(parts.length)})`,
-          action: () =>
-            openCounterSheet({ mode: 'part', partIndex: activePartIndex + 1 }),
-        }
+        label: `পরবর্তী জিকির (${toBanglaDigits(activePartIndex + 2)}/${toBanglaDigits(parts.length)})`,
+        action: () =>
+          openCounterSheet({ mode: 'part', partIndex: activePartIndex + 1 }),
+      }
       : routineNextAction;
 
   return (
     <div
-      className={`min-h-dvh paper-frame transition-[padding] duration-300 ${
-        counterSheetOpen ? 'pb-[56dvh]' : 'pb-16'
-      }`}
+      className={`min-h-dvh paper-frame transition-[padding] duration-300 ${counterSheetOpen ? 'pb-[56dvh]' : 'pb-16'
+        }`}
     >
       <TopBar
         mode="sticky"
@@ -946,9 +944,8 @@ export function DuaReaderView({
               }}
             >
               <span
-                className={`block w-5 h-5 rounded-full transition-transform ${
-                  showTransliteration ? 'translate-x-5' : 'translate-x-0'
-                }`}
+                className={`block w-5 h-5 rounded-full transition-transform ${showTransliteration ? 'translate-x-5' : 'translate-x-0'
+                  }`}
                 style={{
                   backgroundColor: showTransliteration
                     ? 'var(--accent-text)'

@@ -5,14 +5,9 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import {
-  DUA_CHAPTER_MAP,
-  DUA_CHAPTERS,
-  DUAS,
-  DUAS_BY_CHAPTER,
-  type DuaItem,
-} from '../data/duas';
+import type { DuaItem } from '../data/duas';
 import type { Settings } from '../db/database';
+import { useDuasCatalog } from '../services/contentCatalog';
 import { normalizeIndoPakText, toBanglaDigits } from '../utils/formatters';
 import { searchDuas } from '../utils/searchEngine';
 import {
@@ -42,6 +37,13 @@ export function DuasView({
   onOpenDua,
   onToggleBookmark,
 }: DuasViewProps) {
+  const {
+    version: catalogVersion,
+    chapters: DUA_CHAPTERS,
+    chapterMap: DUA_CHAPTER_MAP,
+    duas: DUAS,
+    duasByChapter: DUAS_BY_CHAPTER,
+  } = useDuasCatalog();
   const [query, setQuery] = useState('');
   const [chapterSearchOpen, setChapterSearchOpen] = useState(false);
   const [chapterQuery, setChapterQuery] = useState('');
@@ -103,6 +105,9 @@ export function DuasView({
       bookmarkedIds: bookmarkedSet,
     }).map((r) => r.dua);
   }, [
+    catalogVersion,
+    DUAS,
+    DUAS_BY_CHAPTER,
     normalizedQuery,
     normalizedChapterQuery,
     selectedChapterId,

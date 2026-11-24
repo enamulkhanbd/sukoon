@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BottomNav, type AppTab } from './components/BottomNav';
 import { DuaReaderView } from './components/DuaReaderView';
@@ -14,7 +14,7 @@ import { SettingsSheet } from './components/SettingsSheet';
 import { SplashScreen } from './components/SplashScreen';
 import { SurahListView } from './components/SurahListView';
 import { useToast } from './components/ToastProvider';
-import { DUA_MAP, type DuaItem } from './data/duas';
+import type { DuaItem } from './data/duas';
 import {
   DEFAULT_SETTINGS,
   GLASS_PRESET_OPACITY,
@@ -32,6 +32,14 @@ import {
 } from './db/database';
 import { useIslamicClock } from './hooks/useIslamicClock';
 import {
+  hydrateSyncMetaState,
+  syncCmsFromFirestore,
+} from './services/cmsSync';
+import {
+  hydrateCatalogFromDb,
+  useDuasCatalog,
+} from './services/contentCatalog';
+import {
   buildPath,
   hidesBottomNav,
   isReaderRoute,
@@ -40,6 +48,8 @@ import {
 } from './router';
 import { applyThemeIcons } from './utils/themeIcons';
 import { getThemeVariantMeta } from './utils/themeRegistry';
+
+const LazyAdminPanelView = lazy(() => import('./components/admin/AdminPanelView'));
 import {
   DEFAULT_FASTING_LOCATION,
   resolveHijriOffsetSettings,
@@ -48,10 +58,14 @@ import { syncHijriCalendarConfig } from './services/hijriCalendarService';
 
 export function App() {
   const toast = useToast();
+  const { duaMap: DUA_MAP } = useDuasCatalog();
   const [dbReady, setDbReady] = useState(false);
   const [route, setRoute] = useState<AppRoute>(() => parseRoute());
   const [profileSection, setProfileSection] = useState<ProfileSection>('stats');
   const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
+  const [highlightTemplateId, setHighlightTemplateId] = useState<string | null>(
+    null
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(() => {
     const normalized = window.location.pathname.replace(/\/+$/, '');
@@ -74,8 +88,21 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    ensureDatabaseInitialized().then(() => setDbReady(true));
+    ensureDatabaseInitialized()
+      .then(() => Promise.all([hydrateCatalogFromDb(), hydrateSyncMetaState()]))
+      .then(() => setDbReady(true));
   }, []);
+
+  // Silent incremental delta sync from Firestore into IndexedDB (startup + reconnect)
+  useEffect(() => {
+    if (!dbReady) return;
+    void syncCmsFromFirestore({ toast });
+    const handleOnline = () => {
+      void syncCmsFromFirestore({ toast });
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [dbReady, toast]);
 
   // Normalize unknown/malformed initial URL to canonical clean path
   useEffect(() => {
@@ -484,8 +511,29 @@ export function App() {
     [settings.bookmarkedDuaIds, handleUpdateSettings, toast]
   );
 
+  const handleDismissFeaturedCard = useCallback(
+    async (cardId: string) => {
+      const current = settings.dismissedFeaturedCardIds ?? [];
+      if (current.includes(cardId)) return;
+      await handleUpdateSettings({
+        dismissedFeaturedCardIds: [...current, cardId],
+      });
+    },
+    [settings.dismissedFeaturedCardIds, handleUpdateSettings]
+  );
+
   if (!dbReady || (route.type === 'routineRead' && activeRouteRoutine === undefined)) {
     return <SplashScreen />;
+  }
+
+  if (route.type === 'admin') {
+    return (
+      <Suspense fallback={<SplashScreen />}>
+        <LazyAdminPanelView
+          onExitAdmin={() => navigate({ type: 'tab', tab: 'home' })}
+        />
+      </Suspense>
+    );
   }
 
   const globalOverlays = (
@@ -684,6 +732,12 @@ export function App() {
           onOpenSearch={() => setSearchOpen(true)}
           onOpenSettings={openSettings}
           onOpenSurah={handleOpenSurah}
+          onOpenDua={handleOpenDua}
+          onOpenRoutineTemplate={(templateId) => {
+            setHighlightTemplateId(templateId);
+            navigate({ type: 'tab', tab: 'routines' });
+          }}
+          onDismissFeaturedCard={handleDismissFeaturedCard}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
           onOpenFastingSchedule={openRamadanSchedule}
@@ -721,6 +775,8 @@ export function App() {
           onOpenRoutineDetails={openRoutineDetails}
           shouldOpenCreate={openCreateRoutine}
           onHandledCreate={() => setOpenCreateRoutine(false)}
+          highlightTemplateId={highlightTemplateId}
+          onClearHighlightTemplate={() => setHighlightTemplateId(null)}
         />
       )}
       {activeTab === 'profile' && (

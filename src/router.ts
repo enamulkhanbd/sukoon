@@ -1,12 +1,13 @@
 import type { AppTab } from './components/BottomNav';
-import { DUA_CHAPTER_MAP, DUA_MAP } from './data/duas';
 import { SURAH_MAP } from './data/surahs';
+import { getCatalogSnapshot } from './services/catalogSnapshot';
 
 export type AppRoute =
   | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
   | { type: 'surah'; surahId: number; initialAyah: number; initialPage?: number }
   | { type: 'dua'; duaId: string }
   | { type: 'ramadan' }
+  | { type: 'admin' }
   | { type: 'routineDetail'; routineId: string }
   | {
       type: 'routineRead';
@@ -54,11 +55,16 @@ export function parseRoute(
   if (path === '/ramadan') {
     return { type: 'ramadan' };
   }
+  if (path === '/admin') {
+    return { type: 'admin' };
+  }
+
+  const catalog = getCatalogSnapshot();
 
   const duaChapterMatch = /^\/duas\/chapter\/(\d+)$/.exec(path);
   if (duaChapterMatch) {
     const chId = parsePositiveInt(duaChapterMatch[1]);
-    if (chId && DUA_CHAPTER_MAP[chId]) {
+    if (chId && (!catalog.hydrated || catalog.chapterMap[chId])) {
       return { type: 'tab', tab: 'duas', duaChapterId: chId };
     }
     return { type: 'tab', tab: 'duas', duaChapterId: null };
@@ -93,7 +99,7 @@ export function parseRoute(
     } catch {
       return { type: 'tab', tab: 'duas', duaChapterId: null };
     }
-    if (DUA_MAP[duaId]) {
+    if (duaId && (!catalog.hydrated || catalog.duaMap[duaId])) {
       return { type: 'dua', duaId };
     }
     return { type: 'tab', tab: 'duas', duaChapterId: null };
@@ -166,6 +172,8 @@ export function buildPath(route: AppRoute): string {
       return `/dua/${encodeURIComponent(route.duaId)}`;
     case 'ramadan':
       return '/ramadan';
+    case 'admin':
+      return '/admin';
     case 'routineDetail':
       return `/routines/${encodeURIComponent(route.routineId)}`;
     case 'routineRead':
@@ -187,6 +195,7 @@ export function hidesBottomNav(route: AppRoute): boolean {
   return (
     isReaderRoute(route) ||
     route.type === 'ramadan' ||
+    route.type === 'admin' ||
     route.type === 'routineDetail' ||
     (route.type === 'tab' &&
       route.tab === 'duas' &&

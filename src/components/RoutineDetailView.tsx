@@ -8,7 +8,7 @@ import {
   ChevronDown,
   Sparkles,
 } from 'lucide-react';
-import { DUA_CHAPTER_MAP, DUA_MAP } from '../data/duas';
+import { useDuasCatalog } from '../services/contentCatalog';
 import { SURAH_MAP } from '../data/surahs';
 import {
   db,
@@ -49,6 +49,7 @@ export function RoutineDetailView({
   onBack,
   onStartItem,
 }: RoutineDetailViewProps) {
+  const { duaMap: DUA_MAP, chapterMap: DUA_CHAPTER_MAP } = useDuasCatalog();
   const toast = useToast();
   const clock = useIslamicClock(settings);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);

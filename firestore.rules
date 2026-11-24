@@ -1,0 +1,439 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model (Sukoon PWA CMS - Standard Edition Firestore)
+// ===============================================================
+//
+// Access Architecture:
+//   - Regular Sukoon PWA users do NOT authenticate; they delta-sync
+//     these 5 public, non-PII CMS collections into local IndexedDB
+//     using `updatedAt` server-timestamp cursors.
+//   - All writes (create, update, delete) are restricted exclusively
+//     to the single verified admin account (`anamul.ipa@gmail.com`).
+//   - Every unmatched collection or subcollection is denied by default.
+//
+// 1. Collection: /duas/{duaId}
+//    Document ID: string (1..120 chars, matches `id` field)
+//    Always Required:
+//      - id: string (1..120 chars, == duaId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone / Revert Mode (when `deleted == true` or `reverted == true`):
+//      Allowed keys: ['id', 'chapterId', 'deleted', 'reverted', 'isBuiltInOverride', 'updatedAt']
+//      - chapterId: int (optional, 1..9999)
+//      - deleted: bool (optional)
+//      - reverted: bool (optional)
+//      - isBuiltInOverride: bool (optional)
+//    Active Mode:
+//      Required:
+//        - chapterId: int (1..9999)
+//        - order: int (0..100000)
+//        - titleBangla: string (1..300 chars)
+//        - arabic: string (1..25000 chars)
+//        - translationBangla: string (0..25000 chars)
+//      Optional:
+//        - transliteration: string (0..25000 chars)
+//        - repeatCount: int (1..10000)
+//        - occasionNote: string (0..500 chars)
+//        - reference: string (0..500 chars)
+//        - quranRef: map { surahId: int (1..114), startAyah: int (1..286), endAyah: int (startAyah..286) }
+//        - parts: list (size 0..50)
+//        - isBuiltInOverride: bool
+//        - deleted: bool
+//        - reverted: bool
+//
+// 2. Collection: /duaChapters/{chapterId}
+//    Document ID: stringified integer (matches `string(id)`)
+//    Always Required:
+//      - id: int (1..9999, string(id) == chapterId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone / Revert Mode (when `deleted == true` or `reverted == true`):
+//      Allowed keys: ['id', 'deleted', 'reverted', 'updatedAt']
+//    Active Mode:
+//      Required:
+//        - titleBangla: string (1..200 chars)
+//        - subtitleBangla: string (0..400 chars)
+//      Optional:
+//        - searchAliases: list (size 0..40)
+//        - deleted: bool
+//        - reverted: bool
+//
+// 3. Collection: /routineTemplates/{templateId}
+//    Document ID: string (1..120 chars, matches `id` field)
+//    Always Required:
+//      - id: string (1..120 chars, == templateId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone Mode (when `deleted == true`):
+//      Allowed keys: ['id', 'deleted', 'updatedAt']
+//    Active Mode:
+//      Required:
+//        - title: string (1..200 chars)
+//        - assignedDays: list of ints in 0..6 (size 0..7)
+//        - items: list (size 1..100)
+//        - order: int (0..10000)
+//        - version: int (1..100000)
+//      Optional:
+//        - description: string (0..1000 chars)
+//        - featured: bool
+//        - seasonTag: string (0..80 chars)
+//        - deleted: bool
+//
+// 4. Collection: /surahOverrides/{surahId}
+//    Document ID: stringified integer 1..114 (matches `string(surahId)`)
+//    Always Required:
+//      - surahId: int (1..114, string(surahId) == surahId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone / Revert Mode (when `deleted == true` or `reverted == true`):
+//      Allowed keys: ['surahId', 'deleted', 'reverted', 'updatedAt']
+//    Active Mode:
+//      Optional:
+//        - descriptionBangla: string (0..4000 chars)
+//        - fazilatBangla: string (0..4000 chars)
+//        - fazilatRef: string (0..500 chars)
+//        - occasionTags: list (size 0..15)
+//        - deleted: bool
+//        - reverted: bool
+//
+// 5. Collection: /featuredCards/{cardId}
+//    Document ID: string (1..120 chars, matches `id` field)
+//    Always Required:
+//      - id: string (1..120 chars, == cardId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone Mode (when `deleted == true`):
+//      Allowed keys: ['id', 'deleted', 'updatedAt']
+//    Active Mode:
+//      Required:
+//        - titleBangla: string (1..200 chars)
+//        - bodyBangla: string (1..2000 chars)
+//        - active: bool
+//        - priority: int (0..10000)
+//      Optional:
+//        - arabicSnippet: string (0..3000 chars)
+//        - badgeLabel: string (0..80 chars)
+//        - action: map (keys subset of ['type', 'surahId', 'startAyah', 'duaId', 'templateId', 'ctaLabel'])
+//        - startDate: string (0..20 chars)
+//        - endDate: string (0..20 chars)
+//        - deleted: bool
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Single verified admin identity derived strictly from Firebase Auth JWT claims
+    function isAdmin() {
+      return isAuthenticated() &&
+        'email' in request.auth.token &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email == 'anamul.ipa@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(data, fields) {
+      return data.keys().hasOnly(fields);
+    }
+
+    function isStringInRange(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isOptionalStringInRange(data, field, minLen, maxLen) {
+      return !(field in data) || isStringInRange(data[field], minLen, maxLen);
+    }
+
+    function isIntInRange(val, minVal, maxVal) {
+      return val is int && val >= minVal && val <= maxVal;
+    }
+
+    function isOptionalIntInRange(data, field, minVal, maxVal) {
+      return !(field in data) || isIntInRange(data[field], minVal, maxVal);
+    }
+
+    function isOptionalBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function isListInRange(val, minSize, maxSize) {
+      return val is list && val.size() >= minSize && val.size() <= maxSize;
+    }
+
+    function isOptionalListInRange(data, field, minSize, maxSize) {
+      return !(field in data) || isListInRange(data[field], minSize, maxSize);
+    }
+
+    // Enforce serverTimestamp() on every write so delta-sync cursors cannot be backdated or skewed
+    function isValidUpdatedAt(data) {
+      return 'updatedAt' in data &&
+        data.updatedAt is timestamp &&
+        data.updatedAt == request.time;
+    }
+
+    function isTombstone(data) {
+      return 'deleted' in data && data.deleted == true;
+    }
+
+    function isTombstoneOrRevert(data) {
+      return ('deleted' in data && data.deleted == true) ||
+        ('reverted' in data && data.reverted == true);
+    }
+
+    // ===============================================================
+    // Domain Validators (Invoked on BOTH create and update)
+    // ===============================================================
+
+    // --- 1. Duas ---
+
+    function isValidQuranRef(ref) {
+      return ref is map &&
+        ref.keys().hasAll(['surahId', 'startAyah', 'endAyah']) &&
+        ref.keys().hasOnly(['surahId', 'startAyah', 'endAyah']) &&
+        isIntInRange(ref.surahId, 1, 114) &&
+        isIntInRange(ref.startAyah, 1, 286) &&
+        isIntInRange(ref.endAyah, ref.startAyah, 286);
+    }
+
+    function isValidDuaTombstone(data) {
+      return hasOnlyAllowedFields(data, [
+          'id', 'chapterId', 'deleted', 'reverted', 'isBuiltInOverride', 'updatedAt'
+        ]) &&
+        isOptionalIntInRange(data, 'chapterId', 1, 9999) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted') &&
+        isOptionalBool(data, 'isBuiltInOverride');
+    }
+
+    function isValidDuaActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'chapterId', 'order', 'titleBangla', 'arabic', 'translationBangla', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'chapterId', 'order', 'titleBangla', 'arabic', 'translationBangla',
+          'updatedAt', 'transliteration', 'repeatCount', 'occasionNote', 'reference',
+          'quranRef', 'parts', 'isBuiltInOverride', 'deleted', 'reverted'
+        ]) &&
+        isIntInRange(data.chapterId, 1, 9999) &&
+        isIntInRange(data.order, 0, 100000) &&
+        isStringInRange(data.titleBangla, 1, 300) &&
+        isStringInRange(data.arabic, 1, 25000) &&
+        isStringInRange(data.translationBangla, 0, 25000) &&
+        isOptionalStringInRange(data, 'transliteration', 0, 25000) &&
+        isOptionalIntInRange(data, 'repeatCount', 1, 10000) &&
+        isOptionalStringInRange(data, 'occasionNote', 0, 500) &&
+        isOptionalStringInRange(data, 'reference', 0, 500) &&
+        (!('quranRef' in data) || isValidQuranRef(data.quranRef)) &&
+        isOptionalListInRange(data, 'parts', 0, 50) &&
+        isOptionalBool(data, 'isBuiltInOverride') &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidDua(data, duaId) {
+      return isStringInRange(duaId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == duaId &&
+        isValidUpdatedAt(data) &&
+        (isTombstoneOrRevert(data) ? isValidDuaTombstone(data) : isValidDuaActive(data));
+    }
+
+    // --- 2. Dua Chapters ---
+
+    function isValidDuaChapterTombstone(data) {
+      return hasOnlyAllowedFields(data, ['id', 'deleted', 'reverted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidDuaChapterActive(data) {
+      return hasRequiredFields(data, ['id', 'titleBangla', 'subtitleBangla', 'updatedAt']) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'titleBangla', 'subtitleBangla', 'searchAliases',
+          'deleted', 'reverted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.titleBangla, 1, 200) &&
+        isStringInRange(data.subtitleBangla, 0, 400) &&
+        isOptionalListInRange(data, 'searchAliases', 0, 40) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidDuaChapter(data, chapterId) {
+      return 'id' in data &&
+        isIntInRange(data.id, 1, 9999) &&
+        string(data.id) == chapterId &&
+        isValidUpdatedAt(data) &&
+        (isTombstoneOrRevert(data) ? isValidDuaChapterTombstone(data) : isValidDuaChapterActive(data));
+    }
+
+    // --- 3. Routine Templates ---
+
+    function isValidRoutineTemplateTombstone(data) {
+      return hasOnlyAllowedFields(data, ['id', 'deleted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidRoutineTemplateActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'title', 'assignedDays', 'items', 'order', 'version', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'title', 'assignedDays', 'items', 'order', 'version',
+          'description', 'featured', 'seasonTag', 'deleted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.title, 1, 200) &&
+        isListInRange(data.assignedDays, 0, 7) &&
+        data.assignedDays.hasOnly([0, 1, 2, 3, 4, 5, 6]) &&
+        isListInRange(data.items, 1, 100) &&
+        isIntInRange(data.order, 0, 10000) &&
+        isIntInRange(data.version, 1, 100000) &&
+        isOptionalStringInRange(data, 'description', 0, 1000) &&
+        isOptionalBool(data, 'featured') &&
+        isOptionalStringInRange(data, 'seasonTag', 0, 80) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidRoutineTemplate(data, templateId) {
+      return isStringInRange(templateId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == templateId &&
+        isValidUpdatedAt(data) &&
+        (isTombstone(data) ? isValidRoutineTemplateTombstone(data) : isValidRoutineTemplateActive(data));
+    }
+
+    // --- 4. Surah Overrides ---
+
+    function isValidSurahOverrideTombstone(data) {
+      return hasOnlyAllowedFields(data, ['surahId', 'deleted', 'reverted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidSurahOverrideActive(data) {
+      return hasRequiredFields(data, ['surahId', 'updatedAt']) &&
+        hasOnlyAllowedFields(data, [
+          'surahId', 'descriptionBangla', 'fazilatBangla', 'fazilatRef',
+          'occasionTags', 'deleted', 'reverted', 'updatedAt'
+        ]) &&
+        isOptionalStringInRange(data, 'descriptionBangla', 0, 4000) &&
+        isOptionalStringInRange(data, 'fazilatBangla', 0, 4000) &&
+        isOptionalStringInRange(data, 'fazilatRef', 0, 500) &&
+        isOptionalListInRange(data, 'occasionTags', 0, 15) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidSurahOverride(data, surahId) {
+      return 'surahId' in data &&
+        isIntInRange(data.surahId, 1, 114) &&
+        string(data.surahId) == surahId &&
+        isValidUpdatedAt(data) &&
+        (isTombstoneOrRevert(data) ? isValidSurahOverrideTombstone(data) : isValidSurahOverrideActive(data));
+    }
+
+    // --- 5. Featured Cards ---
+
+    function isValidFeaturedCardAction(action) {
+      return action is map &&
+        action.keys().hasOnly([
+          'type', 'surahId', 'startAyah', 'duaId', 'templateId', 'ctaLabel'
+        ]) &&
+        isOptionalStringInRange(action, 'type', 1, 40) &&
+        isOptionalIntInRange(action, 'surahId', 1, 114) &&
+        isOptionalIntInRange(action, 'startAyah', 1, 286) &&
+        isOptionalStringInRange(action, 'duaId', 0, 120) &&
+        isOptionalStringInRange(action, 'templateId', 0, 120) &&
+        isOptionalStringInRange(action, 'ctaLabel', 0, 120);
+    }
+
+    function isValidFeaturedCardTombstone(data) {
+      return hasOnlyAllowedFields(data, ['id', 'deleted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidFeaturedCardActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'titleBangla', 'bodyBangla', 'active', 'priority', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'titleBangla', 'bodyBangla', 'active', 'priority',
+          'arabicSnippet', 'badgeLabel', 'action', 'startDate', 'endDate',
+          'deleted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.titleBangla, 1, 200) &&
+        isStringInRange(data.bodyBangla, 1, 2000) &&
+        data.active is bool &&
+        isIntInRange(data.priority, 0, 10000) &&
+        isOptionalStringInRange(data, 'arabicSnippet', 0, 3000) &&
+        isOptionalStringInRange(data, 'badgeLabel', 0, 80) &&
+        (!('action' in data) || isValidFeaturedCardAction(data.action)) &&
+        isOptionalStringInRange(data, 'startDate', 0, 20) &&
+        isOptionalStringInRange(data, 'endDate', 0, 20) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidFeaturedCard(data, cardId) {
+      return isStringInRange(cardId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == cardId &&
+        isValidUpdatedAt(data) &&
+        (isTombstone(data) ? isValidFeaturedCardTombstone(data) : isValidFeaturedCardActive(data));
+    }
+
+    // ===============================================================
+    // Collection Match Rules (Public Read CMS, Admin-Only Validated Write)
+    // ===============================================================
+
+    match /duas/{duaId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidDua(request.resource.data, duaId);
+      allow update: if isAdmin() && isValidDua(request.resource.data, duaId);
+      allow delete: if isAdmin();
+    }
+
+    match /duaChapters/{chapterId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidDuaChapter(request.resource.data, chapterId);
+      allow update: if isAdmin() && isValidDuaChapter(request.resource.data, chapterId);
+      allow delete: if isAdmin();
+    }
+
+    match /routineTemplates/{templateId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidRoutineTemplate(request.resource.data, templateId);
+      allow update: if isAdmin() && isValidRoutineTemplate(request.resource.data, templateId);
+      allow delete: if isAdmin();
+    }
+
+    match /surahOverrides/{surahId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidSurahOverride(request.resource.data, surahId);
+      allow update: if isAdmin() && isValidSurahOverride(request.resource.data, surahId);
+      allow delete: if isAdmin();
+    }
+
+    match /featuredCards/{cardId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidFeaturedCard(request.resource.data, cardId);
+      allow update: if isAdmin() && isValidFeaturedCard(request.resource.data, cardId);
+      allow delete: if isAdmin();
+    }
+
+    // Explicit default-deny catch-all for all unmatched collections and subcollections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

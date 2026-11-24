@@ -35,6 +35,7 @@ import {
   hydrateSyncMetaState,
   syncCmsFromFirestore,
 } from './services/cmsSync';
+import { recordDailyUserHeartbeat } from './services/userTelemetry';
 import {
   hydrateCatalogFromDb,
   useDuasCatalog,
@@ -97,11 +98,18 @@ export function App() {
   useEffect(() => {
     if (!dbReady) return;
     void syncCmsFromFirestore({ toast });
+    if (route.type !== 'admin') {
+      void recordDailyUserHeartbeat(settings.theme);
+    }
     const handleOnline = () => {
       void syncCmsFromFirestore({ toast });
+      if (route.type !== 'admin') {
+        void recordDailyUserHeartbeat(settings.theme);
+      }
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbReady, toast]);
 
   // Normalize unknown/malformed initial URL to canonical clean path

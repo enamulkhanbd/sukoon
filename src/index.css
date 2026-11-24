@@ -509,3 +509,211 @@ b {
     animation: none !important;
   }
 }
+
+/* ==================== SUKOON STUDIO (ADMIN CMS) TOKENS ==================== */
+/* Syncs automatically with Sukoon's active [data-theme] x [data-mode] while
+   preserving crisp studio contrast, sharp 1px borders, and clean elevation. */
+
+.sukoon-studio,
+[data-theme="paper"] .sukoon-studio {
+  --st-bg: #fffefb;
+  --st-bg-subtle: #faf6ee;
+  --st-bg-sidebar: #f4eee1;
+  --st-bg-hover: #efe7d8;
+  --st-bg-active: #e8decb;
+  --st-bg-input: #ffffff;
+  --st-bg-muted: #f2ead9;
+  --st-border: #e5dcc9;
+  --st-border-strong: #d3c6ad;
+  --st-text: #1f241e;
+  --st-text-secondary: #59554a;
+  --st-text-muted: #7c7566;
+  --st-text-faint: #a39b8b;
+  --st-primary: #25201a;
+  --st-primary-hover: #362f26;
+  --st-primary-text: #fffdf8;
+  --st-accent: #8c6223;
+  --st-accent-soft: rgba(140, 98, 35, 0.12);
+  --st-amber: #b45309;
+  --st-amber-soft: rgba(217, 119, 6, 0.12);
+  --st-blue: #2563eb;
+  --st-blue-soft: rgba(37, 99, 235, 0.1);
+  --st-danger: #dc2626;
+  --st-danger-soft: rgba(220, 38, 38, 0.09);
+  --st-ring: rgba(140, 98, 35, 0.18);
+  --st-shadow-sm: 0 1px 2px rgba(31, 36, 30, 0.04);
+  --st-shadow-md: 0 12px 32px -6px rgba(31, 36, 30, 0.14),
+    0 2px 6px -1px rgba(31, 36, 30, 0.06);
+  font-family: "Inter", "Noto Sans Bengali", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  background-color: var(--st-bg);
+  color: var(--st-text);
+  color-scheme: light;
+}
+
+[data-theme="olive"] .sukoon-studio {
+  --st-bg: #fcfdfb;
+  --st-bg-subtle: #f3f6f0;
+  --st-bg-sidebar: #eaf0e6;
+  --st-bg-hover: #e2eadd;
+  --st-bg-active: #d9e3d3;
+  --st-bg-input: #ffffff;
+  --st-bg-muted: #e6ede1;
+  --st-border: #d2dccb;
+  --st-border-strong: #bcc9b3;
+  --st-text: #1a241b;
+  --st-text-secondary: #485649;
+  --st-text-muted: #6c7c6d;
+  --st-text-faint: #92a193;
+  --st-primary: #1f3d2b;
+  --st-primary-hover: #295038;
+  --st-primary-text: #f6f9f3;
+  --st-accent: #2c593d;
+  --st-accent-soft: rgba(44, 89, 61, 0.12);
+  --st-ring: rgba(44, 89, 61, 0.18);
+  color-scheme: light;
+}
+
+[data-theme="sky"] .sukoon-studio {
+  --st-bg: #fcfdff;
+  --st-bg-subtle: #f3f7fb;
+  --st-bg-sidebar: #ebf1f8;
+  --st-bg-hover: #e2ebf5;
+  --st-bg-active: #d8e4f2;
+  --st-bg-input: #ffffff;
+  --st-bg-muted: #e6eef7;
+  --st-border: #d2dfee;
+  --st-border-strong: #b9cde3;
+  --st-text: #142233;
+  --st-text-secondary: #455970;
+  --st-text-muted: #6a8099;
+  --st-text-faint: #91a4ba;
+  --st-primary: #142840;
+  --st-primary-hover: #1d3858;
+  --st-primary-text: #f9fbfd;
+  --st-accent: #0077d8;
+  --st-accent-soft: rgba(0, 119, 216, 0.12);
+  --st-ring: rgba(0, 119, 216, 0.18);
+  color-scheme: light;
+}
+
+[data-mode="dark"] .sukoon-studio,
+[data-theme="paper"][data-mode="dark"] .sukoon-studio {
+  --st-bg: #110f0c;
+  --st-bg-subtle: #16130f;
+  --st-bg-sidebar: #1b1712;
+  --st-bg-hover: #231e17;
+  --st-bg-active: #2b241c;
+  --st-bg-input: #14110e;
+  --st-bg-muted: #211c16;
+  --st-border: #302820;
+  --st-border-strong: #44392d;
+  --st-text: #f0e8da;
+  --st-text-secondary: #b8ad9b;
+  --st-text-muted: #8a7f6f;
+  --st-text-faint: #635a4e;
+  --st-primary: #f0e8da;
+  --st-primary-hover: #e3d7c3;
+  --st-primary-text: #14110c;
+  --st-accent: #d4a654;
+  --st-accent-soft: rgba(212, 166, 84, 0.16);
+  --st-amber: #f59e0b;
+  --st-amber-soft: rgba(245, 158, 11, 0.16);
+  --st-blue: #60a5fa;
+  --st-blue-soft: rgba(96, 165, 250, 0.16);
+  --st-danger: #f87171;
+  --st-danger-soft: rgba(248, 113, 113, 0.16);
+  --st-ring: rgba(212, 166, 84, 0.22);
+  --st-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --st-shadow-md: 0 16px 40px -6px rgba(0, 0, 0, 0.65);
+  color-scheme: dark;
+}
+
+[data-theme="olive"][data-mode="dark"] .sukoon-studio {
+  --st-bg: #080b08;
+  --st-bg-subtle: #0e120e;
+  --st-bg-sidebar: #121712;
+  --st-bg-hover: #192019;
+  --st-bg-active: #202920;
+  --st-bg-input: #0c100c;
+  --st-bg-muted: #161d17;
+  --st-border: #232d24;
+  --st-border-strong: #344235;
+  --st-text: #e6ebe5;
+  --st-text-secondary: #9faaa0;
+  --st-text-muted: #748175;
+  --st-text-faint: #525d53;
+  --st-primary: #e6ebe5;
+  --st-primary-hover: #d5ded4;
+  --st-primary-text: #070907;
+  --st-accent: #4c9a74;
+  --st-accent-soft: rgba(76, 154, 116, 0.16);
+  --st-ring: rgba(76, 154, 116, 0.24);
+  color-scheme: dark;
+}
+
+[data-theme="sky"][data-mode="dark"] .sukoon-studio {
+  --st-bg: #090e16;
+  --st-bg-subtle: #0e1521;
+  --st-bg-sidebar: #121b2a;
+  --st-bg-hover: #182436;
+  --st-bg-active: #1f2e45;
+  --st-bg-input: #0c131f;
+  --st-bg-muted: #152031;
+  --st-border: #22324a;
+  --st-border-strong: #324869;
+  --st-text: #e7eff8;
+  --st-text-secondary: #9bb0c9;
+  --st-text-muted: #6f859f;
+  --st-text-faint: #4d617a;
+  --st-primary: #e7eff8;
+  --st-primary-hover: #d4e2f2;
+  --st-primary-text: #07101c;
+  --st-accent: #4ca3f5;
+  --st-accent-soft: rgba(76, 163, 245, 0.16);
+  --st-ring: rgba(76, 163, 245, 0.24);
+  color-scheme: dark;
+}
+
+.sukoon-studio input,
+.sukoon-studio textarea,
+.sukoon-studio select {
+  color: var(--st-text);
+}
+
+.sukoon-studio input::placeholder,
+.sukoon-studio textarea::placeholder {
+  color: var(--st-text-faint);
+}
+
+.sukoon-studio .studio-field-control {
+  background-color: var(--st-bg-input);
+  border: 1px solid var(--st-border);
+  border-radius: 7px;
+  color: var(--st-text);
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.sukoon-studio .studio-field-control:hover {
+  border-color: var(--st-border-strong);
+}
+
+.sukoon-studio .studio-field-control:focus {
+  outline: none;
+  border-color: var(--st-text-secondary);
+  box-shadow: 0 0 0 3px var(--st-ring);
+}
+
+.sukoon-studio ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.sukoon-studio ::-webkit-scrollbar-thumb {
+  background: var(--st-border-strong);
+  border-radius: 9999px;
+}
+
+.sukoon-studio .studio-hover:hover {
+  background-color: var(--st-bg-hover);
+}

@@ -1,5 +1,16 @@
-import { useState } from 'react';
-import { Loader2, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ArrowRight,
+  Check,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FilePenLine,
+  Plus,
+  Send,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import type {
   ActiveFeaturedCard,
   FeaturedCardAction,
@@ -11,8 +22,29 @@ import {
   adminPublishFeaturedCard,
 } from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
-import { normalizeIndoPakText, toBanglaDigits } from '../../utils/formatters';
+import { normalizeIndoPakText } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
+import {
+  deleteDraftFromStorage,
+  loadDraftsMap,
+  saveDraftToStorage,
+  type StoredDraft,
+} from './adminDrafts';
+import type { StudioLaunchIntent } from './AdminPanelView';
+import {
+  StudioBadge,
+  StudioButton,
+  StudioConfirmDialog,
+  StudioDropdown,
+  StudioEditorSheet,
+  StudioEmptyState,
+  StudioField,
+  StudioInput,
+  StudioSection,
+  StudioSwitch,
+  StudioTextarea,
+  useKeyboardSave,
+} from './StudioUI';
 
 interface CardDraft {
   id: string;
@@ -33,14 +65,82 @@ interface CardDraft {
   priority: number;
 }
 
-export function AdminFeaturedTab() {
+type PreviewTheme = 'paper' | 'dark';
+
+export function AdminFeaturedTab({
+  launchIntent,
+  onConsumeIntent,
+}: {
+  launchIntent?: StudioLaunchIntent | null;
+  onConsumeIntent?: () => void;
+}) {
   const toast = useToast();
   const catalog = useCatalog();
   const [draft, setDraft] = useState<CardDraft | null>(null);
+  const [baselineHash, setBaselineHash] = useState('');
+  const [savedDrafts, setSavedDrafts] = useState<Record<string, StoredDraft<CardDraft>>>(
+    () => loadDraftsMap<CardDraft>('featured')
+  );
   const [saving, setSaving] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
+  const [previewTheme, setPreviewTheme] = useState<PreviewTheme>('paper');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
-  const startNewCard = () => {
-    setDraft({
+  const listItems = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{
+      id: string;
+      titleBangla: string;
+      bodyBangla: string;
+      active: boolean;
+      priority: number;
+      startDate?: string;
+      endDate?: string;
+      hasLocalDraft?: boolean;
+      isLocalOnly?: boolean;
+      source?: ActiveFeaturedCard;
+    }> = [];
+
+    for (const card of catalog.featuredCards) {
+      seen.add(card.id);
+      const local = savedDrafts[card.id]?.data;
+      out.push({
+        id: card.id,
+        titleBangla: local?.titleBangla || card.titleBangla,
+        bodyBangla: local?.bodyBangla || card.bodyBangla,
+        active: local?.active ?? card.active,
+        priority: local?.priority ?? card.priority,
+        startDate: local ? local.startDate || undefined : card.startDate,
+        endDate: local ? local.endDate || undefined : card.endDate,
+        hasLocalDraft: Boolean(local),
+        source: card,
+      });
+    }
+
+    for (const entry of Object.values(savedDrafts)) {
+      if (seen.has(entry.id)) continue;
+      out.push({
+        id: entry.id,
+        titleBangla: entry.data.titleBangla || '(Untitled Spotlight)',
+        bodyBangla: entry.data.bodyBangla,
+        active: entry.data.active,
+        priority: entry.data.priority,
+        startDate: entry.data.startDate || undefined,
+        endDate: entry.data.endDate || undefined,
+        hasLocalDraft: true,
+        isLocalOnly: true,
+      });
+    }
+    return out;
+  }, [catalog.featuredCards, savedDrafts]);
+
+  const isDirty = Boolean(draft) && JSON.stringify(draft) !== baselineHash;
+  const hasSavedDraft = draft ? Boolean(savedDrafts[draft.id]) : false;
+  const isPublishedClean = Boolean(draft) && !draft!.isNew && !hasSavedDraft && !isDirty;
+
+  const startNewCard = useCallback(() => {
+    const fresh: CardDraft = {
       id: `card-${Date.now().toString(36)}`,
       isNew: true,
       titleBangla: '',
@@ -57,34 +157,79 @@ export function AdminFeaturedTab() {
       startDate: '',
       endDate: '',
       priority: 10,
-    });
-  };
+    };
+    setDraft(fresh);
+    setBaselineHash(JSON.stringify(fresh));
+    setShowPreview(true);
+  }, [catalog.duas, catalog.routineTemplates]);
 
-  const openCard = (card: ActiveFeaturedCard) => {
-    setDraft({
-      id: card.id,
-      isNew: false,
-      titleBangla: card.titleBangla,
-      bodyBangla: card.bodyBangla,
-      arabicSnippet: card.arabicSnippet ?? '',
-      badgeLabel: card.badgeLabel ?? 'বিশেষ আমল',
-      actionType: card.action?.type ?? 'none',
-      surahId: card.action?.surahId ?? 18,
-      startAyah: card.action?.startAyah ?? 1,
-      duaId: card.action?.duaId ?? catalog.duas[0]?.id ?? '',
-      templateId: card.action?.templateId ?? catalog.routineTemplates[0]?.id ?? '',
-      ctaLabel: card.action?.ctaLabel ?? 'পাঠ করুন',
-      active: card.active,
-      startDate: card.startDate ?? '',
-      endDate: card.endDate ?? '',
-      priority: card.priority,
-    });
-  };
+  const openListItem = useCallback(
+    (row: (typeof listItems)[number]) => {
+      const local = savedDrafts[row.id]?.data;
+      if (local) {
+        const cloned = { ...local };
+        setDraft(cloned);
+        setBaselineHash(JSON.stringify(cloned));
+        return;
+      }
+      if (!row.source) return;
+      const card = row.source;
+      const loaded: CardDraft = {
+        id: card.id,
+        isNew: false,
+        titleBangla: card.titleBangla,
+        bodyBangla: card.bodyBangla,
+        arabicSnippet: card.arabicSnippet ?? '',
+        badgeLabel: card.badgeLabel ?? 'বিশেষ আমল',
+        actionType: card.action?.type ?? 'none',
+        surahId: card.action?.surahId ?? 18,
+        startAyah: card.action?.startAyah ?? 1,
+        duaId: card.action?.duaId ?? catalog.duas[0]?.id ?? '',
+        templateId:
+          card.action?.templateId ?? catalog.routineTemplates[0]?.id ?? '',
+        ctaLabel: card.action?.ctaLabel ?? 'পাঠ করুন',
+        active: card.active,
+        startDate: card.startDate ?? '',
+        endDate: card.endDate ?? '',
+        priority: card.priority,
+      };
+      setDraft(loaded);
+      setBaselineHash(JSON.stringify(loaded));
+    },
+    [savedDrafts, catalog.duas, catalog.routineTemplates]
+  );
 
-  const handlePublish = async () => {
+  useEffect(() => {
+    if (!launchIntent) return;
+    if (launchIntent.mode === 'new') {
+      startNewCard();
+    } else if (launchIntent.mode === 'edit' && launchIntent.id) {
+      const row = listItems.find((r) => r.id === launchIntent.id);
+      if (row) openListItem(row);
+    }
+    onConsumeIntent?.();
+  }, [launchIntent, listItems, startNewCard, openListItem, onConsumeIntent]);
+
+  const handleSaveDraft = () => {
     if (!draft) return;
+    setSavedDrafts(saveDraftToStorage('featured', draft.id, draft));
+    setBaselineHash(JSON.stringify(draft));
+    toast.info('Spotlight draft saved locally.');
+  };
+
+  const handleCancel = () => {
+    if (isDirty) {
+      setConfirmCancelOpen(true);
+    } else {
+      setDraft(null);
+      setBaselineHash('');
+    }
+  };
+
+  const handlePublish = useCallback(async () => {
+    if (!draft || saving) return;
     if (!draft.titleBangla.trim() || !draft.bodyBangla.trim()) {
-      toast.warning('শিরোনাম ও বিবরণ অবশ্যই লিখতে হবে।');
+      toast.warning('Title and message body are required.');
       return;
     }
 
@@ -126,450 +271,635 @@ export function AdminFeaturedTab() {
         endDate: draft.endDate || undefined,
         priority: draft.priority,
       });
-      setDraft({ ...draft, isNew: false });
-      toast.success('হোম স্পটলাইট কার্ড পাবলিশ হয়েছে।');
+      const saved: CardDraft = { ...draft, isNew: false };
+      setSavedDrafts(deleteDraftFromStorage<CardDraft>('featured', draft.id));
+      setDraft(saved);
+      setBaselineHash(JSON.stringify(saved));
+      toast.success('Home spotlight card published.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'পাবলিশ করা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Failed to publish card.');
     } finally {
       setSaving(false);
     }
-  };
+  }, [draft, saving, toast]);
 
-  const handleDelete = async () => {
-    if (!draft || draft.isNew) return;
-    if (!window.confirm('এই হোম স্পটলাইট কার্ডটি মুছে ফেলবেন?')) return;
+  useKeyboardSave(Boolean(draft) && !saving, () => {
+    void handlePublish();
+  });
+
+  const executeDelete = async () => {
+    if (!draft) return;
+    if (draft.isNew && hasSavedDraft) {
+      setSavedDrafts(deleteDraftFromStorage<CardDraft>('featured', draft.id));
+      setConfirmOpen(false);
+      setDraft(null);
+      setBaselineHash('');
+      toast.info('Draft discarded.');
+      return;
+    }
+    if (draft.isNew) return;
     setSaving(true);
     try {
       await adminDeleteFeaturedCard(draft.id);
+      setSavedDrafts(deleteDraftFromStorage<CardDraft>('featured', draft.id));
+      setConfirmOpen(false);
       setDraft(null);
-      toast.info('কার্ডটি মুছে ফেলা হয়েছে।');
+      setBaselineHash('');
+      toast.info('Spotlight card deleted.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'মুছে ফেলা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Could not delete card.');
     } finally {
       setSaving(false);
     }
   };
 
+  const previewColors =
+    previewTheme === 'paper'
+      ? {
+          bg: '#faf6ee',
+          elevated: '#fffdf8',
+          surface: '#f2ead9',
+          border: '#e3d8c3',
+          text: '#1f241e',
+          secondary: '#5e5a4f',
+          accent: '#8c6223',
+          accentText: '#ffffff',
+        }
+      : {
+          bg: '#110f0c',
+          elevated: '#231e18',
+          surface: '#1b1712',
+          border: '#352d24',
+          text: '#f0e8da',
+          secondary: '#b8ad9b',
+          accent: '#d4a654',
+          accentText: '#14110c',
+        };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-      {/* Left List */}
-      <section
-        className="lg:col-span-5 rounded-3xl border p-4 space-y-3"
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Header */}
+      <header
+        className="h-[52px] px-5 sm:px-7 border-b flex items-center justify-between gap-3 shrink-0"
         style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
+          backgroundColor: 'var(--st-bg)',
+          borderColor: 'var(--st-border)',
         }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">হোম স্পটলাইট কার্ড</h2>
-          <button
-            type="button"
-            onClick={startNewCard}
-            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer"
+        <div className="flex items-center gap-2">
+          <h1 className="text-[14px] font-semibold tracking-tight">Home Spotlight</h1>
+          <span
+            className="text-[11px] font-medium px-1.5 py-0.5 rounded-[5px] tabular-nums"
             style={{
-              backgroundColor: 'var(--accent)',
-              color: 'var(--accent-text)',
+              backgroundColor: 'var(--st-bg-muted)',
+              color: 'var(--st-text-muted)',
             }}
           >
-            <Plus className="w-3.5 h-3.5" />
-            নতুন কার্ড
-          </button>
+            {listItems.length}
+          </span>
         </div>
+        <StudioButton variant="primary" size="sm" onClick={startNewCard}>
+          <Plus className="w-3.5 h-3.5" />
+          New Card
+        </StudioButton>
+      </header>
 
-        {catalog.featuredCards.length === 0 ? (
-          <p className="py-10 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            এখনো কোনো স্পটলাইট কার্ড নেই।
-          </p>
+      {/* Full-Width List */}
+      <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--st-bg)' }}>
+        {listItems.length === 0 ? (
+          <StudioEmptyState
+            icon={<Sparkles className="w-5 h-5" />}
+            title="No spotlight cards yet"
+            description="Highlight Jumu'ah reminders, Ramadan notices, or curated routines directly on the Sukoon home screen."
+            action={
+              <StudioButton variant="primary" size="md" onClick={startNewCard}>
+                <Plus className="w-4 h-4" />
+                Create Spotlight Card
+              </StudioButton>
+            }
+          />
         ) : (
-          <div className="space-y-2">
-            {catalog.featuredCards.map((card) => (
+          <div className="divide-y" style={{ borderColor: 'var(--st-border)' }}>
+            {listItems.map((card) => (
               <button
                 key={card.id}
                 type="button"
-                onClick={() => openCard(card)}
-                className="w-full p-3 rounded-2xl border text-left space-y-1 cursor-pointer"
-                style={{
-                  backgroundColor:
-                    draft?.id === card.id
-                      ? 'var(--accent-soft)'
-                      : 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
+                onClick={() => openListItem(card)}
+                className="studio-hover w-full px-5 sm:px-7 py-3.5 text-left flex items-center justify-between gap-4 transition-colors cursor-pointer"
+                style={{ borderColor: 'var(--st-border)' }}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold truncate">
-                    {card.titleBangla}
-                  </p>
-                  <span
-                    className="text-[10px] px-2 py-0.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: card.active
-                        ? 'var(--accent-soft)'
-                        : 'var(--bg-elevated)',
-                      color: card.active ? 'var(--accent)' : 'var(--text-muted)',
-                    }}
-                  >
-                    {card.active ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
-                  </span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[13.5px] font-medium truncate">
+                      {card.titleBangla}
+                    </p>
+                    <span
+                      className="text-[11px] font-mono"
+                      style={{ color: 'var(--st-text-muted)' }}
+                    >
+                      P{card.priority}
+                    </span>
+                    {card.isLocalOnly ? (
+                      <StudioBadge tone="blue" dot>
+                        Draft
+                      </StudioBadge>
+                    ) : (
+                      <StudioBadge tone={card.active ? 'emerald' : 'neutral'} dot>
+                        {card.active ? 'Active' : 'Paused'}
+                      </StudioBadge>
+                    )}
+                    {card.hasLocalDraft && !card.isLocalOnly && (
+                      <StudioBadge tone="blue" dot>
+                        Draft
+                      </StudioBadge>
+                    )}
+                  </div>
+                  {card.bodyBangla && (
+                    <p
+                      className="text-xs truncate"
+                      style={{ color: 'var(--st-text-muted)' }}
+                    >
+                      {card.bodyBangla}
+                    </p>
+                  )}
                 </div>
-                {(card.startDate || card.endDate) && (
-                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                    সিডিউল: {card.startDate || 'শুরু নেই'} → {card.endDate || 'শেষ নেই'}
-                  </p>
-                )}
+
+                <div className="flex items-center gap-3 shrink-0">
+                  {(card.startDate || card.endDate) && (
+                    <span
+                      className="hidden sm:inline text-[11px] font-mono"
+                      style={{ color: 'var(--st-text-muted)' }}
+                    >
+                      {card.startDate || '∞'} → {card.endDate || '∞'}
+                    </span>
+                  )}
+                  <ChevronRight
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--st-text-faint)' }}
+                  />
+                </div>
               </button>
             ))}
           </div>
         )}
-      </section>
+      </div>
 
-      {/* Right Editor + Live Preview */}
-      <section
-        className="lg:col-span-7 rounded-3xl border p-5 space-y-4"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
-      >
-        {!draft ? (
-          <p className="py-16 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            হোম স্ক্রিনে বিশেষ আমল, জুমুআ/রমাদান রিমাইন্ডার বা নতুন রুটিন হাইলাইট করতে একটি কার্ড তৈরি করুন।
-          </p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold">
-                {draft.isNew ? 'নতুন স্পটলাইট কার্ড' : 'স্পটলাইট কার্ড সম্পাদনা'}
-              </h3>
-              <label className="inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={draft.active}
-                  onChange={(e) => setDraft({ ...draft, active: e.target.checked })}
-                />
-                সক্রিয় (হোমে দেখাবে)
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="space-y-1 block">
-                <span className="text-xs font-medium">ব্যাজ লেবেল</span>
-                <input
-                  type="text"
-                  value={draft.badgeLabel}
-                  onChange={(e) =>
-                    setDraft({ ...draft, badgeLabel: e.target.value })
-                  }
-                  placeholder="যেমন: জুমুআর আমল"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </label>
-
-              <label className="space-y-1 block">
-                <span className="text-xs font-medium">প্রায়োরিটি (বেশি হলে আগে দেখাবে)</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={10000}
-                  value={draft.priority}
-                  onChange={(e) =>
-                    setDraft({ ...draft, priority: Math.max(0, Number(e.target.value) || 0) })
-                  }
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </label>
-            </div>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">শিরোনাম *</span>
-              <input
-                type="text"
-                value={draft.titleBangla}
-                onChange={(e) =>
-                  setDraft({ ...draft, titleBangla: e.target.value })
-                }
-                placeholder="যেমন: আজ জুমুআ — সূরা কাহফ তিলাওয়াত করুন"
-                className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">বিবরণ / বার্তা *</span>
-              <textarea
-                rows={3}
-                value={draft.bodyBangla}
-                onChange={(e) =>
-                  setDraft({ ...draft, bodyBangla: e.target.value })
-                }
-                className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">আরবি আয়াত / দুআ (ঐচ্ছিক)</span>
-              <textarea
-                dir="rtl"
-                rows={2}
-                value={draft.arabicSnippet}
-                onChange={(e) =>
-                  setDraft({ ...draft, arabicSnippet: e.target.value })
-                }
-                className="w-full px-3 py-2 rounded-xl border outline-none font-indopak text-xl text-right"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            {/* Schedule */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="space-y-1 block">
-                <span className="text-xs font-medium">শুরুর তারিখ (ঐচ্ছিক)</span>
-                <input
-                  type="date"
-                  value={draft.startDate}
-                  onChange={(e) =>
-                    setDraft({ ...draft, startDate: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </label>
-              <label className="space-y-1 block">
-                <span className="text-xs font-medium">শেষের তারিখ (ঐচ্ছিক)</span>
-                <input
-                  type="date"
-                  value={draft.endDate}
-                  onChange={(e) =>
-                    setDraft({ ...draft, endDate: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </label>
-            </div>
-
-            {/* Action Link */}
-            <div
-              className="rounded-2xl border p-3 space-y-2.5"
+      {/* Full-Screen Editor Sheet */}
+      <StudioEditorSheet
+        open={Boolean(draft)}
+        showPreview={showPreview}
+        header={
+          draft && (
+            <header
+              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
               style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
+                backgroundColor: 'var(--st-bg)',
+                borderColor: 'var(--st-border)',
               }}
             >
-              <span className="text-xs font-semibold block">বাটন অ্যাকশন (CTA)</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <select
-                  value={draft.actionType}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      actionType: e.target.value as FeaturedCardActionType,
-                    })
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[13.5px] font-semibold tracking-tight truncate">
+                  {draft.isNew ? 'New Spotlight' : 'Edit Spotlight'}
+                </span>
+                {isDirty ? (
+                  <StudioBadge tone="amber" dot>
+                    Unsaved
+                  </StudioBadge>
+                ) : hasSavedDraft ? (
+                  <StudioBadge tone="blue" dot>
+                    Draft Saved
+                  </StudioBadge>
+                ) : draft.isNew ? (
+                  <StudioBadge tone="blue" dot>
+                    New Draft
+                  </StudioBadge>
+                ) : (
+                  <StudioBadge tone={draft.active ? 'emerald' : 'neutral'} dot>
+                    {draft.active ? 'Published' : 'Paused'}
+                  </StudioBadge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {(!draft.isNew || hasSavedDraft) && (
+                  <StudioButton
+                    variant="ghost"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => setConfirmOpen(true)}
+                    style={{ color: 'var(--st-danger)' }}
+                    title={draft.isNew ? 'Delete draft' : 'Delete card'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </StudioButton>
+                )}
+
+                <StudioButton
+                  variant="ghost"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </StudioButton>
+
+                <StudioButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleSaveDraft}
+                >
+                  <FilePenLine className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Save Draft</span>
+                </StudioButton>
+
+                <StudioButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowPreview((v) => !v)}
+                  style={
+                    showPreview
+                      ? {
+                          backgroundColor: 'var(--st-bg-active)',
+                          borderColor: 'var(--st-border-strong)',
+                        }
+                      : undefined
                   }
-                  className="px-3 py-1.5 rounded-xl text-xs border"
+                >
+                  {showPreview ? (
+                    <EyeOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">Preview</span>
+                </StudioButton>
+
+                <StudioButton
+                  variant={isPublishedClean ? 'secondary' : 'primary'}
+                  size="sm"
+                  loading={saving}
+                  onClick={() => void handlePublish()}
+                  style={
+                    isPublishedClean
+                      ? {
+                          color: 'var(--st-accent)',
+                          borderColor:
+                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
+                        }
+                      : undefined
+                  }
+                >
+                  {!saving &&
+                    (isPublishedClean ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    ))}
+                  <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
+                </StudioButton>
+              </div>
+            </header>
+          )
+        }
+        previewPane={
+          draft && (
+            <aside
+              className="w-full xl:w-[380px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
+              style={{
+                backgroundColor: 'var(--st-bg-subtle)',
+                borderColor: 'var(--st-border)',
+              }}
+            >
+              <div
+                className="h-10 px-4 border-b flex items-center justify-between gap-2 shrink-0"
+                style={{ borderColor: 'var(--st-border)' }}
+              >
+                <span
+                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
+                  style={{ color: 'var(--st-text-muted)' }}
+                >
+                  Home Card Preview
+                </span>
+                <div
+                  className="inline-flex p-0.5 rounded-[5px] border text-[11px] font-medium"
                   style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
+                    backgroundColor: 'var(--st-bg)',
+                    borderColor: 'var(--st-border)',
                   }}
                 >
-                  <option value="none">কোনো লিংক নেই (শুধু বার্তা)</option>
-                  <option value="surah">সূরা / আয়াত খুলুন</option>
-                  <option value="dua">দুআ খুলুন</option>
-                  <option value="routineTemplate">সাজেস্টেড রুটিন দেখুন</option>
-                </select>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTheme('paper')}
+                    className="px-2 py-0.5 rounded-[4px] cursor-pointer"
+                    style={{
+                      backgroundColor:
+                        previewTheme === 'paper' ? 'var(--st-bg-active)' : 'transparent',
+                      color:
+                        previewTheme === 'paper'
+                          ? 'var(--st-text)'
+                          : 'var(--st-text-muted)',
+                    }}
+                  >
+                    Paper
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTheme('dark')}
+                    className="px-2 py-0.5 rounded-[4px] cursor-pointer"
+                    style={{
+                      backgroundColor:
+                        previewTheme === 'dark' ? 'var(--st-bg-active)' : 'transparent',
+                      color:
+                        previewTheme === 'dark'
+                          ? 'var(--st-text)'
+                          : 'var(--st-text-muted)',
+                    }}
+                  >
+                    Dark
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="flex-1 overflow-y-auto p-5 flex items-start justify-center"
+                style={{ backgroundColor: previewColors.bg }}
+              >
+                <div
+                  className="w-full max-w-[330px] rounded-2xl border p-4 space-y-2.5"
+                  style={{
+                    backgroundColor: previewColors.elevated,
+                    borderColor: previewColors.border,
+                    color: previewColors.text,
+                  }}
+                >
+                  <p
+                    className="text-[11px] font-semibold inline-flex items-center gap-1"
+                    style={{ color: previewColors.accent }}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {draft.badgeLabel || 'বিশেষ আমল'}
+                  </p>
+                  <h4 className="text-[15px] font-semibold leading-snug">
+                    {draft.titleBangla || '(শিরোনাম)'}
+                  </h4>
+                  {draft.arabicSnippet && (
+                    <p
+                      dir="rtl"
+                      className="font-indopak text-xl leading-[2.2] text-right py-2 px-3 rounded-xl"
+                      style={{ backgroundColor: previewColors.surface }}
+                    >
+                      {normalizeIndoPakText(draft.arabicSnippet)}
+                    </p>
+                  )}
+                  <p
+                    className="text-xs leading-relaxed"
+                    style={{ color: previewColors.secondary }}
+                  >
+                    {draft.bodyBangla || '(সংক্ষিপ্ত বার্তা এখানে দেখাবে)'}
+                  </p>
+                  {draft.actionType !== 'none' && (
+                    <div className="pt-1">
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium"
+                        style={{
+                          backgroundColor: previewColors.accent,
+                          color: previewColors.accentText,
+                        }}
+                      >
+                        {draft.ctaLabel || 'পাঠ করুন'}
+                        <ArrowRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </aside>
+          )
+        }
+      >
+        {draft && (
+          <div className="max-w-[700px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+            <StudioSection title="Visibility & Schedule">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <StudioSwitch
+                  checked={draft.active}
+                  onChange={(checked) => setDraft({ ...draft, active: checked })}
+                  label="Active on Home"
+                  description="Show this spotlight banner to users"
+                />
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: 'var(--st-text-secondary)' }}
+                  >
+                    Priority
+                  </span>
+                  <StudioInput
+                    type="number"
+                    min={0}
+                    max={10000}
+                    value={draft.priority}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        priority: Math.max(0, Number(e.target.value) || 0),
+                      })
+                    }
+                    className="!w-20 !h-8 font-mono tabular-nums text-center"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <StudioField label="Start Date (Optional)">
+                  <StudioInput
+                    type="date"
+                    value={draft.startDate}
+                    onChange={(e) => setDraft({ ...draft, startDate: e.target.value })}
+                  />
+                </StudioField>
+                <StudioField label="End Date (Optional)">
+                  <StudioInput
+                    type="date"
+                    value={draft.endDate}
+                    onChange={(e) => setDraft({ ...draft, endDate: e.target.value })}
+                  />
+                </StudioField>
+              </div>
+            </StudioSection>
+
+            <StudioSection title="Card Content">
+              <StudioField label="Badge Label">
+                <StudioInput
+                  type="text"
+                  value={draft.badgeLabel}
+                  onChange={(e) => setDraft({ ...draft, badgeLabel: e.target.value })}
+                  placeholder="যেমন: জুমুআর আমল"
+                />
+              </StudioField>
+
+              <StudioField label="Headline (Bangla)" required>
+                <StudioInput
+                  type="text"
+                  value={draft.titleBangla}
+                  onChange={(e) => setDraft({ ...draft, titleBangla: e.target.value })}
+                  placeholder="যেমন: আজ জুমুআ — সূরা কাহফ তিলাওয়াত করুন"
+                  className="!h-10 !text-[15px] font-medium"
+                />
+              </StudioField>
+
+              <StudioField label="Message Body (Bangla)" required>
+                <StudioTextarea
+                  rows={3}
+                  value={draft.bodyBangla}
+                  onChange={(e) => setDraft({ ...draft, bodyBangla: e.target.value })}
+                  placeholder="সংক্ষিপ্ত বার্তা বা ফযীলত..."
+                />
+              </StudioField>
+
+              <StudioField
+                label="Arabic Snippet (Optional)"
+                action={
+                  <span
+                    className="text-[11px] font-mono"
+                    style={{ color: 'var(--st-text-faint)' }}
+                  >
+                    IndoPak • RTL
+                  </span>
+                }
+              >
+                <textarea
+                  dir="rtl"
+                  rows={2}
+                  value={draft.arabicSnippet}
+                  onChange={(e) => setDraft({ ...draft, arabicSnippet: e.target.value })}
+                  placeholder="ঐচ্ছিক আরবি আয়াত বা দুআ..."
+                  className="studio-field-control w-full px-3.5 py-3 font-indopak text-2xl leading-[2.1] text-right placeholder:font-sans placeholder:text-sm placeholder:leading-normal"
+                />
+              </StudioField>
+            </StudioSection>
+
+            <StudioSection title="Call-to-Action Button">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <StudioField label="Action Target">
+                  <StudioDropdown<FeaturedCardActionType>
+                    value={draft.actionType}
+                    searchable={false}
+                    onChange={(val) => setDraft({ ...draft, actionType: val })}
+                    options={[
+                      { value: 'none', label: 'No link (Message only)' },
+                      { value: 'surah', label: 'Open Surah / Ayah' },
+                      { value: 'dua', label: 'Open Dua' },
+                      { value: 'routineTemplate', label: 'Open Routine Template' },
+                    ]}
+                  />
+                </StudioField>
 
                 {draft.actionType !== 'none' && (
-                  <input
-                    type="text"
-                    value={draft.ctaLabel}
-                    onChange={(e) =>
-                      setDraft({ ...draft, ctaLabel: e.target.value })
-                    }
-                    placeholder="বাটন টেক্সট (যেমন: পাঠ করুন)"
-                    className="px-3 py-1.5 rounded-xl text-xs border"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  />
+                  <StudioField label="Button Label">
+                    <StudioInput
+                      type="text"
+                      value={draft.ctaLabel}
+                      onChange={(e) => setDraft({ ...draft, ctaLabel: e.target.value })}
+                      placeholder="যেমন: পাঠ করুন"
+                    />
+                  </StudioField>
                 )}
               </div>
 
               {draft.actionType === 'surah' && (
-                <div className="grid grid-cols-3 gap-2">
-                  <select
-                    value={draft.surahId}
-                    onChange={(e) =>
-                      setDraft({ ...draft, surahId: Number(e.target.value) })
-                    }
-                    className="col-span-2 px-3 py-1.5 rounded-xl text-xs border"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
-                    {SURAHS.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {toBanglaDigits(s.id)}. {s.nameBangla}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min={1}
-                    max={286}
-                    value={draft.startAyah}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        startAyah: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                    placeholder="আয়াত"
-                    className="px-3 py-1.5 rounded-xl text-xs border"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <StudioField label="Surah" className="sm:col-span-8">
+                    <StudioDropdown<number>
+                      value={draft.surahId}
+                      onChange={(val) => setDraft({ ...draft, surahId: val })}
+                      searchPlaceholder="Search Surah…"
+                      options={SURAHS.map((s) => ({
+                        value: s.id,
+                        label: `${s.id}. ${s.nameBangla}`,
+                        meta: `${s.versesCount}`,
+                      }))}
+                    />
+                  </StudioField>
+                  <StudioField label="Start Ayah" className="sm:col-span-4">
+                    <StudioInput
+                      type="number"
+                      min={1}
+                      max={286}
+                      value={draft.startAyah}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          startAyah: Math.max(1, Number(e.target.value) || 1),
+                        })
+                      }
+                      className="font-mono tabular-nums"
+                    />
+                  </StudioField>
                 </div>
               )}
 
               {draft.actionType === 'dua' && (
-                <select
-                  value={draft.duaId}
-                  onChange={(e) => setDraft({ ...draft, duaId: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded-xl text-xs border"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
-                  {catalog.duas.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {toBanglaDigits(d.chapterId)}. {d.titleBangla}
-                    </option>
-                  ))}
-                </select>
+                <StudioField label="Target Dua">
+                  <StudioDropdown<string>
+                    value={draft.duaId}
+                    onChange={(val) => setDraft({ ...draft, duaId: val })}
+                    searchPlaceholder="Search Duas…"
+                    options={catalog.duas.map((d) => ({
+                      value: d.id,
+                      label: `${d.chapterId}.${d.order} — ${d.titleBangla}`,
+                    }))}
+                  />
+                </StudioField>
               )}
 
               {draft.actionType === 'routineTemplate' && (
-                <select
-                  value={draft.templateId}
-                  onChange={(e) =>
-                    setDraft({ ...draft, templateId: e.target.value })
-                  }
-                  className="w-full px-3 py-1.5 rounded-xl text-xs border"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
-                  {catalog.routineTemplates.length === 0 ? (
-                    <option value="">আগে রুটিন টেমপ্লেট তৈরি করুন</option>
-                  ) : (
-                    catalog.routineTemplates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))
-                  )}
-                </select>
+                <StudioField label="Target Routine Template">
+                  <StudioDropdown<string>
+                    value={draft.templateId}
+                    disabled={catalog.routineTemplates.length === 0}
+                    placeholder="Create a routine template first"
+                    onChange={(val) => setDraft({ ...draft, templateId: val })}
+                    options={catalog.routineTemplates.map((t) => ({
+                      value: t.id,
+                      label: t.title,
+                      meta: `v${t.version}`,
+                    }))}
+                  />
+                </StudioField>
               )}
-            </div>
-
-            {/* Live Card Preview */}
-            <div
-              className="rounded-2xl p-4 border space-y-2"
-              style={{
-                backgroundColor: 'var(--bg-page)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <p className="text-[11px] font-semibold inline-flex items-center gap-1" style={{ color: 'var(--accent)' }}>
-                <Sparkles className="w-3 h-3" />
-                {draft.badgeLabel || 'বিশেষ আমল'} (হোম প্রিভিউ)
-              </p>
-              <h4 className="text-sm font-semibold">
-                {draft.titleBangla || '(শিরোনাম)'}
-              </h4>
-              {draft.arabicSnippet && (
-                <p dir="rtl" className="font-indopak text-xl text-right py-1">
-                  {normalizeIndoPakText(draft.arabicSnippet)}
-                </p>
-              )}
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                {draft.bodyBangla || '(বিবরণ)'}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-3 border-t"
-              style={{ borderColor: 'var(--border-subtle)' }}
-            >
-              {!draft.isNew ? (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void handleDelete()}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-xs font-medium border cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--danger-soft)',
-                    borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)',
-                    color: 'var(--danger)',
-                  }}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  ডিলিট
-                </button>
-              ) : (
-                <span />
-              )}
-
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void handlePublish()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer disabled:opacity-60"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                {saving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                পাবলিশ করুন
-              </button>
-            </div>
-          </>
+            </StudioSection>
+          </div>
         )}
-      </section>
+      </StudioEditorSheet>
+
+      <StudioConfirmDialog
+        open={confirmOpen}
+        title={draft?.isNew ? 'Delete saved draft?' : 'Delete spotlight card?'}
+        description={
+          draft?.isNew
+            ? 'This unpublished spotlight draft will be permanently discarded.'
+            : 'This spotlight card will be permanently removed from the Sukoon home screen.'
+        }
+        confirmLabel={draft?.isNew ? 'Delete Draft' : 'Delete Card'}
+        loading={saving}
+        onConfirm={() => void executeDelete()}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
+      <StudioConfirmDialog
+        open={confirmCancelOpen}
+        title="Discard unsaved changes?"
+        description="You have unsaved edits. Save as draft first or discard them and close the editor."
+        confirmLabel="Discard & Close"
+        cancelLabel="Keep Editing"
+        onConfirm={() => {
+          setConfirmCancelOpen(false);
+          setDraft(null);
+          setBaselineHash('');
+        }}
+        onCancel={() => setConfirmCancelOpen(false)}
+      />
     </div>
   );
 }

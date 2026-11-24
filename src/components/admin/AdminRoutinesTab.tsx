@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
-  Loader2,
+  BookOpen,
+  CalendarCheck2,
+  Check,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FilePenLine,
   Plus,
-  Save,
+  ScrollText,
+  Send,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -17,6 +24,27 @@ import {
 import { useCatalog } from '../../services/contentCatalog';
 import { DAY_SHORT_BN, toBanglaDigits } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
+import {
+  deleteDraftFromStorage,
+  loadDraftsMap,
+  saveDraftToStorage,
+  type StoredDraft,
+} from './adminDrafts';
+import type { StudioLaunchIntent } from './AdminPanelView';
+import {
+  StudioBadge,
+  StudioButton,
+  StudioConfirmDialog,
+  StudioDropdown,
+  StudioEditorSheet,
+  StudioEmptyState,
+  StudioField,
+  StudioInput,
+  StudioSection,
+  StudioSwitch,
+  StudioTextarea,
+  useKeyboardSave,
+} from './StudioUI';
 
 interface TemplateDraft {
   id: string;
@@ -31,22 +59,90 @@ interface TemplateDraft {
   version: number;
 }
 
-export function AdminRoutinesTab() {
+export function AdminRoutinesTab({
+  launchIntent,
+  onConsumeIntent,
+}: {
+  launchIntent?: StudioLaunchIntent | null;
+  onConsumeIntent?: () => void;
+}) {
   const toast = useToast();
   const catalog = useCatalog();
   const [draft, setDraft] = useState<TemplateDraft | null>(null);
+  const [baselineHash, setBaselineHash] = useState('');
+  const [savedDrafts, setSavedDrafts] = useState<Record<string, StoredDraft<TemplateDraft>>>(
+    () => loadDraftsMap<TemplateDraft>('routines')
+  );
+  const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
-  // Quick add controls
+  const [adderTab, setAdderTab] = useState<'surah' | 'dua'>('surah');
   const [selectedSurahId, setSelectedSurahId] = useState(18);
   const [startAyah, setStartAyah] = useState(1);
   const [endAyah, setEndAyah] = useState(110);
   const [duaSearch, setDuaSearch] = useState('');
 
-  const startNewTemplate = () => {
+  const listItems = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      version: number;
+      featured: boolean;
+      seasonTag?: string;
+      assignedDays: number[];
+      itemCount: number;
+      isLocalOnly?: boolean;
+      hasLocalDraft?: boolean;
+      source?: ActiveRoutineTemplate;
+    }> = [];
+
+    for (const tpl of catalog.routineTemplates) {
+      seen.add(tpl.id);
+      const local = savedDrafts[tpl.id]?.data;
+      out.push({
+        id: tpl.id,
+        title: local?.title || tpl.title,
+        description: local?.description ?? tpl.description,
+        version: tpl.version,
+        featured: local?.featured ?? tpl.featured,
+        seasonTag: local?.seasonTag ?? tpl.seasonTag,
+        assignedDays: local?.assignedDays ?? tpl.assignedDays,
+        itemCount: local ? local.items.length : tpl.items.length,
+        hasLocalDraft: Boolean(local),
+        source: tpl,
+      });
+    }
+
+    for (const entry of Object.values(savedDrafts)) {
+      if (seen.has(entry.id)) continue;
+      out.push({
+        id: entry.id,
+        title: entry.data.title || '(Untitled Template)',
+        description: entry.data.description,
+        version: entry.data.version,
+        featured: entry.data.featured,
+        seasonTag: entry.data.seasonTag || undefined,
+        assignedDays: entry.data.assignedDays,
+        itemCount: entry.data.items.length,
+        isLocalOnly: true,
+        hasLocalDraft: true,
+      });
+    }
+    return out;
+  }, [catalog.routineTemplates, savedDrafts]);
+
+  const isDirty = Boolean(draft) && JSON.stringify(draft) !== baselineHash;
+  const hasSavedDraft = draft ? Boolean(savedDrafts[draft.id]) : false;
+  const isPublishedClean = Boolean(draft) && !draft!.isNew && !hasSavedDraft && !isDirty;
+
+  const startNewTemplate = useCallback(() => {
     const nextOrder =
       catalog.routineTemplates.reduce((m, t) => Math.max(m, t.order), 0) + 1;
-    setDraft({
+    const fresh: TemplateDraft = {
       id: `tpl-${Date.now().toString(36)}`,
       isNew: true,
       title: '',
@@ -57,23 +153,55 @@ export function AdminRoutinesTab() {
       seasonTag: '',
       order: nextOrder,
       version: 1,
-    });
-  };
+    };
+    setDraft(fresh);
+    setBaselineHash(JSON.stringify(fresh));
+    setShowPreview(false);
+  }, [catalog.routineTemplates]);
 
-  const openTemplate = (tpl: ActiveRoutineTemplate) => {
-    setDraft({
-      id: tpl.id,
-      isNew: false,
-      title: tpl.title,
-      description: tpl.description ?? '',
-      assignedDays: [...tpl.assignedDays],
-      items: tpl.items.map((it) => ({ ...it })),
-      featured: tpl.featured,
-      seasonTag: tpl.seasonTag ?? '',
-      order: tpl.order,
-      version: tpl.version,
-    });
-  };
+  const openListItem = useCallback(
+    (row: (typeof listItems)[number]) => {
+      const local = savedDrafts[row.id]?.data;
+      if (local) {
+        const cloned: TemplateDraft = {
+          ...local,
+          assignedDays: [...local.assignedDays],
+          items: local.items.map((it) => ({ ...it })),
+        };
+        setDraft(cloned);
+        setBaselineHash(JSON.stringify(cloned));
+        return;
+      }
+      if (!row.source) return;
+      const tpl = row.source;
+      const loaded: TemplateDraft = {
+        id: tpl.id,
+        isNew: false,
+        title: tpl.title,
+        description: tpl.description ?? '',
+        assignedDays: [...tpl.assignedDays],
+        items: tpl.items.map((it) => ({ ...it })),
+        featured: tpl.featured,
+        seasonTag: tpl.seasonTag ?? '',
+        order: tpl.order,
+        version: tpl.version,
+      };
+      setDraft(loaded);
+      setBaselineHash(JSON.stringify(loaded));
+    },
+    [savedDrafts]
+  );
+
+  useEffect(() => {
+    if (!launchIntent) return;
+    if (launchIntent.mode === 'new') {
+      startNewTemplate();
+    } else if (launchIntent.mode === 'edit' && launchIntent.id) {
+      const row = listItems.find((r) => r.id === launchIntent.id);
+      if (row) openListItem(row);
+    }
+    onConsumeIntent?.();
+  }, [launchIntent, listItems, startNewTemplate, openListItem, onConsumeIntent]);
 
   const toggleDay = (d: number) => {
     if (!draft) return;
@@ -124,14 +252,30 @@ export function AdminRoutinesTab() {
     setDraft({ ...draft, items: next });
   };
 
-  const handlePublish = async () => {
+  const handleSaveDraft = () => {
     if (!draft) return;
+    setSavedDrafts(saveDraftToStorage('routines', draft.id, draft));
+    setBaselineHash(JSON.stringify(draft));
+    toast.info('Routine draft saved locally.');
+  };
+
+  const handleCancel = () => {
+    if (isDirty) {
+      setConfirmCancelOpen(true);
+    } else {
+      setDraft(null);
+      setBaselineHash('');
+    }
+  };
+
+  const handlePublish = useCallback(async () => {
+    if (!draft || saving) return;
     if (!draft.title.trim()) {
-      toast.warning('রুটিনের শিরোনাম লিখুন।');
+      toast.warning('Routine title is required.');
       return;
     }
     if (draft.items.length === 0) {
-      toast.warning('অন্তত একটি সূরা বা দুআ যোগ করুন।');
+      toast.warning('Add at least one Surah or Dua.');
       return;
     }
     setSaving(true);
@@ -148,27 +292,43 @@ export function AdminRoutinesTab() {
         order: draft.order,
         version: nextVersion,
       });
-      setDraft({ ...draft, isNew: false, version: nextVersion });
-      toast.success(
-        `রুটিন টেমপ্লেট পাবলিশ হয়েছে (ভার্সন ${toBanglaDigits(nextVersion)})।`
-      );
+      const saved: TemplateDraft = { ...draft, isNew: false, version: nextVersion };
+      setSavedDrafts(deleteDraftFromStorage<TemplateDraft>('routines', draft.id));
+      setDraft(saved);
+      setBaselineHash(JSON.stringify(saved));
+      toast.success(`Routine template published (v${nextVersion}).`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'পাবলিশ করা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Failed to publish template.');
     } finally {
       setSaving(false);
     }
-  };
+  }, [draft, saving, toast]);
 
-  const handleDelete = async () => {
-    if (!draft || draft.isNew) return;
-    if (!window.confirm('এই সাজেস্টেড রুটিন টেমপ্লেটটি মুছে ফেলবেন?')) return;
+  useKeyboardSave(Boolean(draft) && !saving, () => {
+    void handlePublish();
+  });
+
+  const executeDelete = async () => {
+    if (!draft) return;
+    if (draft.isNew && hasSavedDraft) {
+      setSavedDrafts(deleteDraftFromStorage<TemplateDraft>('routines', draft.id));
+      setConfirmOpen(false);
+      setDraft(null);
+      setBaselineHash('');
+      toast.info('Draft discarded.');
+      return;
+    }
+    if (draft.isNew) return;
     setSaving(true);
     try {
       await adminDeleteRoutineTemplate(draft.id);
+      setSavedDrafts(deleteDraftFromStorage<TemplateDraft>('routines', draft.id));
+      setConfirmOpen(false);
       setDraft(null);
-      toast.info('টেমপ্লেটটি মুছে ফেলা হয়েছে।');
+      setBaselineHash('');
+      toast.info('Routine template deleted.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'মুছে ফেলা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Could not delete template.');
     } finally {
       setSaving(false);
     }
@@ -179,174 +339,421 @@ export function AdminRoutinesTab() {
         .filter((d) =>
           d.titleBangla.toLowerCase().includes(duaSearch.trim().toLowerCase())
         )
-        .slice(0, 8)
-    : catalog.duas.slice(0, 8);
+        .slice(0, 10)
+    : catalog.duas.slice(0, 10);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-      {/* Left List */}
-      <section
-        className="lg:col-span-5 rounded-3xl border p-4 space-y-3"
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Header */}
+      <header
+        className="h-[52px] px-5 sm:px-7 border-b flex items-center justify-between gap-3 shrink-0"
         style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
+          backgroundColor: 'var(--st-bg)',
+          borderColor: 'var(--st-border)',
         }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">সাজেস্টেড রুটিন টেমপ্লেট</h2>
-          <button
-            type="button"
-            onClick={startNewTemplate}
-            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer"
+        <div className="flex items-center gap-2">
+          <h1 className="text-[14px] font-semibold tracking-tight">Routine Templates</h1>
+          <span
+            className="text-[11px] font-medium px-1.5 py-0.5 rounded-[5px] tabular-nums"
             style={{
-              backgroundColor: 'var(--accent)',
-              color: 'var(--accent-text)',
+              backgroundColor: 'var(--st-bg-muted)',
+              color: 'var(--st-text-muted)',
             }}
           >
-            <Plus className="w-3.5 h-3.5" />
-            নতুন টেমপ্লেট
-          </button>
+            {listItems.length}
+          </span>
         </div>
+        <StudioButton variant="primary" size="sm" onClick={startNewTemplate}>
+          <Plus className="w-3.5 h-3.5" />
+          New Template
+        </StudioButton>
+      </header>
 
-        {catalog.routineTemplates.length === 0 ? (
-          <p className="py-10 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            এখনো কোনো অ্যাডমিন রুটিন টেমপ্লেট পাবলিশ করা হয়নি।
-          </p>
+      {/* Full-Width List */}
+      <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--st-bg)' }}>
+        {listItems.length === 0 ? (
+          <StudioEmptyState
+            icon={<CalendarCheck2 className="w-5 h-5" />}
+            title="No routine templates yet"
+            description="Create curated Surah & Dua routines (such as Jumu'ah Amol or Evening Adhkar) that users can adopt in one tap."
+            action={
+              <StudioButton variant="primary" size="md" onClick={startNewTemplate}>
+                <Plus className="w-4 h-4" />
+                Create Routine Template
+              </StudioButton>
+            }
+          />
         ) : (
-          <div className="space-y-2">
-            {catalog.routineTemplates.map((tpl) => (
+          <div className="divide-y" style={{ borderColor: 'var(--st-border)' }}>
+            {listItems.map((tpl) => (
               <button
                 key={tpl.id}
                 type="button"
-                onClick={() => openTemplate(tpl)}
-                className="w-full p-3 rounded-2xl border text-left space-y-1 cursor-pointer"
-                style={{
-                  backgroundColor:
-                    draft?.id === tpl.id
-                      ? 'var(--accent-soft)'
-                      : 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
+                onClick={() => openListItem(tpl)}
+                className="studio-hover w-full px-5 sm:px-7 py-3.5 text-left flex items-center justify-between gap-4 transition-colors cursor-pointer"
+                style={{ borderColor: 'var(--st-border)' }}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold truncate">{tpl.title}</p>
-                  <span
-                    className="text-[10px] shrink-0"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    v{toBanglaDigits(tpl.version)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  {tpl.featured && (
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[13.5px] font-medium truncate">{tpl.title}</p>
                     <span
-                      className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full font-medium"
-                      style={{
-                        backgroundColor: 'var(--gold-soft)',
-                        color: 'var(--gold)',
-                      }}
+                      className="text-[11px] font-mono"
+                      style={{ color: 'var(--st-text-muted)' }}
                     >
-                      <Sparkles className="w-2.5 h-2.5" />
-                      ফিচার্ড
+                      v{tpl.version}
                     </span>
+                    {tpl.hasLocalDraft && (
+                      <StudioBadge tone="blue" dot>
+                        Draft
+                      </StudioBadge>
+                    )}
+                    {tpl.featured && (
+                      <StudioBadge tone="amber">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        Featured
+                      </StudioBadge>
+                    )}
+                    {tpl.seasonTag && (
+                      <StudioBadge tone="neutral">{tpl.seasonTag}</StudioBadge>
+                    )}
+                  </div>
+                  {tpl.description && (
+                    <p
+                      className="text-xs truncate"
+                      style={{ color: 'var(--st-text-muted)' }}
+                    >
+                      {tpl.description}
+                    </p>
                   )}
-                  {tpl.seasonTag && <span>{tpl.seasonTag}</span>}
-                  <span>• {toBanglaDigits(tpl.items.length)}টি অংশ</span>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span
+                    className="hidden sm:inline text-xs"
+                    style={{ color: 'var(--st-text-muted)' }}
+                  >
+                    {tpl.itemCount} {tpl.itemCount === 1 ? 'item' : 'items'}
+                  </span>
+                  <ChevronRight
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--st-text-faint)' }}
+                  />
                 </div>
               </button>
             ))}
           </div>
         )}
-      </section>
+      </div>
 
-      {/* Right Editor */}
-      <section
-        className="lg:col-span-7 rounded-3xl border p-5 space-y-4"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
+      {/* Full-Screen Editor Sheet */}
+      <StudioEditorSheet
+        open={Boolean(draft)}
+        showPreview={showPreview}
+        header={
+          draft && (
+            <header
+              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
+              style={{
+                backgroundColor: 'var(--st-bg)',
+                borderColor: 'var(--st-border)',
+              }}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[13.5px] font-semibold tracking-tight truncate">
+                  {draft.isNew ? 'New Routine' : 'Edit Routine'}
+                </span>
+                <code
+                  className="hidden sm:inline-block text-[11px] font-mono px-1.5 py-0.5 rounded-[5px] border"
+                  style={{
+                    backgroundColor: 'var(--st-bg-subtle)',
+                    borderColor: 'var(--st-border)',
+                    color: 'var(--st-text-muted)',
+                  }}
+                >
+                  v{draft.version}
+                </code>
+                {isDirty ? (
+                  <StudioBadge tone="amber" dot>
+                    Unsaved
+                  </StudioBadge>
+                ) : hasSavedDraft ? (
+                  <StudioBadge tone="blue" dot>
+                    Draft Saved
+                  </StudioBadge>
+                ) : draft.isNew ? (
+                  <StudioBadge tone="blue" dot>
+                    New Draft
+                  </StudioBadge>
+                ) : (
+                  <StudioBadge tone="emerald" dot>
+                    Published
+                  </StudioBadge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {(!draft.isNew || hasSavedDraft) && (
+                  <StudioButton
+                    variant="ghost"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => setConfirmOpen(true)}
+                    style={{ color: 'var(--st-danger)' }}
+                    title={draft.isNew ? 'Delete draft' : 'Delete template'}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </StudioButton>
+                )}
+
+                <StudioButton
+                  variant="ghost"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </StudioButton>
+
+                <StudioButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleSaveDraft}
+                >
+                  <FilePenLine className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Save Draft</span>
+                </StudioButton>
+
+                <StudioButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowPreview((v) => !v)}
+                  style={
+                    showPreview
+                      ? {
+                          backgroundColor: 'var(--st-bg-active)',
+                          borderColor: 'var(--st-border-strong)',
+                        }
+                      : undefined
+                  }
+                >
+                  {showPreview ? (
+                    <EyeOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">Preview</span>
+                </StudioButton>
+
+                <StudioButton
+                  variant={isPublishedClean ? 'secondary' : 'primary'}
+                  size="sm"
+                  loading={saving}
+                  onClick={() => void handlePublish()}
+                  style={
+                    isPublishedClean
+                      ? {
+                          color: 'var(--st-accent)',
+                          borderColor:
+                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
+                        }
+                      : undefined
+                  }
+                >
+                  {!saving &&
+                    (isPublishedClean ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    ))}
+                  <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
+                </StudioButton>
+              </div>
+            </header>
+          )
+        }
+        previewPane={
+          draft && (
+            <aside
+              className="w-full xl:w-[370px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
+              style={{
+                backgroundColor: 'var(--st-bg-subtle)',
+                borderColor: 'var(--st-border)',
+              }}
+            >
+              <div
+                className="h-10 px-4 border-b flex items-center shrink-0"
+                style={{ borderColor: 'var(--st-border)' }}
+              >
+                <span
+                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
+                  style={{ color: 'var(--st-text-muted)' }}
+                >
+                  Routine Card Preview
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 flex justify-center">
+                <div
+                  className="w-full max-w-[320px] h-fit rounded-2xl border p-4 space-y-3"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {draft.featured && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[10.5px] font-medium px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: 'var(--gold-soft)',
+                          color: 'var(--gold)',
+                        }}
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        ফিচার্ড
+                      </span>
+                    )}
+                    {draft.seasonTag && (
+                      <span
+                        className="text-[10.5px] px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: 'var(--accent-soft)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {draft.seasonTag}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold">
+                      {draft.title || '(রুটিনের নাম নেই)'}
+                    </h4>
+                    {draft.description && (
+                      <p
+                        className="text-xs mt-1 leading-relaxed"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        {draft.description}
+                      </p>
+                    )}
+                  </div>
+                  <div
+                    className="text-[11px] pt-2 border-t flex items-center justify-between"
+                    style={{
+                      borderColor: 'var(--border-subtle)',
+                      color: 'var(--text-muted)',
+                    }}
+                  >
+                    <span>{toBanglaDigits(draft.items.length)}টি আমল</span>
+                    <span>
+                      {draft.assignedDays.length === 0
+                        ? 'ম্যানুয়াল'
+                        : draft.assignedDays.length === 7
+                          ? 'প্রতিদিন'
+                          : draft.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          )
+        }
       >
-        {!draft ? (
-          <p className="py-16 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            যেকোনো টেমপ্লেট সিলেক্ট করুন অথবা “নতুন টেমপ্লেট” তৈরি করুন। ইউজাররা এটি ১ ট্যাপে নিজের রুটিনে অ্যাডপ্ট ও কাস্টমাইজ করতে পারবে।
-          </p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
-                {draft.isNew
-                  ? 'নতুন রুটিন টেমপ্লেট'
-                  : `টেমপ্লেট সম্পাদনা (v${toBanglaDigits(draft.version)})`}
-              </h3>
-              <label className="inline-flex items-center gap-1.5 text-xs font-medium cursor-pointer">
-                <input
-                  type="checkbox"
+        {draft && (
+          <div className="max-w-[740px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+            <StudioSection title="Template Details">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                <StudioField
+                  label="Routine Title (Bangla)"
+                  required
+                  className="sm:col-span-8"
+                >
+                  <StudioInput
+                    type="text"
+                    value={draft.title}
+                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                    placeholder="যেমন: জুমুআর বিশেষ আমল"
+                    className="!h-10 !text-[15px] font-medium"
+                  />
+                </StudioField>
+                <StudioField label="Season / Badge Tag" className="sm:col-span-4">
+                  <StudioInput
+                    type="text"
+                    value={draft.seasonTag}
+                    onChange={(e) => setDraft({ ...draft, seasonTag: e.target.value })}
+                    placeholder="যেমন: জুমুআ / রমাদান"
+                    className="!h-10"
+                  />
+                </StudioField>
+              </div>
+
+              <StudioField label="Description (Optional)">
+                <StudioTextarea
+                  rows={2}
+                  value={draft.description}
+                  onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                  placeholder="এই রুটিনটি কখন ও কেন পড়বেন..."
+                />
+              </StudioField>
+
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+                <StudioSwitch
                   checked={draft.featured}
-                  onChange={(e) =>
-                    setDraft({ ...draft, featured: e.target.checked })
-                  }
+                  onChange={(checked) => setDraft({ ...draft, featured: checked })}
+                  label="Featured Template"
+                  description="Pin this template to the top of Suggested Routines"
                 />
-                ফিচার্ড (সবার উপরে দেখাবে)
-              </label>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <label className="sm:col-span-2 space-y-1 block">
-                <span className="text-xs font-medium">রুটিনের নাম *</span>
-                <input
-                  type="text"
-                  value={draft.title}
-                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                  placeholder="যেমন: জুমুআর বিশেষ আমল"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </label>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: 'var(--st-text-secondary)' }}
+                  >
+                    Sort Order
+                  </span>
+                  <StudioInput
+                    type="number"
+                    min={0}
+                    value={draft.order}
+                    onChange={(e) =>
+                      setDraft({ ...draft, order: Number(e.target.value) || 0 })
+                    }
+                    className="!w-20 !h-8 font-mono tabular-nums text-center"
+                  />
+                </div>
+              </div>
+            </StudioSection>
 
-              <label className="space-y-1 block">
-                <span className="text-xs font-medium">সিজন / ব্যাজ ট্যাগ</span>
-                <input
-                  type="text"
-                  value={draft.seasonTag}
-                  onChange={(e) =>
-                    setDraft({ ...draft, seasonTag: e.target.value })
-                  }
-                  placeholder="যেমন: জুমুআ / রমাদান"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                  style={{
-                    backgroundColor: 'var(--bg-surface)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </label>
-            </div>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">সংক্ষিপ্ত বিবরণ (ঐচ্ছিক)</span>
-              <textarea
-                rows={2}
-                value={draft.description}
-                onChange={(e) =>
-                  setDraft({ ...draft, description: e.target.value })
-                }
-                placeholder="এই রুটিনটি কখন ও কেন পড়বেন..."
-                className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            {/* Suggested Days */}
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium block">
-                প্রস্তাবিত দিন (খালি রাখলে ম্যানুয়াল)
-              </span>
+            <StudioSection
+              title="Suggested Schedule"
+              description="Leave empty for a manual/anytime routine."
+              action={
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft({ ...draft, assignedDays: [0, 1, 2, 3, 4, 5, 6] })
+                    }
+                    className="cursor-pointer font-medium hover:underline"
+                    style={{ color: 'var(--st-text-secondary)' }}
+                  >
+                    Every day
+                  </button>
+                  <span style={{ color: 'var(--st-border-strong)' }}>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setDraft({ ...draft, assignedDays: [] })}
+                    className="cursor-pointer font-medium hover:underline"
+                    style={{ color: 'var(--st-text-muted)' }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              }
+            >
               <div className="flex flex-wrap gap-1.5">
                 {DAY_SHORT_BN.map((label, idx) => {
                   const active = draft.assignedDays.includes(idx);
@@ -355,15 +762,15 @@ export function AdminRoutinesTab() {
                       key={idx}
                       type="button"
                       onClick={() => toggleDay(idx)}
-                      className="px-3 py-1 rounded-full text-xs border cursor-pointer"
+                      className="h-8 px-3 rounded-[6px] text-xs font-medium border cursor-pointer transition-colors"
                       style={{
                         backgroundColor: active
-                          ? 'var(--accent)'
-                          : 'var(--bg-surface)',
-                        borderColor: active
-                          ? 'var(--accent)'
-                          : 'var(--border-subtle)',
-                        color: active ? 'var(--accent-text)' : 'var(--text-primary)',
+                          ? 'var(--st-primary)'
+                          : 'var(--st-bg-subtle)',
+                        borderColor: active ? 'var(--st-primary)' : 'var(--st-border)',
+                        color: active
+                          ? 'var(--st-primary-text)'
+                          : 'var(--st-text-secondary)',
                       }}
                     >
                       {label}
@@ -371,56 +778,90 @@ export function AdminRoutinesTab() {
                   );
                 })}
               </div>
-            </div>
+            </StudioSection>
 
-            {/* Added Items List */}
-            <div className="space-y-2">
-              <span className="text-xs font-semibold block">
-                যুক্ত করা সূরা ও দুআ ({toBanglaDigits(draft.items.length)})
-              </span>
+            <StudioSection
+              title={`Routine Items (${draft.items.length})`}
+              description="Ordered sequence of Surahs and Duas in this routine."
+            >
               {draft.items.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  নিচ থেকে সূরা বা দুআ যোগ করুন।
-                </p>
+                <div
+                  className="rounded-lg border border-dashed py-8 text-center text-xs"
+                  style={{
+                    borderColor: 'var(--st-border-strong)',
+                    color: 'var(--st-text-muted)',
+                  }}
+                >
+                  No items added yet. Use the picker below to add Surahs or Duas.
+                </div>
               ) : (
-                <div className="space-y-1.5">
+                <div
+                  className="rounded-lg border overflow-hidden divide-y"
+                  style={{ borderColor: 'var(--st-border)' }}
+                >
                   {draft.items.map((it, idx) => {
-                    const label =
-                      it.kind === 'dua' && it.duaId
-                        ? `${catalog.duaMap[it.duaId]?.titleBangla ?? it.duaId} (${toBanglaDigits(
-                            it.targetCount ?? 1
-                          )} বার)`
-                        : it.surahId && SURAH_MAP[it.surahId]
-                          ? `সূরা ${SURAH_MAP[it.surahId].nameBangla} (${toBanglaDigits(
-                              it.startAyah ?? 1
-                            )}–${toBanglaDigits(
-                              it.endAyah ?? SURAH_MAP[it.surahId].versesCount
-                            )})`
-                          : 'অজানা আইটেম';
+                    const isDua = it.kind === 'dua' && it.duaId;
+                    const label = isDua
+                      ? `${catalog.duaMap[it.duaId!]?.titleBangla ?? it.duaId}`
+                      : it.surahId && SURAH_MAP[it.surahId]
+                        ? `সূরা ${SURAH_MAP[it.surahId].nameBangla}`
+                        : 'Unknown Item';
+                    const meta = isDua
+                      ? `${it.targetCount ?? 1}×`
+                      : it.surahId && SURAH_MAP[it.surahId]
+                        ? `Ayah ${it.startAyah ?? 1}–${it.endAyah ?? SURAH_MAP[it.surahId].versesCount}`
+                        : '';
+
                     return (
                       <div
                         key={idx}
-                        className="px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-xs"
+                        className="px-3.5 py-2.5 flex items-center justify-between gap-3"
                         style={{
-                          backgroundColor: 'var(--bg-surface)',
-                          borderColor: 'var(--border-subtle)',
+                          backgroundColor: 'var(--st-bg)',
+                          borderColor: 'var(--st-border)',
                         }}
                       >
-                        <span className="truncate font-medium">
-                          {toBanglaDigits(idx + 1)}. {label}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className="text-[11px] font-mono tabular-nums w-5 shrink-0"
+                            style={{ color: 'var(--st-text-faint)' }}
+                          >
+                            {String(idx + 1).padStart(2, '0')}
+                          </span>
+                          <StudioBadge tone={isDua ? 'emerald' : 'blue'}>
+                            {isDua ? 'Dua' : 'Surah'}
+                          </StudioBadge>
+                          <span className="text-[13px] font-medium truncate">
+                            {label}
+                          </span>
+                          {meta && (
+                            <span
+                              className="text-[11px] font-mono shrink-0"
+                              style={{ color: 'var(--st-text-muted)' }}
+                            >
+                              {meta}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-0.5 shrink-0">
                           <button
                             type="button"
+                            disabled={idx === 0}
                             onClick={() => moveItem(idx, -1)}
-                            className="p-1 rounded hover:opacity-70 cursor-pointer"
+                            className="p-1 rounded-[5px] cursor-pointer disabled:opacity-30"
+                            style={{ color: 'var(--st-text-secondary)' }}
+                            aria-label="Move up"
                           >
                             <ArrowUp className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
+                            disabled={idx === draft.items.length - 1}
                             onClick={() => moveItem(idx, 1)}
-                            className="p-1 rounded hover:opacity-70 cursor-pointer"
+                            className="p-1 rounded-[5px] cursor-pointer disabled:opacity-30"
+                            style={{ color: 'var(--st-text-secondary)' }}
+                            aria-label="Move down"
                           >
                             <ArrowDown className="w-3.5 h-3.5" />
                           </button>
@@ -432,8 +873,9 @@ export function AdminRoutinesTab() {
                                 items: draft.items.filter((_, i) => i !== idx),
                               })
                             }
-                            className="p-1 rounded cursor-pointer"
-                            style={{ color: 'var(--danger)' }}
+                            className="p-1 rounded-[5px] cursor-pointer"
+                            style={{ color: 'var(--st-danger)' }}
+                            aria-label="Remove item"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -443,159 +885,168 @@ export function AdminRoutinesTab() {
                   })}
                 </div>
               )}
-            </div>
 
-            {/* Add Surah Control */}
-            <div
-              className="rounded-2xl border p-3 space-y-2.5"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <span className="text-xs font-semibold block">+ সূরা / আয়াত রেঞ্জ যোগ করুন</span>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                <select
-                  value={selectedSurahId}
-                  onChange={(e) => {
-                    const id = Number(e.target.value);
-                    setSelectedSurahId(id);
-                    setStartAyah(1);
-                    setEndAyah(SURAH_MAP[id]?.versesCount ?? 1);
-                  }}
-                  className="sm:col-span-2 px-2.5 py-1.5 rounded-xl text-xs border"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                >
-                  {SURAHS.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {toBanglaDigits(s.id)}. {s.nameBangla}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min={1}
-                  value={startAyah}
-                  onChange={(e) => setStartAyah(Math.max(1, Number(e.target.value) || 1))}
-                  placeholder="শুরু"
-                  className="px-2.5 py-1.5 rounded-xl text-xs border"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-                <input
-                  type="number"
-                  min={1}
-                  value={endAyah}
-                  onChange={(e) => setEndAyah(Math.max(1, Number(e.target.value) || 1))}
-                  placeholder="শেষ"
-                  className="px-2.5 py-1.5 rounded-xl text-xs border"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={addSurah}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer"
+              <div
+                className="rounded-lg border overflow-hidden"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
+                  backgroundColor: 'var(--st-bg-subtle)',
+                  borderColor: 'var(--st-border)',
                 }}
               >
-                <Plus className="w-3 h-3" />
-                সূরা যুক্ত করুন
-              </button>
-            </div>
-
-            {/* Add Dua Control */}
-            <div
-              className="rounded-2xl border p-3 space-y-2"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-subtle)',
-              }}
-            >
-              <span className="text-xs font-semibold block">+ দুআ যোগ করুন</span>
-              <input
-                type="text"
-                value={duaSearch}
-                onChange={(e) => setDuaSearch(e.target.value)}
-                placeholder="দুআ খুঁজুন..."
-                className="w-full px-3 py-1.5 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-elevated)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {matchingDuas.map((d) => (
+                <div
+                  className="flex border-b"
+                  style={{ borderColor: 'var(--st-border)' }}
+                >
                   <button
-                    key={d.id}
                     type="button"
-                    onClick={() => addDua(d.id)}
-                    className="px-2.5 py-1 rounded-full text-[11px] border cursor-pointer truncate max-w-[220px]"
+                    onClick={() => setAdderTab('surah')}
+                    className="flex-1 h-9 text-xs font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer border-b-2 transition-colors"
                     style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
+                      borderColor:
+                        adderTab === 'surah' ? 'var(--st-text)' : 'transparent',
+                      color:
+                        adderTab === 'surah' ? 'var(--st-text)' : 'var(--st-text-muted)',
+                      backgroundColor:
+                        adderTab === 'surah' ? 'var(--st-bg)' : 'transparent',
                     }}
                   >
-                    + {d.titleBangla}
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Add Surah Range
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() => setAdderTab('dua')}
+                    className="flex-1 h-9 text-xs font-medium inline-flex items-center justify-center gap-1.5 cursor-pointer border-b-2 transition-colors"
+                    style={{
+                      borderColor:
+                        adderTab === 'dua' ? 'var(--st-text)' : 'transparent',
+                      color:
+                        adderTab === 'dua' ? 'var(--st-text)' : 'var(--st-text-muted)',
+                      backgroundColor:
+                        adderTab === 'dua' ? 'var(--st-bg)' : 'transparent',
+                    }}
+                  >
+                    <ScrollText className="w-3.5 h-3.5" />
+                    Add Dua
+                  </button>
+                </div>
+
+                <div className="p-3.5">
+                  {adderTab === 'surah' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                      <StudioField label="Surah" className="sm:col-span-5">
+                        <StudioDropdown<number>
+                          size="sm"
+                          value={selectedSurahId}
+                          onChange={(id) => {
+                            setSelectedSurahId(id);
+                            setStartAyah(1);
+                            setEndAyah(SURAH_MAP[id]?.versesCount ?? 1);
+                          }}
+                          searchPlaceholder="Search Surah…"
+                          options={SURAHS.map((s) => ({
+                            value: s.id,
+                            label: `${s.id}. ${s.nameBangla}`,
+                            meta: `${s.versesCount}`,
+                          }))}
+                        />
+                      </StudioField>
+                      <StudioField label="From Ayah" className="sm:col-span-2">
+                        <StudioInput
+                          type="number"
+                          min={1}
+                          value={startAyah}
+                          onChange={(e) =>
+                            setStartAyah(Math.max(1, Number(e.target.value) || 1))
+                          }
+                          className="!h-8 !text-xs font-mono tabular-nums"
+                        />
+                      </StudioField>
+                      <StudioField label="To Ayah" className="sm:col-span-2">
+                        <StudioInput
+                          type="number"
+                          min={1}
+                          value={endAyah}
+                          onChange={(e) =>
+                            setEndAyah(Math.max(1, Number(e.target.value) || 1))
+                          }
+                          className="!h-8 !text-xs font-mono tabular-nums"
+                        />
+                      </StudioField>
+                      <div className="sm:col-span-3">
+                        <StudioButton
+                          variant="secondary"
+                          size="sm"
+                          onClick={addSurah}
+                          className="w-full"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add Surah
+                        </StudioButton>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <StudioInput
+                        type="text"
+                        value={duaSearch}
+                        onChange={(e) => setDuaSearch(e.target.value)}
+                        placeholder="Search duas to attach…"
+                        className="!h-8 !text-xs"
+                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {matchingDuas.map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => addDua(d.id)}
+                            className="px-2.5 py-1 rounded-[6px] text-xs border cursor-pointer truncate max-w-[260px] transition-colors hover:opacity-85"
+                            style={{
+                              backgroundColor: 'var(--st-bg)',
+                              borderColor: 'var(--st-border)',
+                              color: 'var(--st-text)',
+                            }}
+                          >
+                            + {d.titleBangla}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between gap-2 pt-3 border-t"
-              style={{ borderColor: 'var(--border-subtle)' }}
-            >
-              {!draft.isNew ? (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void handleDelete()}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-xs font-medium border cursor-pointer"
-                  style={{
-                    backgroundColor: 'var(--danger-soft)',
-                    borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)',
-                    color: 'var(--danger)',
-                  }}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  ডিলিট
-                </button>
-              ) : (
-                <span />
-              )}
-
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void handlePublish()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer disabled:opacity-60"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                {saving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                পাবলিশ করুন
-              </button>
-            </div>
-          </>
+            </StudioSection>
+          </div>
         )}
-      </section>
+      </StudioEditorSheet>
+
+      <StudioConfirmDialog
+        open={confirmOpen}
+        title={draft?.isNew ? 'Delete saved draft?' : 'Delete routine template?'}
+        description={
+          draft?.isNew
+            ? 'This unpublished routine draft will be permanently discarded.'
+            : 'This template will be removed from Suggested Routines for all users. Users who already adopted it keep their personal copy.'
+        }
+        confirmLabel={draft?.isNew ? 'Delete Draft' : 'Delete Template'}
+        loading={saving}
+        onConfirm={() => void executeDelete()}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
+      <StudioConfirmDialog
+        open={confirmCancelOpen}
+        title="Discard unsaved changes?"
+        description="You have unsaved edits. Save as draft first or discard them and close the editor."
+        confirmLabel="Discard & Close"
+        cancelLabel="Keep Editing"
+        onConfirm={() => {
+          setConfirmCancelOpen(false);
+          setDraft(null);
+          setBaselineHash('');
+        }}
+        onCancel={() => setConfirmCancelOpen(false)}
+      />
     </div>
   );
 }

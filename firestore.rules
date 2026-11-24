@@ -6,10 +6,14 @@ rules_version = '2';
 //
 // Access Architecture:
 //   - Regular Sukoon PWA users do NOT authenticate; they delta-sync
-//     these 5 public, non-PII CMS collections into local IndexedDB
+//     the 5 public, non-PII CMS collections into local IndexedDB
 //     using `updatedAt` server-timestamp cursors.
-//   - All writes (create, update, delete) are restricted exclusively
+//   - CMS writes (create, update, delete) are restricted exclusively
 //     to the single verified admin account (`anamul.ipa@gmail.com`).
+//   - For `/appUsers/{installId}` (privacy-first anonymous device
+//     telemetry), unauthenticated PWA devices may ONLY create/update
+//     strictly validated non-PII heartbeat documents; reads, counts,
+//     and deletes are restricted exclusively to the verified admin.
 //   - Every unmatched collection or subcollection is denied by default.
 //
 // 1. Collection: /duas/{duaId}
@@ -113,6 +117,21 @@ rules_version = '2';
 //        - startDate: string (0..20 chars)
 //        - endDate: string (0..20 chars)
 //        - deleted: bool
+//
+// 6. Collection: /appUsers/{installId}
+//    Document ID: string (16..64 chars, matches ^[a-zA-Z0-9_-]{16,64}$)
+//    Access:
+//      - read / delete: admin only (`isAdmin()`; supports `getCountFromServer()`)
+//      - create / update: unauthenticated PWA devices with strict schema validation
+//    Allowed & Required Fields (exact 8-key allowlist, NO PII permitted):
+//      - installId: string (16..64 chars, matches ^[a-zA-Z0-9_-]{16,64}$, == document ID, immutable)
+//      - firstSeenAt: timestamp (== request.time on create, immutable on update)
+//      - lastSeenAt: timestamp (== request.time via serverTimestamp() on create & update)
+//      - lastActiveDay: string (exact 10 chars, matches ^[0-9]{4}-[0-9]{2}-[0-9]{2}$)
+//      - platform: string in ['ios', 'android', 'desktop']
+//      - isPwa: bool
+//      - theme: string in ['paper', 'olive', 'sky']
+//      - appVersion: string (1..32 chars)
 //
 // ===============================================================
 
@@ -392,6 +411,52 @@ service cloud.firestore {
         (isTombstone(data) ? isValidFeaturedCardTombstone(data) : isValidFeaturedCardActive(data));
     }
 
+    // --- 6. App Users (Privacy-First Anonymous Telemetry) ---
+
+    function isValidInstallId(val) {
+      return isStringInRange(val, 16, 64) &&
+        val.matches('^[a-zA-Z0-9_-]{16,64}$');
+    }
+
+    function isValidAppUserFields(data, installId) {
+      return isValidInstallId(installId) &&
+        hasRequiredFields(data, [
+          'installId', 'firstSeenAt', 'lastSeenAt', 'lastActiveDay',
+          'platform', 'isPwa', 'theme', 'appVersion'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'installId', 'firstSeenAt', 'lastSeenAt', 'lastActiveDay',
+          'platform', 'isPwa', 'theme', 'appVersion'
+        ]) &&
+        isValidInstallId(data.installId) &&
+        data.installId == installId &&
+        data.firstSeenAt is timestamp &&
+        data.lastSeenAt is timestamp &&
+        data.lastSeenAt == request.time &&
+        isStringInRange(data.lastActiveDay, 10, 10) &&
+        data.lastActiveDay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.platform is string &&
+        data.platform in ['ios', 'android', 'desktop'] &&
+        data.isPwa is bool &&
+        data.theme is string &&
+        data.theme in ['paper', 'olive', 'sky'] &&
+        isStringInRange(data.appVersion, 1, 32);
+    }
+
+    function isValidAppUserCreate(data, installId) {
+      return isValidAppUserFields(data, installId) &&
+        data.firstSeenAt == request.time;
+    }
+
+    function isValidAppUserUpdate(data, existingData, installId) {
+      return isValidAppUserFields(data, installId) &&
+        'installId' in existingData &&
+        'firstSeenAt' in existingData &&
+        !data.diff(existingData).affectedKeys().hasAny(['installId', 'firstSeenAt']) &&
+        data.installId == existingData.installId &&
+        data.firstSeenAt == existingData.firstSeenAt;
+    }
+
     // ===============================================================
     // Collection Match Rules (Public Read CMS, Admin-Only Validated Write)
     // ===============================================================
@@ -428,6 +493,14 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAdmin() && isValidFeaturedCard(request.resource.data, cardId);
       allow update: if isAdmin() && isValidFeaturedCard(request.resource.data, cardId);
+      allow delete: if isAdmin();
+    }
+
+    // Privacy-first anonymous device telemetry (Admin-only read/count/delete; strict unauthenticated heartbeat writes)
+    match /appUsers/{installId} {
+      allow read: if isAdmin();
+      allow create: if isValidAppUserCreate(request.resource.data, installId);
+      allow update: if isValidAppUserUpdate(request.resource.data, resource.data, installId);
       allow delete: if isAdmin();
     }
 

@@ -1,5 +1,17 @@
-import { useState } from 'react';
-import { Loader2, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Check,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FilePenLine,
+  Plus,
+  RotateCcw,
+  Search,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { DUA_CHAPTERS as STATIC_CHAPTERS } from '../../data/duas';
 import { isBuiltInChapterId } from '../../services/catalogSnapshot';
 import {
@@ -10,105 +22,276 @@ import {
 import { useCatalog } from '../../services/contentCatalog';
 import { toBanglaDigits } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
+import {
+  deleteDraftFromStorage,
+  loadDraftsMap,
+  saveDraftToStorage,
+  type StoredDraft,
+} from './adminDrafts';
+import type { StudioLaunchIntent } from './AdminPanelView';
+import {
+  StudioBadge,
+  StudioButton,
+  StudioConfirmDialog,
+  StudioEditorSheet,
+  StudioField,
+  StudioInput,
+  StudioSection,
+  useKeyboardSave,
+} from './StudioUI';
 
 interface ChapterDraft {
   id: number;
   isNew: boolean;
   titleBangla: string;
   subtitleBangla: string;
-  aliasesText: string;
+  aliases: string[];
 }
 
-export function AdminChaptersTab() {
+export function AdminChaptersTab({
+  launchIntent,
+  onConsumeIntent,
+}: {
+  launchIntent?: StudioLaunchIntent | null;
+  onConsumeIntent?: () => void;
+}) {
   const toast = useToast();
   const catalog = useCatalog();
+  const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<ChapterDraft | null>(null);
+  const [baselineHash, setBaselineHash] = useState('');
+  const [savedDrafts, setSavedDrafts] = useState<Record<string, StoredDraft<ChapterDraft>>>(
+    () => loadDraftsMap<ChapterDraft>('chapters')
+  );
+  const [aliasInput, setAliasInput] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
-  const allRows = [
-    ...catalog.chapters.map((ch) => ({
-      ...ch,
-      hidden: false,
-      duaCount: catalog.duasByChapter[ch.id]?.length ?? 0,
-    })),
-    ...STATIC_CHAPTERS.filter(
-      (st) => catalog.remoteChaptersMap[st.id]?.deleted
-    ).map((st) => ({
-      ...st,
-      searchAliases: undefined as string[] | undefined,
-      source: 'builtin' as const,
-      hidden: true,
-      duaCount: 0,
-    })),
-  ].sort((a, b) => a.id - b.id);
+  const allRows = useMemo(() => {
+    const seen = new Set<number>();
+    const rows: Array<{
+      id: number;
+      titleBangla: string;
+      subtitleBangla: string;
+      searchAliases?: string[];
+      hidden: boolean;
+      duaCount: number;
+      isLocalOnly?: boolean;
+      hasLocalDraft?: boolean;
+    }> = [];
 
-  const startNewChapter = () => {
+    for (const ch of catalog.chapters) {
+      seen.add(ch.id);
+      const local = savedDrafts[String(ch.id)]?.data;
+      rows.push({
+        id: ch.id,
+        titleBangla: local?.titleBangla || ch.titleBangla,
+        subtitleBangla: local?.subtitleBangla ?? ch.subtitleBangla,
+        searchAliases: local?.aliases ?? ch.searchAliases,
+        hidden: false,
+        duaCount: catalog.duasByChapter[ch.id]?.length ?? 0,
+        hasLocalDraft: Boolean(local),
+      });
+    }
+
+    for (const st of STATIC_CHAPTERS) {
+      if (catalog.remoteChaptersMap[st.id]?.deleted && !seen.has(st.id)) {
+        seen.add(st.id);
+        rows.push({
+          id: st.id,
+          titleBangla: st.titleBangla,
+          subtitleBangla: st.subtitleBangla,
+          hidden: true,
+          duaCount: 0,
+          hasLocalDraft: Boolean(savedDrafts[String(st.id)]),
+        });
+      }
+    }
+
+    for (const entry of Object.values(savedDrafts)) {
+      if (seen.has(entry.data.id)) continue;
+      rows.push({
+        id: entry.data.id,
+        titleBangla: entry.data.titleBangla || '(Untitled Chapter)',
+        subtitleBangla: entry.data.subtitleBangla,
+        searchAliases: entry.data.aliases,
+        hidden: false,
+        duaCount: 0,
+        isLocalOnly: true,
+        hasLocalDraft: true,
+      });
+    }
+
+    return rows.sort((a, b) => a.id - b.id);
+  }, [catalog, savedDrafts]);
+
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allRows;
+    return allRows.filter(
+      (r) =>
+        r.titleBangla.toLowerCase().includes(q) ||
+        r.subtitleBangla.toLowerCase().includes(q) ||
+        String(r.id) === q
+    );
+  }, [allRows, query]);
+
+  const isDirty = Boolean(draft) && JSON.stringify(draft) !== baselineHash;
+  const hasSavedDraft = draft ? Boolean(savedDrafts[String(draft.id)]) : false;
+  const isPublishedClean = Boolean(draft) && !draft!.isNew && !hasSavedDraft && !isDirty;
+
+  const startNewChapter = useCallback(() => {
     const maxId = allRows.reduce((m, c) => Math.max(m, c.id), 13);
-    setDraft({
+    const fresh: ChapterDraft = {
       id: maxId + 1,
       isNew: true,
       titleBangla: '',
       subtitleBangla: '',
-      aliasesText: '',
-    });
-  };
+      aliases: [],
+    };
+    setDraft(fresh);
+    setBaselineHash(JSON.stringify(fresh));
+    setAliasInput('');
+    setShowPreview(false);
+  }, [allRows]);
 
-  const openChapter = (row: (typeof allRows)[number]) => {
-    setDraft({
-      id: row.id,
-      isNew: false,
-      titleBangla: row.titleBangla,
-      subtitleBangla: row.subtitleBangla,
-      aliasesText: (row.searchAliases ?? []).join(', '),
-    });
-  };
+  const openChapter = useCallback(
+    (row: (typeof allRows)[number]) => {
+      const local = savedDrafts[String(row.id)]?.data;
+      if (local) {
+        const cloned: ChapterDraft = { ...local, aliases: [...local.aliases] };
+        setDraft(cloned);
+        setBaselineHash(JSON.stringify(cloned));
+        setAliasInput('');
+        return;
+      }
+      const loaded: ChapterDraft = {
+        id: row.id,
+        isNew: false,
+        titleBangla: row.titleBangla,
+        subtitleBangla: row.subtitleBangla,
+        aliases: [...(row.searchAliases ?? [])],
+      };
+      setDraft(loaded);
+      setBaselineHash(JSON.stringify(loaded));
+      setAliasInput('');
+    },
+    [savedDrafts]
+  );
 
-  const handleSave = async () => {
+  useEffect(() => {
+    if (!launchIntent) return;
+    if (launchIntent.mode === 'new') {
+      startNewChapter();
+    } else if (launchIntent.mode === 'edit' && launchIntent.id) {
+      const row = allRows.find((r) => String(r.id) === launchIntent.id);
+      if (row) openChapter(row);
+    }
+    onConsumeIntent?.();
+  }, [launchIntent, allRows, startNewChapter, openChapter, onConsumeIntent]);
+
+  const commitAliasInput = (raw: string) => {
     if (!draft) return;
+    const parts = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return;
+    const merged = Array.from(new Set([...draft.aliases, ...parts]));
+    setDraft({ ...draft, aliases: merged });
+    setAliasInput('');
+  };
+
+  const handleSaveDraft = () => {
+    if (!draft) return;
+    const pendingAliases = aliasInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const merged: ChapterDraft = {
+      ...draft,
+      aliases: Array.from(new Set([...draft.aliases, ...pendingAliases])),
+    };
+    setDraft(merged);
+    setAliasInput('');
+    setSavedDrafts(saveDraftToStorage('chapters', String(merged.id), merged));
+    setBaselineHash(JSON.stringify(merged));
+    toast.info('Chapter draft saved locally.');
+  };
+
+  const handleCancel = () => {
+    if (isDirty) {
+      setConfirmCancelOpen(true);
+    } else {
+      setDraft(null);
+      setBaselineHash('');
+    }
+  };
+
+  const handleSave = useCallback(async () => {
+    if (!draft || saving) return;
     if (!draft.titleBangla.trim()) {
-      toast.warning('অধ্যায়ের বাংলা শিরোনাম লিখুন।');
+      toast.warning('Chapter Bangla title is required.');
       return;
     }
+    const pendingAliases = aliasInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const finalAliases = Array.from(new Set([...draft.aliases, ...pendingAliases]));
+
     setSaving(true);
     try {
-      const aliases = draft.aliasesText
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
       await adminPublishChapter({
         id: draft.id,
         titleBangla: draft.titleBangla,
         subtitleBangla: draft.subtitleBangla,
-        searchAliases: aliases,
+        searchAliases: finalAliases,
       });
-      setDraft({ ...draft, isNew: false });
-      toast.success('অধ্যায়টি সফলভাবে পাবলিশ হয়েছে।');
+      const saved: ChapterDraft = {
+        ...draft,
+        isNew: false,
+        aliases: finalAliases,
+      };
+      setSavedDrafts(deleteDraftFromStorage<ChapterDraft>('chapters', String(draft.id)));
+      setDraft(saved);
+      setBaselineHash(JSON.stringify(saved));
+      setAliasInput('');
+      toast.success('Chapter published.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'সেভ করা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Failed to publish chapter.');
     } finally {
       setSaving(false);
     }
-  };
+  }, [draft, saving, aliasInput, toast]);
 
-  const handleDeleteOrHide = async () => {
+  useKeyboardSave(Boolean(draft) && !saving, () => {
+    void handleSave();
+  });
+
+  const executeDeleteOrHide = async () => {
     if (!draft) return;
-    const builtIn = isBuiltInChapterId(draft.id);
-    if (
-      !window.confirm(
-        builtIn
-          ? 'এই বিল্ট-ইন অধ্যায়টি লুকিয়ে রাখবেন?'
-          : 'এই কাস্টম অধ্যায়টি মুছে ফেলবেন?'
-      )
-    ) {
+    if (draft.isNew && hasSavedDraft) {
+      setSavedDrafts(deleteDraftFromStorage<ChapterDraft>('chapters', String(draft.id)));
+      setConfirmOpen(false);
+      setDraft(null);
+      setBaselineHash('');
+      toast.info('Draft discarded.');
       return;
     }
+    const builtIn = isBuiltInChapterId(draft.id);
     setSaving(true);
     try {
       await adminDeleteOrHideChapter(draft.id);
+      setSavedDrafts(deleteDraftFromStorage<ChapterDraft>('chapters', String(draft.id)));
+      setConfirmOpen(false);
       setDraft(null);
-      toast.info(builtIn ? 'অধ্যায়টি লুকানো হয়েছে।' : 'অধ্যায়টি মুছে ফেলা হয়েছে।');
+      setBaselineHash('');
+      toast.info(builtIn ? 'Chapter hidden.' : 'Chapter deleted.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'মুছে ফেলা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Operation failed.');
     } finally {
       setSaving(false);
     }
@@ -118,221 +301,459 @@ export function AdminChaptersTab() {
     setSaving(true);
     try {
       await adminRevertBuiltInChapter(id);
+      setSavedDrafts(deleteDraftFromStorage<ChapterDraft>('chapters', String(id)));
       setDraft(null);
-      toast.success('অধ্যায়টি বিল্ট-ইন ডিফল্টে ফিরে এসেছে।');
+      setBaselineHash('');
+      toast.success('Chapter reverted to built-in default.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'রিভার্ট করা যায়নি।');
+      toast.error(err instanceof Error ? err.message : 'Could not revert.');
     } finally {
       setSaving(false);
     }
   };
 
+  const isBuiltIn = draft ? isBuiltInChapterId(draft.id) : false;
+  const hasRemote = draft ? Boolean(catalog.remoteChaptersMap[draft.id]) : false;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-      <section
-        className="lg:col-span-6 rounded-3xl border p-4 space-y-3"
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Header Bar */}
+      <header
+        className="h-[52px] px-5 sm:px-7 border-b flex items-center justify-between gap-3 shrink-0"
         style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
+          backgroundColor: 'var(--st-bg)',
+          borderColor: 'var(--st-border)',
         }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">দুআর অধ্যায় সমূহ</h2>
-          <button
-            type="button"
-            onClick={startNewChapter}
-            className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer"
+        <div className="flex items-center gap-2">
+          <h1 className="text-[14px] font-semibold tracking-tight">Chapters</h1>
+          <span
+            className="text-[11px] font-medium px-1.5 py-0.5 rounded-[5px] tabular-nums"
             style={{
-              backgroundColor: 'var(--accent)',
-              color: 'var(--accent-text)',
+              backgroundColor: 'var(--st-bg-muted)',
+              color: 'var(--st-text-muted)',
             }}
           >
-            <Plus className="w-3.5 h-3.5" />
-            নতুন অধ্যায়
-          </button>
+            {filteredRows.length}
+          </span>
         </div>
+        <StudioButton variant="primary" size="sm" onClick={startNewChapter}>
+          <Plus className="w-3.5 h-3.5" />
+          New Chapter
+        </StudioButton>
+      </header>
 
-        <div className="divide-y max-h-[68dvh] overflow-y-auto pr-1"
-          style={{ borderColor: 'var(--border-subtle)' }}
-        >
-          {allRows.map((ch) => (
+      {/* Search Bar */}
+      <div
+        className="px-5 sm:px-7 py-3 border-b shrink-0"
+        style={{
+          backgroundColor: 'var(--st-bg-subtle)',
+          borderColor: 'var(--st-border)',
+        }}
+      >
+        <div className="relative max-w-sm">
+          <Search
+            className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--st-text-faint)' }}
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search chapters…"
+            className="studio-field-control w-full h-8 pl-8 pr-7 text-[12.5px]"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 cursor-pointer"
+              style={{ color: 'var(--st-text-muted)' }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Full-Width Chapters List */}
+      <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--st-bg)' }}>
+        <div className="divide-y" style={{ borderColor: 'var(--st-border)' }}>
+          {filteredRows.map((ch) => (
             <button
               key={ch.id}
               type="button"
               onClick={() => openChapter(ch)}
-              className="w-full py-2.5 px-2.5 rounded-xl text-left flex items-center justify-between gap-2 cursor-pointer"
-              style={{
-                backgroundColor:
-                  draft?.id === ch.id ? 'var(--accent-soft)' : 'transparent',
-              }}
+              className="studio-hover w-full px-5 sm:px-7 py-3.5 text-left flex items-center justify-between gap-4 transition-colors cursor-pointer"
+              style={{ borderColor: 'var(--st-border)' }}
             >
-              <div className="min-w-0">
-                <p className="text-xs font-semibold truncate">
-                  {toBanglaDigits(ch.id)}. {ch.titleBangla}
-                </p>
-                <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-                  {ch.subtitleBangla || 'উপশিরোনাম নেই'}
-                </p>
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                <span
+                  className="text-[11.5px] font-mono tabular-nums w-7 shrink-0"
+                  style={{ color: 'var(--st-text-muted)' }}
+                >
+                  {String(ch.id).padStart(2, '0')}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-medium truncate">{ch.titleBangla}</p>
+                  <p
+                    className="text-[12px] truncate mt-0.5"
+                    style={{ color: 'var(--st-text-muted)' }}
+                  >
+                    {ch.subtitleBangla || 'No subtitle'}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {ch.hidden ? (
-                  <span
-                    className="text-[10px] px-2 py-0.5 rounded-full"
-                    style={{
-                      backgroundColor: 'var(--danger-soft)',
-                      color: 'var(--danger)',
-                    }}
-                  >
-                    লুকানো
-                  </span>
-                ) : (
-                  <span
-                    className="text-[10px] px-2 py-0.5 rounded-full tabular-nums"
-                    style={{
-                      backgroundColor: 'var(--bg-surface)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    {toBanglaDigits(ch.duaCount)} দুআ
-                  </span>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                {ch.hasLocalDraft && (
+                  <StudioBadge tone="blue" dot>
+                    Draft
+                  </StudioBadge>
                 )}
+                {ch.hidden ? (
+                  <StudioBadge tone="danger" dot>
+                    Hidden
+                  </StudioBadge>
+                ) : !ch.isLocalOnly ? (
+                  <span
+                    className="text-xs font-mono tabular-nums"
+                    style={{ color: 'var(--st-text-muted)' }}
+                  >
+                    {ch.duaCount} duas
+                  </span>
+                ) : null}
+                <ChevronRight
+                  className="w-4 h-4 shrink-0"
+                  style={{ color: 'var(--st-text-faint)' }}
+                />
               </div>
             </button>
           ))}
         </div>
-      </section>
+      </div>
 
-      <section
-        className="lg:col-span-6 rounded-3xl border p-5 space-y-4"
-        style={{
-          backgroundColor: 'var(--bg-elevated)',
-          borderColor: 'var(--border-subtle)',
-        }}
-      >
-        {!draft ? (
-          <p className="py-16 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            এডিট করতে যেকোনো অধ্যায় সিলেক্ট করুন অথবা “নতুন অধ্যায়” বাটনে ক্লিক করুন।
-          </p>
-        ) : (
-          <>
-            <h3 className="text-sm font-semibold">
-              {draft.isNew
-                ? `নতুন অধ্যায় #${toBanglaDigits(draft.id)}`
-                : `অধ্যায় #${toBanglaDigits(draft.id)} সম্পাদনা`}
-            </h3>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">অধ্যায়ের বাংলা শিরোনাম *</span>
-              <input
-                type="text"
-                value={draft.titleBangla}
-                onChange={(e) =>
-                  setDraft({ ...draft, titleBangla: e.target.value })
-                }
-                placeholder="যেমন: রিজিক ও বরকতের দুআ"
-                className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">উপশিরোনাম (Subtitle)</span>
-              <input
-                type="text"
-                value={draft.subtitleBangla}
-                onChange={(e) =>
-                  setDraft({ ...draft, subtitleBangla: e.target.value })
-                }
-                placeholder="যেমন: চতুর্দশ অধ্যায় • হালাল রিজিক ও বরকত"
-                className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            <label className="space-y-1 block">
-              <span className="text-xs font-medium">
-                সার্চ কীওয়ার্ড / Banglish (কমা দিয়ে আলাদা করুন)
-              </span>
-              <input
-                type="text"
-                value={draft.aliasesText}
-                onChange={(e) =>
-                  setDraft({ ...draft, aliasesText: e.target.value })
-                }
-                placeholder="যেমন: rizq, barkat, income, job, টাকা, রিজিক"
-                className="w-full px-3 py-2 rounded-xl text-xs border outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-surface)',
-                  borderColor: 'var(--border-subtle)',
-                }}
-              />
-            </label>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t"
-              style={{ borderColor: 'var(--border-subtle)' }}
+      {/* Full-Screen Editor Sheet */}
+      <StudioEditorSheet
+        open={Boolean(draft)}
+        showPreview={showPreview}
+        header={
+          draft && (
+            <header
+              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
+              style={{
+                backgroundColor: 'var(--st-bg)',
+                borderColor: 'var(--st-border)',
+              }}
             >
-              <div className="flex items-center gap-2">
-                {!draft.isNew && (
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void handleDeleteOrHide()}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-xs font-medium border cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--danger-soft)',
-                      borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)',
-                      color: 'var(--danger)',
-                    }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {isBuiltInChapterId(draft.id) ? 'লুকান' : 'ডিলিট'}
-                  </button>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[13.5px] font-semibold tracking-tight truncate">
+                  {draft.isNew ? `New Chapter #${draft.id}` : `Chapter #${draft.id}`}
+                </span>
+                {isDirty ? (
+                  <StudioBadge tone="amber" dot>
+                    Unsaved
+                  </StudioBadge>
+                ) : hasSavedDraft ? (
+                  <StudioBadge tone="blue" dot>
+                    Draft Saved
+                  </StudioBadge>
+                ) : draft.isNew ? (
+                  <StudioBadge tone="blue" dot>
+                    New Draft
+                  </StudioBadge>
+                ) : (
+                  <StudioBadge tone="emerald" dot>
+                    Published
+                  </StudioBadge>
                 )}
-                {isBuiltInChapterId(draft.id) &&
-                  Boolean(catalog.remoteChaptersMap[draft.id]) && (
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => void handleRevert(draft.id)}
-                      className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-xs font-medium border cursor-pointer"
-                      style={{
-                        backgroundColor: 'var(--bg-surface)',
-                        borderColor: 'var(--border-subtle)',
-                      }}
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      ডিফল্টে ফেরান
-                    </button>
-                  )}
               </div>
 
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void handleSave()}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer disabled:opacity-60"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                {saving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isBuiltIn && hasRemote && (
+                  <StudioButton
+                    variant="ghost"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => void handleRevert(draft.id)}
+                    title="Revert to built-in default"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </StudioButton>
                 )}
-                পাবলিশ করুন
-              </button>
-            </div>
-          </>
+                {(!draft.isNew || hasSavedDraft) && (
+                  <StudioButton
+                    variant="ghost"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => setConfirmOpen(true)}
+                    style={{ color: 'var(--st-danger)' }}
+                    title={
+                      draft.isNew
+                        ? 'Delete draft'
+                        : isBuiltIn
+                          ? 'Hide chapter'
+                          : 'Delete chapter'
+                    }
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </StudioButton>
+                )}
+
+                <StudioButton
+                  variant="ghost"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </StudioButton>
+
+                <StudioButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleSaveDraft}
+                >
+                  <FilePenLine className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Save Draft</span>
+                </StudioButton>
+
+                <StudioButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowPreview((v) => !v)}
+                  style={
+                    showPreview
+                      ? {
+                          backgroundColor: 'var(--st-bg-active)',
+                          borderColor: 'var(--st-border-strong)',
+                        }
+                      : undefined
+                  }
+                >
+                  {showPreview ? (
+                    <EyeOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">Preview</span>
+                </StudioButton>
+
+                <StudioButton
+                  variant={isPublishedClean ? 'secondary' : 'primary'}
+                  size="sm"
+                  loading={saving}
+                  onClick={() => void handleSave()}
+                  style={
+                    isPublishedClean
+                      ? {
+                          color: 'var(--st-accent)',
+                          borderColor:
+                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
+                        }
+                      : undefined
+                  }
+                >
+                  {!saving &&
+                    (isPublishedClean ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <Send className="w-3.5 h-3.5" />
+                    ))}
+                  <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
+                </StudioButton>
+              </div>
+            </header>
+          )
+        }
+        previewPane={
+          draft && (
+            <aside
+              className="w-full xl:w-[370px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
+              style={{
+                backgroundColor: 'var(--st-bg-subtle)',
+                borderColor: 'var(--st-border)',
+              }}
+            >
+              <div
+                className="h-10 px-4 border-b flex items-center shrink-0"
+                style={{ borderColor: 'var(--st-border)' }}
+              >
+                <span
+                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
+                  style={{ color: 'var(--st-text-muted)' }}
+                >
+                  Chapter Row Preview
+                </span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 flex justify-center">
+                <div
+                  className="w-full max-w-[320px] h-fit rounded-2xl border p-4 flex items-center justify-between gap-3"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-semibold shrink-0"
+                      style={{
+                        backgroundColor: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      {toBanglaDigits(draft.id)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">
+                        {draft.titleBangla || '(শিরোনাম নেই)'}
+                      </p>
+                      <p
+                        className="text-xs truncate mt-0.5"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {draft.subtitleBangla || 'উপশিরোনাম নেই'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--text-muted)' }}
+                  />
+                </div>
+              </div>
+            </aside>
+          )
+        }
+      >
+        {draft && (
+          <div className="max-w-[680px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+            <StudioSection title="Chapter Details">
+              <StudioField label="Title (Bangla)" required>
+                <StudioInput
+                  type="text"
+                  value={draft.titleBangla}
+                  onChange={(e) => setDraft({ ...draft, titleBangla: e.target.value })}
+                  placeholder="যেমন: রিজিক ও বরকতের দুআ"
+                  className="!h-10 !text-[15px] font-medium"
+                />
+              </StudioField>
+
+              <StudioField label="Subtitle (Bangla)">
+                <StudioInput
+                  type="text"
+                  value={draft.subtitleBangla}
+                  onChange={(e) =>
+                    setDraft({ ...draft, subtitleBangla: e.target.value })
+                  }
+                  placeholder="যেমন: চতুর্দশ অধ্যায় • হালাল রিজিক ও বরকত"
+                />
+              </StudioField>
+            </StudioSection>
+
+            <StudioSection
+              title="Search Discoverability"
+              description="Add Banglish or Bangla aliases so users can find this chapter via global search."
+            >
+              <StudioField label="Search Aliases">
+                <div className="flex items-center gap-2">
+                  <StudioInput
+                    type="text"
+                    value={aliasInput}
+                    onChange={(e) => setAliasInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        commitAliasInput(aliasInput);
+                      }
+                    }}
+                    placeholder="Type keyword (e.g. rizq, barkat, income) and press Enter…"
+                  />
+                  <StudioButton
+                    variant="secondary"
+                    size="md"
+                    onClick={() => commitAliasInput(aliasInput)}
+                  >
+                    Add
+                  </StudioButton>
+                </div>
+
+                {draft.aliases.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-2">
+                    {draft.aliases.map((alias) => (
+                      <span
+                        key={alias}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-[6px] border text-xs"
+                        style={{
+                          backgroundColor: 'var(--st-bg-subtle)',
+                          borderColor: 'var(--st-border)',
+                          color: 'var(--st-text)',
+                        }}
+                      >
+                        <span>{alias}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              aliases: draft.aliases.filter((a) => a !== alias),
+                            })
+                          }
+                          className="cursor-pointer hover:opacity-70"
+                          style={{ color: 'var(--st-text-muted)' }}
+                          aria-label={`Remove ${alias}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </StudioField>
+            </StudioSection>
+          </div>
         )}
-      </section>
+      </StudioEditorSheet>
+
+      <StudioConfirmDialog
+        open={confirmOpen}
+        title={
+          draft?.isNew
+            ? 'Delete saved draft?'
+            : isBuiltIn
+              ? 'Hide built-in Chapter?'
+              : 'Delete custom Chapter?'
+        }
+        description={
+          draft?.isNew
+            ? 'This unpublished chapter draft will be permanently discarded.'
+            : isBuiltIn
+              ? 'This built-in chapter will be hidden from users. You can revert it anytime.'
+              : 'This custom chapter will be permanently deleted.'
+        }
+        confirmLabel={
+          draft?.isNew ? 'Delete Draft' : isBuiltIn ? 'Hide Chapter' : 'Delete Chapter'
+        }
+        loading={saving}
+        onConfirm={() => void executeDeleteOrHide()}
+        onCancel={() => setConfirmOpen(false)}
+      />
+
+      <StudioConfirmDialog
+        open={confirmCancelOpen}
+        title="Discard unsaved changes?"
+        description="You have unsaved edits. Save as draft first or discard them and close the editor."
+        confirmLabel="Discard & Close"
+        cancelLabel="Keep Editing"
+        onConfirm={() => {
+          setConfirmCancelOpen(false);
+          setDraft(null);
+          setBaselineHash('');
+        }}
+        onCancel={() => setConfirmCancelOpen(false)}
+      />
     </div>
   );
 }

@@ -1,17 +1,32 @@
 import { useEffect, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft,
   BookOpen,
   CalendarCheck2,
+  Check,
   FolderOpen,
+  LayoutDashboard,
   Loader2,
   LogOut,
+  Menu,
+  Moon,
+  Palette,
   RefreshCw,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Sun,
+  X,
 } from 'lucide-react';
+import {
+  DEFAULT_SETTINGS,
+  db,
+  normalizeThemeSettings,
+  type ColorMode,
+  type ThemeMode,
+} from '../../db/database';
 import {
   resetCmsSyncCursorsAndResync,
   useCmsSyncStatus,
@@ -23,16 +38,26 @@ import {
   isFirebaseConfigured,
   loadFirebaseAuth,
 } from '../../services/firebase';
-import { toBanglaDigits } from '../../utils/formatters';
-import { SukoonLogo } from '../SukoonLogo';
+import { getThemeVariantMeta } from '../../utils/themeRegistry';
+import { SukoonEmblem, SukoonLogo } from '../SukoonLogo';
 import { useToast } from '../ToastProvider';
+import type { DraftScope } from './adminDrafts';
 import { AdminChaptersTab } from './AdminChaptersTab';
 import { AdminDuasTab } from './AdminDuasTab';
 import { AdminFeaturedTab } from './AdminFeaturedTab';
+import { AdminOverviewTab } from './AdminOverviewTab';
 import { AdminRoutinesTab } from './AdminRoutinesTab';
 import { AdminSurahsTab } from './AdminSurahsTab';
+import { QuickChapterModal } from './QuickChapterModal';
 
-type AdminTab = 'duas' | 'chapters' | 'routines' | 'surahs' | 'featured';
+type AdminTab = 'overview' | 'duas' | 'chapters' | 'routines' | 'surahs' | 'featured';
+
+export interface StudioLaunchIntent {
+  tab: Exclude<AdminTab, 'overview'>;
+  mode: 'new' | 'edit';
+  id?: string;
+  nonce: number;
+}
 
 interface AdminPanelViewProps {
   onExitAdmin: () => void;
@@ -44,18 +69,64 @@ interface AuthUserSummary {
   photoURL: string | null;
 }
 
+const THEME_OPTIONS: Array<{ id: ThemeMode; label: string }> = [
+  { id: 'paper', label: 'Paper' },
+  { id: 'olive', label: 'Olive' },
+  { id: 'sky', label: 'Sky' },
+];
+
 export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
   const toast = useToast();
   const catalog = useCatalog();
   const syncStatus = useCmsSyncStatus();
+  const rawSettings = useLiveQuery(() => db.settings.get('app'), []);
+  const { theme: activeTheme, colorMode: activeMode } = normalizeThemeSettings(
+    rawSettings?.theme,
+    rawSettings?.colorMode
+  );
 
-  const [tab, setTab] = useState<AdminTab>('duas');
+  const [tab, setTab] = useState<AdminTab>('overview');
+  const [launchIntent, setLaunchIntent] = useState<StudioLaunchIntent | null>(null);
+  const [quickChapterOpen, setQuickChapterOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [themePopoverOpen, setThemePopoverOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [user, setUser] = useState<AuthUserSummary | null>(null);
   const [deniedEmail, setDeniedEmail] = useState<string | null>(null);
 
   const configured = isFirebaseConfigured();
+
+  const updateStudioTheme = async (patch: {
+    theme?: ThemeMode;
+    colorMode?: ColorMode;
+  }) => {
+    const existing = await db.settings.get('app');
+    if (existing) {
+      await db.settings.update('app', patch);
+    } else {
+      await db.settings.put({ ...DEFAULT_SETTINGS, ...patch });
+    }
+  };
+
+  useEffect(() => {
+    if (!themePopoverOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el?.closest('[data-studio-theme-popover]')) {
+        setThemePopoverOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setThemePopoverOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [themePopoverOpen]);
 
   useEffect(() => {
     if (!configured) {
@@ -74,7 +145,6 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
           return;
         }
         const { auth, authModule } = loaded;
-        // Handle redirect return if popup fell back to redirect
         try {
           await authModule.getRedirectResult(auth);
         } catch {
@@ -89,7 +159,7 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
             return;
           }
           if (!isAuthorizedAdminEmail(fbUser.email)) {
-            const rejected = fbUser.email ?? 'অজানা ইমেইল';
+            const rejected = fbUser.email ?? 'Unknown email';
             setDeniedEmail(rejected);
             setUser(null);
             setAuthLoading(false);
@@ -125,7 +195,7 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
     try {
       const loaded = await loadFirebaseAuth();
       if (!loaded) {
-        toast.error('Firebase কনফিগার করা হয়নি।');
+        toast.error('Firebase is not configured.');
         return;
       }
       const { auth, authModule } = loaded;
@@ -141,7 +211,10 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
           err && typeof err === 'object' && 'code' in err
             ? String((err as { code: unknown }).code)
             : '';
-        if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        if (
+          code === 'auth/popup-blocked' ||
+          code === 'auth/operation-not-supported-in-this-environment'
+        ) {
           await authModule.signInWithRedirect(auth, provider);
           return;
         }
@@ -154,7 +227,7 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
       if (import.meta.env.DEV) {
         console.error('[AdminAuth]', err);
       }
-      toast.error('সাইন-ইন সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      toast.error('Sign-in could not be completed. Please try again.');
     } finally {
       setSigningIn(false);
     }
@@ -167,9 +240,9 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
         await loaded.authModule.signOut(loaded.auth);
       }
       setUser(null);
-      toast.info('অ্যাডমিন সেশন থেকে লগআউট হয়েছেন।');
+      toast.info('Signed out of Sukoon Studio.');
     } catch {
-      toast.error('লগআউট করা যায়নি।');
+      toast.error('Could not sign out.');
     }
   };
 
@@ -317,147 +390,567 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
   const remoteSurahCount = Object.keys(catalog.remoteSurahOverridesMap).length;
   const remoteFeaturedCount = catalog.featuredCards.length;
 
-  const tabs: Array<{
+  const navItems: Array<{
     id: AdminTab;
     label: string;
     icon: typeof ScrollText;
     count?: number;
+    accentCount?: number;
   }> = [
-    { id: 'duas', label: 'দুআ', icon: ScrollText, count: catalog.duas.length },
-    { id: 'chapters', label: 'অধ্যায়', icon: FolderOpen, count: catalog.chapters.length },
-    { id: 'routines', label: 'রুটিন টেমপ্লেট', icon: CalendarCheck2, count: remoteTemplatesCount },
-    { id: 'surahs', label: 'সূরা তথ্য', icon: BookOpen, count: remoteSurahCount },
-    { id: 'featured', label: 'হোম স্পটলাইট', icon: Sparkles, count: remoteFeaturedCount },
-  ];
+      {
+        id: 'overview',
+        label: 'Overview',
+        icon: LayoutDashboard,
+      },
+      {
+        id: 'duas',
+        label: 'Duas',
+        icon: ScrollText,
+        count: catalog.duas.length,
+        accentCount: remoteDuasCount,
+      },
+      {
+        id: 'chapters',
+        label: 'Chapters',
+        icon: FolderOpen,
+        count: catalog.chapters.length,
+      },
+      {
+        id: 'routines',
+        label: 'Routines',
+        icon: CalendarCheck2,
+        count: remoteTemplatesCount,
+      },
+      {
+        id: 'surahs',
+        label: 'Surahs',
+        icon: BookOpen,
+        count: 114,
+        accentCount: remoteSurahCount,
+      },
+      {
+        id: 'featured',
+        label: 'Spotlight',
+        icon: Sparkles,
+        count: remoteFeaturedCount,
+      },
+    ];
 
-  return (
-    <div
-      className="min-h-dvh flex flex-col"
-      style={{ backgroundColor: 'var(--bg-page)', color: 'var(--text-primary)' }}
-    >
-      {/* Top Admin Header */}
-      <header
-        className="sticky top-0 z-30 border-b backdrop-blur-md"
-        style={{
-          backgroundColor: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
-          borderColor: 'var(--border-subtle)',
-        }}
+  const handleQuickCreate = (
+    target: 'dua' | 'chapter' | 'routine' | 'featured'
+  ) => {
+    if (target === 'chapter') {
+      setQuickChapterOpen(true);
+      return;
+    }
+    const tabMap = {
+      dua: 'duas',
+      routine: 'routines',
+      featured: 'featured',
+    } as const;
+    const nextTab = tabMap[target];
+    setTab(nextTab);
+    setLaunchIntent({ tab: nextTab, mode: 'new', nonce: Date.now() });
+  };
+
+  const handleResumeDraft = (scope: DraftScope, id: string) => {
+    setTab(scope);
+    setLaunchIntent({ tab: scope, mode: 'edit', id, nonce: Date.now() });
+  };
+
+  const clearLaunchIntent = () => setLaunchIntent(null);
+
+  const activeNav = navItems.find((n) => n.id === tab);
+  const userInitial = (user.displayName || user.email || 'A').charAt(0).toUpperCase();
+
+  const lastCheckedText = syncStatus.lastCheckedAt
+    ? new Date(syncStatus.lastCheckedAt).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    : null;
+
+  const sidebarContent = (
+    <div className="h-full flex flex-col">
+      {/* Brand Row */}
+      <div
+        className="h-[52px] px-3.5 border-b flex items-center justify-between gap-2 shrink-0"
+        style={{ borderColor: 'var(--st-border)' }}
       >
-        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={onExitAdmin}
-              className="p-2 rounded-full border cursor-pointer transition-opacity active:opacity-70"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-              aria-label="অ্যাপে ফিরুন"
-              title="অ্যাপে ফিরুন"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-semibold truncate">
-                  সুকূন অ্যাডমিন
-                </h1>
-                <span
-                  className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                  style={{
-                    backgroundColor: 'var(--accent-soft)',
-                    color: 'var(--accent)',
-                  }}
-                >
-                  ● {toBanglaDigits(remoteDuasCount)} রিমোট দুআ
-                </span>
-              </div>
-              <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-                {user.email}
-              </p>
-            </div>
-          </div>
+        <SukoonLogo className="h-7 w-auto" />
+        <span
+          className="text-[10px] font-medium px-1.5 py-0.5 rounded-[4px] border shrink-0"
+          style={{
+            backgroundColor: 'var(--st-bg)',
+            borderColor: 'var(--st-border)',
+            color: 'var(--st-text-muted)',
+          }}
+        >
+          Studio
+        </span>
+      </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={syncStatus.syncing}
-              onClick={() => void resetCmsSyncCursorsAndResync(toast)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer disabled:opacity-60"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-              }}
-              title="Firestore থেকে সম্পূর্ণ রিসিঙ্ক করুন"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${syncStatus.syncing ? 'animate-spin' : ''}`}
-                style={{ color: 'var(--accent)' }}
-              />
-              <span className="hidden sm:inline">রিসিঙ্ক</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                borderColor: 'var(--border-subtle)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">লগআউট</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="max-w-6xl mx-auto px-4 pb-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {tabs.map((item) => {
+      {/* Navigation */}
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-5">
+        <nav className="space-y-0.5" aria-label="Studio sections">
+          <p
+            className="px-2.5 pb-1.5 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.07em]"
+            style={{ color: 'var(--st-text-faint)' }}
+          >
+            Content
+          </p>
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = tab === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setTab(item.id)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium shrink-0 border transition-colors cursor-pointer"
+                onClick={() => {
+                  setTab(item.id);
+                  setMobileNavOpen(false);
+                }}
+                className="studio-hover w-full h-8 px-2.5 rounded-[6px] flex items-center justify-between gap-2 text-[13px] cursor-pointer transition-colors"
                 style={{
-                  backgroundColor: active ? 'var(--accent)' : 'var(--bg-elevated)',
-                  borderColor: active ? 'var(--accent)' : 'var(--border-subtle)',
-                  color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                  backgroundColor: active ? 'var(--st-bg-active)' : undefined,
+                  color: active ? 'var(--st-text)' : 'var(--st-text-secondary)',
+                  fontWeight: active ? 500 : 400,
                 }}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{item.label}</span>
-                {item.count !== undefined && (
-                  <span
-                    className="text-[10px] px-1.5 py-0.2 rounded-full tabular-nums"
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <Icon
+                    className="w-4 h-4 shrink-0"
                     style={{
-                      backgroundColor: active
-                        ? 'rgba(255,255,255,0.22)'
-                        : 'var(--bg-surface)',
+                      color: active ? 'var(--st-text)' : 'var(--st-text-muted)',
                     }}
-                  >
-                    {toBanglaDigits(item.count)}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {item.count !== undefined && (
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {item.accentCount !== undefined && item.accentCount > 0 && (
+                      <span
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: 'var(--st-accent)' }}
+                        title={`${item.accentCount} remote`}
+                      />
+                    )}
+                    <span
+                      className="text-[11px] tabular-nums"
+                      style={{
+                        color: active ? 'var(--st-text-secondary)' : 'var(--st-text-faint)',
+                      }}
+                    >
+                      {item.count}
+                    </span>
                   </span>
                 )}
               </button>
             );
           })}
-        </div>
-      </header>
+        </nav>
 
-      {/* Active Workspace */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-5">
-        {tab === 'duas' && <AdminDuasTab />}
-        {tab === 'chapters' && <AdminChaptersTab />}
-        {tab === 'routines' && <AdminRoutinesTab />}
+        {/* Sync Status Panel */}
+        <div
+          className="mx-0.5 p-3 rounded-lg border space-y-2.5"
+          style={{
+            backgroundColor: 'var(--st-bg)',
+            borderColor: 'var(--st-border)',
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${syncStatus.syncing ? 'animate-pulse' : ''
+                  }`}
+                style={{
+                  backgroundColor: syncStatus.lastError
+                    ? 'var(--st-danger)'
+                    : syncStatus.syncing
+                      ? 'var(--st-amber)'
+                      : 'var(--st-accent)',
+                }}
+              />
+              <span className="text-[11.5px] font-medium truncate">
+                {syncStatus.syncing
+                  ? 'Syncing…'
+                  : syncStatus.lastError
+                    ? 'Sync error'
+                    : 'Firestore live'}
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={syncStatus.syncing}
+              onClick={() => void resetCmsSyncCursorsAndResync(toast)}
+              className="p-1 rounded-[5px] border cursor-pointer disabled:opacity-50 transition-colors"
+              style={{
+                backgroundColor: 'var(--st-bg-subtle)',
+                borderColor: 'var(--st-border)',
+                color: 'var(--st-text-secondary)',
+              }}
+              title="Force full resync from Firestore"
+              aria-label="Resync"
+            >
+              <RefreshCw
+                className={`w-3 h-3 ${syncStatus.syncing ? 'animate-spin' : ''}`}
+              />
+            </button>
+          </div>
+
+          <div
+            className="grid grid-cols-2 gap-1.5 pt-2 border-t text-[11px]"
+            style={{ borderColor: 'var(--st-border)' }}
+          >
+            <div>
+              <span className="block" style={{ color: 'var(--st-text-faint)' }}>
+                Remote Duas
+              </span>
+              <span className="font-semibold tabular-nums">{remoteDuasCount}</span>
+            </div>
+            <div>
+              <span className="block" style={{ color: 'var(--st-text-faint)' }}>
+                Surah Edits
+              </span>
+              <span className="font-semibold tabular-nums">{remoteSurahCount}</span>
+            </div>
+          </div>
+
+          {lastCheckedText && (
+            <p className="text-[10.5px]" style={{ color: 'var(--st-text-faint)' }}>
+              Checked at {lastCheckedText}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Footer: Account & Theme Picker */}
+      <div
+        className="p-2.5 border-t shrink-0 relative"
+        style={{ borderColor: 'var(--st-border)' }}
+        data-studio-theme-popover
+      >
+        {themePopoverOpen && (
+          <div
+            className="absolute bottom-[calc(100%+6px)] left-2.5 right-2.5 rounded-lg border p-3 space-y-3 z-50"
+            style={{
+              backgroundColor: 'var(--st-bg)',
+              borderColor: 'var(--st-border)',
+              boxShadow: 'var(--st-shadow-md)',
+            }}
+          >
+            <div className="space-y-1.5">
+              <p
+                className="text-[10.5px] font-semibold uppercase tracking-[0.07em]"
+                style={{ color: 'var(--st-text-muted)' }}
+              >
+                Theme
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {THEME_OPTIONS.map((opt) => {
+                  const meta = getThemeVariantMeta(opt.id, activeMode);
+                  const selected = activeTheme === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => void updateStudioTheme({ theme: opt.id })}
+                      className="px-2 py-1.5 rounded-[6px] border flex flex-col items-center gap-1 text-[11px] font-medium cursor-pointer transition-colors"
+                      style={{
+                        backgroundColor: selected
+                          ? 'var(--st-bg-active)'
+                          : 'var(--st-bg-subtle)',
+                        borderColor: selected
+                          ? 'var(--st-accent)'
+                          : 'var(--st-border)',
+                        color: 'var(--st-text)',
+                      }}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full border flex items-center justify-center"
+                        style={{
+                          backgroundColor: meta.swatchBg,
+                          borderColor: meta.swatchAccent,
+                        }}
+                      >
+                        {selected ? (
+                          <Check
+                            className="w-2.5 h-2.5"
+                            style={{ color: meta.swatchAccent }}
+                          />
+                        ) : (
+                          <span
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: meta.swatchAccent }}
+                          />
+                        )}
+                      </span>
+                      <span>{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p
+                className="text-[10.5px] font-semibold uppercase tracking-[0.07em]"
+                style={{ color: 'var(--st-text-muted)' }}
+              >
+                Appearance
+              </p>
+              <div
+                className="grid grid-cols-2 p-0.5 rounded-[6px] border text-[11.5px] font-medium"
+                style={{
+                  backgroundColor: 'var(--st-bg-subtle)',
+                  borderColor: 'var(--st-border)',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => void updateStudioTheme({ colorMode: 'light' })}
+                  className="h-7 rounded-[4px] inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  style={{
+                    backgroundColor:
+                      activeMode === 'light' ? 'var(--st-bg)' : 'transparent',
+                    color:
+                      activeMode === 'light'
+                        ? 'var(--st-text)'
+                        : 'var(--st-text-muted)',
+                    boxShadow:
+                      activeMode === 'light' ? 'var(--st-shadow-sm)' : 'none',
+                  }}
+                >
+                  <Sun className="w-3.5 h-3.5" />
+                  Light
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void updateStudioTheme({ colorMode: 'dark' })}
+                  className="h-7 rounded-[4px] inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  style={{
+                    backgroundColor:
+                      activeMode === 'dark' ? 'var(--st-bg)' : 'transparent',
+                    color:
+                      activeMode === 'dark'
+                        ? 'var(--st-text)'
+                        : 'var(--st-text-muted)',
+                    boxShadow:
+                      activeMode === 'dark' ? 'var(--st-shadow-sm)' : 'none',
+                  }}
+                >
+                  <Moon className="w-3.5 h-3.5" />
+                  Dark
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Account Row */}
+        <div className="flex items-center justify-between gap-1.5 px-1">
+          <div className="flex items-center gap-2 min-w-0">
+            {user.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt=""
+                className="w-6 h-6 rounded-full object-cover shrink-0 border"
+                style={{ borderColor: 'var(--st-border)' }}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0"
+                style={{
+                  backgroundColor: 'var(--st-bg-active)',
+                  color: 'var(--st-text)',
+                }}
+              >
+                {userInitial}
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[11.5px] font-medium truncate leading-tight">
+                {user.displayName || 'Admin'}
+              </p>
+              <p
+                className="text-[10.5px] truncate leading-tight"
+                style={{ color: 'var(--st-text-muted)' }}
+              >
+                {user.email}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setThemePopoverOpen((v) => !v)}
+              className="studio-hover p-1.5 rounded-[6px] cursor-pointer transition-colors shrink-0"
+              style={{
+                backgroundColor: themePopoverOpen
+                  ? 'var(--st-bg-active)'
+                  : undefined,
+                color: themePopoverOpen
+                  ? 'var(--st-accent)'
+                  : 'var(--st-text-muted)',
+              }}
+              title="Theme & appearance"
+              aria-label="Theme & appearance"
+              aria-expanded={themePopoverOpen}
+            >
+              <Palette className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              className="studio-hover p-1.5 rounded-[6px] cursor-pointer transition-colors shrink-0"
+              style={{ color: 'var(--st-text-muted)' }}
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="sukoon-studio h-dvh w-full overflow-hidden flex flex-col md:flex-row">
+      {/* Mobile Top Bar */}
+      <div
+        className="md:hidden h-[50px] px-3 border-b flex items-center justify-between gap-2.5 shrink-0"
+        style={{
+          backgroundColor: 'var(--st-bg-sidebar)',
+          borderColor: 'var(--st-border)',
+        }}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="p-1.5 rounded-[6px] border cursor-pointer"
+            style={{
+              backgroundColor: 'var(--st-bg)',
+              borderColor: 'var(--st-border)',
+            }}
+            aria-label="Open menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+          <SukoonEmblem className="w-7 h-7 rounded-[7px]" iconClassName="w-5 h-5" />
+          <span className="text-sm font-semibold tracking-tight truncate">
+            {activeNav?.label ?? 'Studio'}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            void updateStudioTheme({
+              colorMode: activeMode === 'light' ? 'dark' : 'light',
+            })
+          }
+          className="p-1.5 rounded-[6px] border cursor-pointer"
+          style={{
+            backgroundColor: 'var(--st-bg)',
+            borderColor: 'var(--st-border)',
+            color: 'var(--st-text-secondary)',
+          }}
+          aria-label="Toggle light/dark mode"
+          title="Toggle light/dark mode"
+        >
+          {activeMode === 'light' ? (
+            <Moon className="w-4 h-4" />
+          ) : (
+            <Sun className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Mobile Drawer */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-40 md:hidden flex"
+          style={{ backgroundColor: 'rgba(9, 9, 11, 0.45)', backdropFilter: 'blur(3px)' }}
+          onClick={() => setMobileNavOpen(false)}
+        >
+          <aside
+            className="w-[260px] h-full border-r relative"
+            style={{
+              backgroundColor: 'var(--st-bg-sidebar)',
+              borderColor: 'var(--st-border)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(false)}
+              className="absolute top-3 right-3 p-1 rounded-md cursor-pointer z-10"
+              style={{ color: 'var(--st-text-muted)' }}
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop Left Sidebar */}
+      <aside
+        className="hidden md:flex md:flex-col w-[232px] shrink-0 h-full border-r"
+        style={{
+          backgroundColor: 'var(--st-bg-sidebar)',
+          borderColor: 'var(--st-border)',
+        }}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
+        {tab === 'overview' && (
+          <AdminOverviewTab
+            onNavigateTab={(next) => setTab(next)}
+            onQuickCreate={handleQuickCreate}
+            onResumeDraft={handleResumeDraft}
+          />
+        )}
+        {tab === 'duas' && (
+          <AdminDuasTab
+            launchIntent={launchIntent?.tab === 'duas' ? launchIntent : null}
+            onConsumeIntent={clearLaunchIntent}
+          />
+        )}
+        {tab === 'chapters' && (
+          <AdminChaptersTab
+            launchIntent={launchIntent?.tab === 'chapters' ? launchIntent : null}
+            onConsumeIntent={clearLaunchIntent}
+          />
+        )}
+        {tab === 'routines' && (
+          <AdminRoutinesTab
+            launchIntent={launchIntent?.tab === 'routines' ? launchIntent : null}
+            onConsumeIntent={clearLaunchIntent}
+          />
+        )}
         {tab === 'surahs' && <AdminSurahsTab />}
-        {tab === 'featured' && <AdminFeaturedTab />}
+        {tab === 'featured' && (
+          <AdminFeaturedTab
+            launchIntent={launchIntent?.tab === 'featured' ? launchIntent : null}
+            onConsumeIntent={clearLaunchIntent}
+          />
+        )}
       </main>
+
+      <QuickChapterModal
+        open={quickChapterOpen}
+        onClose={() => setQuickChapterOpen(false)}
+      />
     </div>
   );
 }

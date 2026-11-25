@@ -372,11 +372,52 @@ export function AdminOverviewTab({
                   </button>
                 );
               })}
+
+              {savedDrafts.length > 0 && (
+                <button
+                  key="saved-drafts"
+                  type="button"
+                  onClick={() =>
+                    onResumeDraft(savedDrafts[0].scope, savedDrafts[0].id)
+                  }
+                  className="studio-hover rounded-lg border p-4 text-left flex items-start justify-between gap-3 cursor-pointer transition-colors group"
+                  style={{
+                    backgroundColor: 'var(--st-bg)',
+                    borderColor: 'var(--st-border)',
+                    boxShadow: 'var(--st-shadow-sm)',
+                  }}
+                >
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <FilePenLine
+                        className="w-4 h-4 shrink-0"
+                        style={{ color: 'var(--st-blue)' }}
+                      />
+                      <span className="text-[13px] font-semibold truncate">
+                        Saved Drafts
+                      </span>
+                    </div>
+                    <p className="text-xl font-semibold tabular-nums tracking-tight">
+                      {savedDrafts.length}
+                    </p>
+                    <p
+                      className="text-[11.5px] truncate"
+                      style={{ color: 'var(--st-text-muted)' }}
+                    >
+                      Resume: {savedDrafts[0].title}
+                    </p>
+                  </div>
+                  <ArrowRight
+                    className="w-4 h-4 shrink-0 mt-0.5 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: 'var(--st-text-faint)' }}
+                  />
+                </button>
+              )}
             </div>
           </section>
 
-          {/* Local Drafts in Progress */}
-          {savedDrafts.length > 0 && (
+          {/* Additional Saved Drafts (when more than 1 draft exists) */}
+          {savedDrafts.length > 1 && (
             <section className="space-y-3">
               <h2
                 className="text-[11px] font-semibold uppercase tracking-[0.07em]"

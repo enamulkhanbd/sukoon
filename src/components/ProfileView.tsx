@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Settings as SettingsIcon, Target } from 'lucide-react';
+import { Check, Target } from 'lucide-react';
 import { db, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import { DEFAULT_FASTING_LOCATION } from '../utils/fasting';
@@ -15,7 +15,7 @@ import {
 import { DailyGoalSheet } from './DailyGoalSheet';
 import {
   TabHeader,
-  TopBarIconButton,
+  TwoLineMenuButton,
   UnderlineTabs,
 } from './NavigationChrome';
 import { RamadanPrayerSettings } from './RamadanPrayerSettings';
@@ -27,9 +27,10 @@ export type ProfileSection = 'stats' | 'ramadan';
 interface ProfileViewProps {
   settings: Settings;
   activeSection: ProfileSection;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onChangeSection: (section: ProfileSection) => void;
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
-  onOpenSettings: () => void;
   onOpenFastingSchedule: () => void;
 }
 
@@ -41,9 +42,10 @@ const PROFILE_TABS: Array<{ id: ProfileSection; label: string }> = [
 export function ProfileView({
   settings,
   activeSection,
+  menuOpen,
+  onOpenMenu,
   onChangeSection,
   onUpdateSettings,
-  onOpenSettings,
   onOpenFastingSchedule,
 }: ProfileViewProps) {
   const toast = useToast();
@@ -115,9 +117,7 @@ export function ProfileView({
             title="প্রোফাইল"
             subtitle={profileSubtitle}
             rightAction={
-              <TopBarIconButton onClick={onOpenSettings} label="সেটিংস">
-                <SettingsIcon className="w-4 h-4" />
-              </TopBarIconButton>
+              <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
             }
           />
         </div>

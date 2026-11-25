@@ -49,10 +49,13 @@ import {
 import { FastingCard } from './FastingCard';
 import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
+import { TwoLineMenuButton } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
 
 interface HomeViewProps {
   settings: Settings;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
@@ -68,6 +71,8 @@ interface HomeViewProps {
 
 export function HomeView({
   settings,
+  menuOpen,
+  onOpenMenu,
   onOpenSearch,
   onOpenSettings,
   onOpenSurah,
@@ -292,6 +297,7 @@ export function HomeView({
           {/* Minimal Top Brand Bar */}
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />
+            <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
           </div>
 
           {/* Serene Thuluth Calligraphic Centerpiece */}

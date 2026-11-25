@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useDuasCatalog } from '../services/contentCatalog';
+import { isCustomDuaId, useCustomDuas } from '../services/customDuas';
 import { SURAH_MAP } from '../data/surahs';
 import {
   db,
@@ -50,6 +51,7 @@ export function RoutineDetailView({
   onStartItem,
 }: RoutineDetailViewProps) {
   const { duaMap: DUA_MAP, chapterMap: DUA_CHAPTER_MAP } = useDuasCatalog();
+  const { customDuaMap } = useCustomDuas();
   const toast = useToast();
   const clock = useIslamicClock(settings);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
@@ -106,7 +108,8 @@ export function RoutineDetailView({
   const completedSet = new Set(completedIndexes);
 
   const percentage = progress?.percentage ?? 0;
-  const isAllCompleted = percentage >= 100 || completedSet.size === items.length;
+  const isAllCompleted =
+    items.length > 0 && (percentage >= 100 || completedSet.size === items.length);
 
   const scheduleText =
     routine.assignedDays.length === 7
@@ -204,8 +207,14 @@ export function RoutineDetailView({
 
             const isSurah = item.kind === 'surah';
             const surahMeta = isSurah ? SURAH_MAP[item.surahId] : undefined;
-            const dua = !isSurah ? DUA_MAP[item.duaId] : undefined;
-            const duaChapter = dua ? DUA_CHAPTER_MAP[dua.chapterId] : undefined;
+            const isCustomDua = !isSurah && isCustomDuaId(item.duaId);
+            const dua = !isSurah
+              ? isCustomDua
+                ? customDuaMap[item.duaId]
+                : DUA_MAP[item.duaId]
+              : undefined;
+            const duaChapter =
+              dua && !isCustomDua ? DUA_CHAPTER_MAP[dua.chapterId] : undefined;
 
             const span = isSurah ? item.endAyah - item.startAyah + 1 : 0;
             const isPartialActive =
@@ -289,7 +298,10 @@ export function RoutineDetailView({
                           </span>
                         ) : (
                           <span>
-                            {duaChapter?.titleBangla ?? 'দুআ'} •{' '}
+                            {isCustomDua
+                              ? 'আমার দুআ'
+                              : duaChapter?.titleBangla ?? 'দুআ'}{' '}
+                            •{' '}
                             {toBanglaDigits(item.targetCount ?? dua?.repeatCount ?? 1)} বার
                           </span>
                         )}
@@ -368,19 +380,25 @@ export function RoutineDetailView({
                             {dua.occasionNote}
                           </p>
                         )}
-                        <p
-                          className="font-indopak text-lg leading-loose text-right py-1"
-                          dir="rtl"
-                          lang="ar"
-                        >
-                          {normalizeIndoPakText(dua.arabic)}
-                        </p>
-                        <p
-                          className="text-xs leading-relaxed"
-                          style={{ color: 'var(--text-secondary)' }}
-                        >
-                          {dua.translationBangla}
-                        </p>
+                        {dua.arabic.trim().length > 0 && (
+                          <p
+                            className="font-indopak text-lg leading-loose text-right py-1"
+                            dir="rtl"
+                            lang="ar"
+                          >
+                            {normalizeIndoPakText(dua.arabic)}
+                          </p>
+                        )}
+                        {(dua.translationBangla.trim() ||
+                          (dua.transliteration ?? '').trim()) && (
+                          <p
+                            className="text-xs leading-relaxed whitespace-pre-line"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {dua.translationBangla.trim() ||
+                              (dua.transliteration ?? '').trim()}
+                          </p>
+                        )}
                         {dua.reference && (
                           <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                             সূত্র: {dua.reference}

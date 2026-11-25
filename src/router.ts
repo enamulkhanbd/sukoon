@@ -1,6 +1,10 @@
 import type { AppTab } from './components/BottomNav';
 import { SURAH_MAP } from './data/surahs';
 import { getCatalogSnapshot } from './services/catalogSnapshot';
+import {
+  getCustomDuasSnapshot,
+  isCustomDuaId,
+} from './services/customDuaSnapshot';
 
 export type AdminSection =
   | 'overview'
@@ -11,8 +15,15 @@ export type AdminSection =
   | 'featured'
   | 'hijri';
 
+export type DuaSubTabRoute = 'custom';
+
 export type AppRoute =
-  | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
+  | {
+      type: 'tab';
+      tab: AppTab;
+      duaChapterId?: number | null;
+      duaSubTab?: DuaSubTabRoute | null;
+    }
   | { type: 'surah'; surahId: number; initialAyah: number; initialPage?: number }
   | { type: 'dua'; duaId: string }
   | { type: 'ramadan' }
@@ -72,6 +83,14 @@ export function parseRoute(
   }
   if (path === '/duas') {
     return { type: 'tab', tab: 'duas', duaChapterId: null };
+  }
+  if (path === '/duas/custom') {
+    return {
+      type: 'tab',
+      tab: 'duas',
+      duaChapterId: null,
+      duaSubTab: 'custom',
+    };
   }
   if (path === '/routines') {
     return { type: 'tab', tab: 'routines' };
@@ -138,6 +157,18 @@ export function parseRoute(
     } catch {
       return { type: 'tab', tab: 'duas', duaChapterId: null };
     }
+    if (isCustomDuaId(duaId)) {
+      const customSnap = getCustomDuasSnapshot();
+      if (!customSnap.hydrated || customSnap.duaMap[duaId]) {
+        return { type: 'dua', duaId };
+      }
+      return {
+        type: 'tab',
+        tab: 'duas',
+        duaChapterId: null,
+        duaSubTab: 'custom',
+      };
+    }
     if (duaId && (!catalog.hydrated || catalog.duaMap[duaId])) {
       return { type: 'dua', duaId };
     }
@@ -190,9 +221,13 @@ export function buildPath(route: AppRoute): string {
         case 'surahs':
           return '/surahs';
         case 'duas':
-          return route.duaChapterId
-            ? `/duas/chapter/${route.duaChapterId}`
-            : '/duas';
+          if (route.duaChapterId) {
+            return `/duas/chapter/${route.duaChapterId}`;
+          }
+          if (route.duaSubTab === 'custom') {
+            return '/duas/custom';
+          }
+          return '/duas';
         case 'routines':
           return '/routines';
         case 'profile':

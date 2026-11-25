@@ -42,6 +42,11 @@ import {
   useRoutineTemplates,
 } from '../services/contentCatalog';
 import {
+  isCustomDuaId,
+  searchCustomDuas,
+  useCustomDuas,
+} from '../services/customDuas';
+import {
   DAY_SHORT_BN,
   formatNormalizedRoutineItemLabel,
   formatRoutineSummaryBn,
@@ -51,6 +56,7 @@ import { searchDuas, searchSurahs } from '../utils/searchEngine';
 import {
   SoftSearchInput,
   TabHeader,
+  TwoLineMenuButton,
   UnderlineTabs,
   useBottomSheet,
 } from './NavigationChrome';
@@ -126,6 +132,8 @@ function createDraftDuaItem(duaId: string, targetCount: number): DraftDuaItem {
 
 interface RoutinesViewProps {
   settings: Settings;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   shouldOpenCreate?: boolean;
   onHandledCreate?: () => void;
@@ -135,6 +143,8 @@ interface RoutinesViewProps {
 
 export function RoutinesView({
   settings,
+  menuOpen,
+  onOpenMenu,
   onOpenRoutineDetails,
   shouldOpenCreate = false,
   onHandledCreate,
@@ -150,6 +160,13 @@ export function RoutinesView({
     duas: DUAS,
     duaMap: DUA_MAP,
   } = useDuasCatalog();
+  const {
+    customDuaItems,
+    customDuaMap,
+    version: customVersion,
+  } = useCustomDuas();
+  const lookupDua = (duaId: string) =>
+    isCustomDuaId(duaId) ? customDuaMap[duaId] : DUA_MAP[duaId];
   const { templates: routineTemplates, templateMap: routineTemplateMap } =
     useRoutineTemplates();
   const [previewTemplate, setPreviewTemplate] =
@@ -205,7 +222,7 @@ export function RoutinesView({
   const [pickerTab, setPickerTab] = useState<'surah' | 'dua'>('surah');
   const [pickerQuery, setPickerQuery] = useState('');
   const [expandedDuaCategoryId, setExpandedDuaCategoryId] = useState<
-    number | null
+    number | 'custom' | null
   >(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -298,7 +315,7 @@ export function RoutinesView({
   };
 
   const addDuaItem = (duaId: string) => {
-    const dua = DUA_MAP[duaId];
+    const dua = lookupDua(duaId);
     if (!dua) return;
     setItems((prev) => [
       ...prev,
@@ -316,7 +333,7 @@ export function RoutinesView({
     setItems((prev) =>
       prev.filter((it) => !(it.kind === 'dua' && it.duaId === duaId))
     );
-    const name = DUA_MAP[duaId]?.titleBangla ?? 'দুআ';
+    const name = lookupDua(duaId)?.titleBangla ?? 'দুআ';
     toast.info(`“${name}” তালিকা থেকে সরানো হয়েছে`);
   };
 
@@ -336,7 +353,7 @@ export function RoutinesView({
     setItems((prev) => [
       ...prev,
       ...toAdd.map((id) =>
-        createDraftDuaItem(id, Math.max(1, DUA_MAP[id]?.repeatCount ?? 1))
+        createDraftDuaItem(id, Math.max(1, lookupDua(id)?.repeatCount ?? 1))
       ),
     ]);
     toast.success(`${toBanglaDigits(toAdd.length)}টি ${groupLabel} যুক্ত হয়েছে`);
@@ -348,7 +365,7 @@ export function RoutinesView({
     if (removed) {
       const name =
         removed.kind === 'dua'
-          ? DUA_MAP[removed.duaId]?.titleBangla ?? 'দুআ'
+          ? lookupDua(removed.duaId)?.titleBangla ?? 'দুআ'
           : SURAH_MAP[removed.surahId]?.nameBangla ?? 'সূরা';
       toast.info(`${name} তালিকা থেকে সরানো হয়েছে`);
     }
@@ -483,7 +500,7 @@ export function RoutinesView({
 
     for (const item of items) {
       if (item.kind === 'dua') {
-        const dua = DUA_MAP[item.duaId];
+        const dua = lookupDua(item.duaId);
         if (!dua) continue;
         const count = parseAyahNumberInput(item.countText);
         if (count === null || count < 1 || count > 1000) {
@@ -526,15 +543,23 @@ export function RoutinesView({
       }
     }
 
+    const nowTs = Date.now();
     const routine: Routine = {
-      id: editingRoutine ? editingRoutine.id : `routine-${Date.now()}`,
+      id: editingRoutine ? editingRoutine.id : `routine-${nowTs}`,
       title: trimmed,
       assignedDays,
       surahIds: validatedItems
         .filter((i): i is Exclude<RoutineItem, { kind: 'dua' }> => !isDuaRoutineItem(i))
         .map((i) => i.surahId),
       items: validatedItems,
-      createdAt: editingRoutine ? editingRoutine.createdAt : Date.now(),
+      ...(editingRoutine?.sourceTemplateId
+        ? {
+            sourceTemplateId: editingRoutine.sourceTemplateId,
+            sourceTemplateVersion: editingRoutine.sourceTemplateVersion,
+          }
+        : {}),
+      createdAt: editingRoutine ? editingRoutine.createdAt : nowTs,
+      updatedAt: nowTs,
     };
 
     await db.routines.put(routine);
@@ -692,15 +717,17 @@ export function RoutinesView({
       toast.warning('এই টেমপ্লেটে কোনো বৈধ আইটেম পাওয়া যায়নি।');
       return;
     }
+    const nowTs = Date.now();
     const newRoutine: Routine = {
-      id: `routine-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `routine-${nowTs}-${Math.random().toString(36).slice(2, 6)}`,
       title: tpl.title,
       assignedDays: [...tpl.assignedDays],
       surahIds,
       items: tplItems,
       sourceTemplateId: tpl.id,
       sourceTemplateVersion: tpl.version,
-      createdAt: Date.now(),
+      createdAt: nowTs,
+      updatedAt: nowTs,
     };
     await db.routines.put(newRoutine);
     setPreviewTemplate(null);
@@ -720,6 +747,7 @@ export function RoutinesView({
       surahIds,
       items: tplItems,
       sourceTemplateVersion: tpl.version,
+      updatedAt: Date.now(),
     });
     setUpdateCandidate(null);
     toast.success(`“${routine.title}” নতুন ভার্সনে আপডেট হয়েছে`);
@@ -732,10 +760,17 @@ export function RoutinesView({
     await db.routines.put({
       ...routine,
       sourceTemplateVersion: tpl.version,
+      updatedAt: Date.now(),
     });
     setUpdateCandidate(null);
     toast.info('আপনার কাস্টম রুটিনটি অপরিবর্তিত রাখা হয়েছে।');
   };
+
+  const filteredCustomDuas = useMemo(() => {
+    const trimmed = pickerQuery.trim();
+    if (!trimmed) return customDuaItems;
+    return searchCustomDuas(trimmed, customDuaItems);
+  }, [pickerQuery, customDuaItems, customVersion]);
 
   const filteredDuas = useMemo(() => {
     const trimmed = pickerQuery.trim();
@@ -788,18 +823,21 @@ export function RoutinesView({
             title="আমলের রুটিন"
             subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
             rightAction={
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                নতুন রুটিন
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    color: 'var(--accent-text)',
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  নতুন রুটিন
+                </button>
+                <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
+              </div>
             }
           />
         </div>
@@ -1455,9 +1493,12 @@ export function RoutinesView({
                   <div className="space-y-2">
                     {items.map((item, idx) => {
                       if (item.kind === 'dua') {
-                        const dua = DUA_MAP[item.duaId];
+                        const dua = lookupDua(item.duaId);
                         if (!dua) return null;
-                        const ch = DUA_CHAPTER_MAP[dua.chapterId];
+                        const isCustom = isCustomDuaId(dua.id);
+                        const ch = isCustom
+                          ? undefined
+                          : DUA_CHAPTER_MAP[dua.chapterId];
                         return (
                           <div
                             key={item.uid}
@@ -1507,7 +1548,9 @@ export function RoutinesView({
                                 className="text-[11px] truncate"
                                 style={{ color: 'var(--text-muted)' }}
                               >
-                                {ch?.titleBangla ?? 'দুআ ও জিকির'}
+                                {isCustom
+                                  ? 'আমার দুআ'
+                                  : ch?.titleBangla ?? 'দুআ ও জিকির'}
                               </span>
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <span style={{ color: 'var(--text-muted)' }}>পড়ার সংখ্যা:</span>
@@ -1648,7 +1691,11 @@ export function RoutinesView({
                   ariaLabel="সূরা বা দুআ নির্বাচন"
                   tabs={[
                     { id: 'surah', label: 'সূরা', count: toBanglaDigits(SURAHS.length) },
-                    { id: 'dua', label: 'দুআ ও জিকির', count: toBanglaDigits(DUAS.length) },
+                    {
+                      id: 'dua',
+                      label: 'দুআ ও জিকির',
+                      count: toBanglaDigits(DUAS.length + customDuaItems.length),
+                    },
                   ]}
                 />
 
@@ -1743,7 +1790,8 @@ export function RoutinesView({
                         </div>
                       );
                     })
-                  ) : groupedDuaCategories.length === 0 ? (
+                  ) : groupedDuaCategories.length === 0 &&
+                    filteredCustomDuas.length === 0 ? (
                     <div
                       className="px-4 py-8 text-center text-xs"
                       style={{ color: 'var(--text-muted)' }}
@@ -1751,7 +1799,150 @@ export function RoutinesView({
                       কোনো দুআ পাওয়া যায়নি।
                     </div>
                   ) : (
-                    groupedDuaCategories.map(({ chapter, duas }) => {
+                    <>
+                      {/* Clearly Separated Personal "আমার দুআ" Section */}
+                      {filteredCustomDuas.length > 0 && (() => {
+                        const isSearching = pickerQuery.trim().length > 0;
+                        const isCustomExpanded =
+                          isSearching || expandedDuaCategoryId === 'custom';
+                        const customIdsSet = new Set(
+                          filteredCustomDuas.map((d) => d.id)
+                        );
+                        const selectedInCustom = items.filter(
+                          (it) => it.kind === 'dua' && customIdsSet.has(it.duaId)
+                        ).length;
+
+                        return (
+                          <div
+                            className="rounded-2xl overflow-hidden border"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              borderColor:
+                                'color-mix(in srgb, var(--accent) 28%, var(--border-subtle))',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDuaCategoryId((prev) =>
+                                  prev === 'custom' ? null : 'custom'
+                                )
+                              }
+                              aria-expanded={isCustomExpanded}
+                              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer transition-colors"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold leading-snug flex items-center gap-1.5">
+                                  <Sparkles
+                                    className="w-3.5 h-3.5 shrink-0"
+                                    style={{ color: 'var(--accent)' }}
+                                  />
+                                  <span>আমার দুআ</span>
+                                  <span
+                                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                                    style={{
+                                      backgroundColor: 'var(--accent-soft)',
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    ব্যক্তিগত
+                                  </span>
+                                </div>
+                                <div
+                                  className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                                  style={{ color: 'var(--text-muted)' }}
+                                >
+                                  <span>
+                                    {toBanglaDigits(filteredCustomDuas.length)}টি ব্যক্তিগত দুআ
+                                  </span>
+                                  {selectedInCustom > 0 && (
+                                    <span
+                                      className="font-semibold"
+                                      style={{ color: 'var(--accent)' }}
+                                    >
+                                      • {toBanglaDigits(selectedInCustom)}টি নির্বাচিত
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <ChevronDown
+                                className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                                  isCustomExpanded ? 'rotate-180' : ''
+                                }`}
+                                style={{ color: 'var(--text-muted)' }}
+                              />
+                            </button>
+
+                            {isCustomExpanded && (
+                              <div className="px-2.5 pb-2.5 space-y-1.5">
+                                {filteredCustomDuas.map((dua) => {
+                                  const countInList = items.filter(
+                                    (it) => it.kind === 'dua' && it.duaId === dua.id
+                                  ).length;
+                                  return (
+                                    <div
+                                      key={dua.id}
+                                      className="w-full rounded-xl flex items-center justify-between gap-3 px-3 py-2.5 text-left text-xs transition-colors"
+                                      style={{
+                                        backgroundColor:
+                                          countInList > 0
+                                            ? 'var(--accent-soft)'
+                                            : 'var(--bg-elevated)',
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleDuaInPicker(dua.id)}
+                                        className="flex-1 min-w-0 text-left cursor-pointer space-y-0.5"
+                                      >
+                                        <div className="font-medium leading-snug">
+                                          {dua.titleBangla}
+                                        </div>
+                                        {dua.repeatCount && dua.repeatCount > 1 && (
+                                          <div
+                                            className="text-[11px]"
+                                            style={{ color: 'var(--text-muted)' }}
+                                          >
+                                            {toBanglaDigits(dua.repeatCount)} বার
+                                          </div>
+                                        )}
+                                      </button>
+
+                                      {countInList > 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleDuaInPicker(dua.id)}
+                                          title="তালিকা থেকে সরান"
+                                          className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
+                                          style={{
+                                            backgroundColor: 'var(--accent)',
+                                            color: 'var(--accent-text)',
+                                          }}
+                                        >
+                                          <Check className="w-3 h-3" />
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => addDuaItem(dua.id)}
+                                          aria-label={`${dua.titleBangla} যুক্ত করুন`}
+                                          className="p-1 cursor-pointer shrink-0"
+                                          style={{ color: 'var(--text-muted)' }}
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {groupedDuaCategories.map(({ chapter, duas }) => {
                       const isSearching = pickerQuery.trim().length > 0;
                       const isExpanded =
                         isSearching || expandedDuaCategoryId === chapter.id;
@@ -1950,7 +2141,8 @@ export function RoutinesView({
                           )}
                         </div>
                       );
-                    })
+                    })}
+                    </>
                   )}
                   </div>
                 </div>

@@ -95,11 +95,22 @@ export function SettingsSheet({
     document.body.style.overflow = 'hidden';
 
     try {
-      window.history.pushState(
-        { sukoonSettingsSheet: true },
-        '',
-        window.location.href
-      );
+      const currentState = window.history.state as
+        | { sukoonMenuDrawer?: boolean }
+        | null;
+      if (currentState?.sukoonMenuDrawer) {
+        window.history.replaceState(
+          { sukoonSettingsSheet: true },
+          '',
+          window.location.href
+        );
+      } else {
+        window.history.pushState(
+          { sukoonSettingsSheet: true },
+          '',
+          window.location.href
+        );
+      }
       pushedHistoryRef.current = true;
     } catch {
       pushedHistoryRef.current = false;
@@ -164,10 +175,14 @@ export function SettingsSheet({
       const text = await file.text();
       const parsed: unknown = JSON.parse(text);
       const res = await importUserData(parsed);
+      const customNote =
+        res.customDuasCount > 0
+          ? `, ${toBanglaDigits(res.customDuasCount)}টি ব্যক্তিগত দুআ`
+          : '';
       toast.success(
         `সফলভাবে রিস্টোর হয়েছে (${toBanglaDigits(
           res.routinesCount
-        )}টি রুটিন, ${toBanglaDigits(res.historyDays)} দিনের ইতিহাস)।`
+        )}টি রুটিন, ${toBanglaDigits(res.historyDays)} দিনের ইতিহাস${customNote})।`
       );
     } catch (err) {
       toast.error(

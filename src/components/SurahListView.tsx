@@ -17,11 +17,14 @@ import {
 import {
   SoftSearchInput,
   TabHeader,
+  TwoLineMenuButton,
   UnderlineTabs,
 } from './NavigationChrome';
 
 interface SurahListViewProps {
   settings: Settings;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onOpenSurah: (
     surahId: number,
     initialAyah?: number,
@@ -107,6 +110,8 @@ const PAGE_LIST: PageEntry[] = Array.from(
 
 export function SurahListView({
   settings,
+  menuOpen,
+  onOpenMenu,
   onOpenSurah,
 }: SurahListViewProps) {
   const [query, setQuery] = useState('');
@@ -255,6 +260,9 @@ export function SurahListView({
           <TabHeader
             title="আল-কুরআন"
             subtitle={`১১৪ সূরা • ৩০ পারা • ৬০৪ পৃষ্ঠা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে`}
+            rightAction={
+              <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
+            }
           />
 
           <SoftSearchInput

@@ -8,7 +8,12 @@ import type {
   RemoteSurahOverrideDoc,
 } from '../data/cmsTypes';
 import { SURAH_MAP } from '../data/surahs';
-import { getMergedDua } from '../services/catalogSnapshot';
+import {
+  normalizeStoredCustomDua,
+  resolveDuaById,
+  setCustomDuasSnapshot,
+  type CustomDua,
+} from '../services/customDuaSnapshot';
 import {
   DEFAULT_FASTING_LOCATION,
   getCurrentNow,
@@ -67,6 +72,7 @@ export interface Routine {
   sourceTemplateId?: string; // Set when adopted from an Admin-published Routine Template
   sourceTemplateVersion?: number; // Template version when adopted/last updated
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface RoutineProgress {
@@ -199,6 +205,7 @@ export interface Settings {
   hijriOffsetMode?: HijriOffsetMode;
   dailyGoalMinutes?: number; // 0 = disabled, otherwise daily target minutes
   dismissedFeaturedCardIds?: string[]; // Home spotlight cards dismissed by user
+  userModifiedAt?: number; // Set only when user modifies settings/bookmarks locally
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -229,6 +236,7 @@ export class SukoonDatabase extends Dexie {
   readingHistory!: Table<ReadingHistory, string>;
   cachedSurahs!: Table<CachedSurah, number>;
   settings!: Table<Settings, string>;
+  customDuas!: Table<CustomDua, string>;
   remoteDuas!: Table<RemoteDuaDoc, string>;
   remoteDuaChapters!: Table<RemoteDuaChapterDoc, number>;
   remoteRoutineTemplates!: Table<RemoteRoutineTemplateDoc, string>;
@@ -260,10 +268,133 @@ export class SukoonDatabase extends Dexie {
       remoteFeaturedCards: 'id, updatedAt',
       cmsSyncMeta: 'collection',
     });
+    this.version(3).stores({
+      routines: 'id, createdAt, updatedAt',
+      routineProgress: 'routineId, lastUpdated',
+      globalLastRead: 'id',
+      readingHistory: 'date',
+      cachedSurahs: 'surahId',
+      settings: 'key',
+      customDuas: 'id, createdAt, updatedAt',
+      remoteDuas: 'id, chapterId, updatedAt',
+      remoteDuaChapters: 'id, updatedAt',
+      remoteRoutineTemplates: 'id, updatedAt',
+      remoteSurahOverrides: 'surahId, updatedAt',
+      remoteFeaturedCards: 'id, updatedAt',
+      cmsSyncMeta: 'collection',
+    });
   }
 }
 
 export const db = new SukoonDatabase();
+
+export type PersonalDataTableName =
+  | 'customDuas'
+  | 'routines'
+  | 'routineProgress'
+  | 'readingHistory'
+  | 'globalLastRead'
+  | 'settings';
+
+export interface PersonalDataChangeEvent {
+  table: PersonalDataTableName;
+  op: 'write' | 'delete';
+  key: string;
+}
+
+type PersonalDataChangeListener = (event: PersonalDataChangeEvent) => void;
+
+const personalDataListeners = new Set<PersonalDataChangeListener>();
+let suppressPersonalHooksDepth = 0;
+
+export function subscribePersonalDataChanges(
+  listener: PersonalDataChangeListener
+): () => void {
+  personalDataListeners.add(listener);
+  return () => personalDataListeners.delete(listener);
+}
+
+export async function runWithoutPersonalSyncHooks<T>(
+  fn: () => Promise<T>
+): Promise<T> {
+  suppressPersonalHooksDepth += 1;
+  try {
+    return await fn();
+  } finally {
+    suppressPersonalHooksDepth = Math.max(0, suppressPersonalHooksDepth - 1);
+  }
+}
+
+function emitPersonalChange(event: PersonalDataChangeEvent): void {
+  if (suppressPersonalHooksDepth > 0 || personalDataListeners.size === 0) {
+    return;
+  }
+  queueMicrotask(() => {
+    for (const listener of personalDataListeners) {
+      listener(event);
+    }
+  });
+}
+
+function attachPersonalSyncHooks(): void {
+  const tables: Array<{
+    name: PersonalDataTableName;
+    table: Table<unknown, string>;
+  }> = [
+    { name: 'customDuas', table: db.customDuas as Table<unknown, string> },
+    { name: 'routines', table: db.routines as Table<unknown, string> },
+    {
+      name: 'routineProgress',
+      table: db.routineProgress as Table<unknown, string>,
+    },
+    {
+      name: 'readingHistory',
+      table: db.readingHistory as Table<unknown, string>,
+    },
+    {
+      name: 'globalLastRead',
+      table: db.globalLastRead as Table<unknown, string>,
+    },
+    { name: 'settings', table: db.settings as Table<unknown, string> },
+  ];
+
+  for (const { name, table } of tables) {
+    table.hook('creating', function (primKey, obj) {
+      if (suppressPersonalHooksDepth > 0) return;
+      const resolvedKey =
+        typeof primKey === 'string'
+          ? primKey
+          : obj && typeof obj === 'object' && 'id' in obj
+            ? String((obj as { id: unknown }).id)
+            : obj && typeof obj === 'object' && 'key' in obj
+              ? String((obj as { key: unknown }).key)
+              : obj && typeof obj === 'object' && 'date' in obj
+                ? String((obj as { date: unknown }).date)
+                : obj && typeof obj === 'object' && 'routineId' in obj
+                  ? String((obj as { routineId: unknown }).routineId)
+                  : '';
+      emitPersonalChange({ table: name, op: 'write', key: resolvedKey });
+    });
+    table.hook('updating', function (_mods, primKey) {
+      if (suppressPersonalHooksDepth > 0) return;
+      emitPersonalChange({
+        table: name,
+        op: 'write',
+        key: String(primKey ?? ''),
+      });
+    });
+    table.hook('deleting', function (primKey) {
+      if (suppressPersonalHooksDepth > 0) return;
+      emitPersonalChange({
+        table: name,
+        op: 'delete',
+        key: String(primKey ?? ''),
+      });
+    });
+  }
+}
+
+attachPersonalSyncHooks();
 
 let activeIslamicLocation: FastingLocation = DEFAULT_FASTING_LOCATION;
 let activeIslamicMethod: FastingCalculationMethod = 'karachi';
@@ -355,7 +486,7 @@ export async function resetRoutineProgressForToday(
   );
 }
 
-function normalizeHistoryRecord(
+export function normalizeHistoryRecord(
   date: string,
   existing?: Partial<ReadingHistory>
 ): ReadingHistory {
@@ -548,7 +679,7 @@ export function getRoutineItems(
   const normalized: NormalizedRoutineItem[] = [];
   for (const item of source) {
     if (isDuaRoutineItem(item)) {
-      const dua = getMergedDua(item.duaId);
+      const dua = resolveDuaById(item.duaId);
       if (!dua) continue;
       normalized.push({
         kind: 'dua',
@@ -1111,7 +1242,7 @@ export async function updateDuaRoutineProgress(params: {
     completed,
     skipDuaHistoryLog = false,
   } = params;
-  if (!getMergedDua(duaId)) return;
+  if (!resolveDuaById(duaId)) return;
 
   const now = Date.now();
   const todayKey = getTodayDateKey();
@@ -1209,18 +1340,26 @@ export interface BackupPayload {
     globalLastRead: GlobalLastRead[];
     readingHistory: ReadingHistory[];
     settings: Settings | undefined;
+    customDuas?: CustomDua[];
   };
 }
 
 export async function exportUserData(): Promise<BackupPayload> {
-  const [routines, routineProgress, globalLastRead, readingHistory, settings] =
-    await Promise.all([
-      db.routines.toArray(),
-      db.routineProgress.toArray(),
-      db.globalLastRead.toArray(),
-      db.readingHistory.toArray(),
-      db.settings.get('app'),
-    ]);
+  const [
+    routines,
+    routineProgress,
+    globalLastRead,
+    readingHistory,
+    settings,
+    customDuas,
+  ] = await Promise.all([
+    db.routines.toArray(),
+    db.routineProgress.toArray(),
+    db.globalLastRead.toArray(),
+    db.readingHistory.toArray(),
+    db.settings.get('app'),
+    db.customDuas.orderBy('createdAt').toArray(),
+  ]);
 
   return {
     version: 1,
@@ -1232,6 +1371,7 @@ export async function exportUserData(): Promise<BackupPayload> {
       globalLastRead,
       readingHistory,
       settings,
+      customDuas,
     },
   };
 }
@@ -1239,6 +1379,7 @@ export async function exportUserData(): Promise<BackupPayload> {
 export async function importUserData(raw: unknown): Promise<{
   routinesCount: number;
   historyDays: number;
+  customDuasCount: number;
 }> {
   if (!raw || typeof raw !== 'object') {
     throw new Error('অবৈধ ব্যাকআপ ফাইল।');
@@ -1248,12 +1389,26 @@ export async function importUserData(raw: unknown): Promise<{
     throw new Error('এটি সুকূন অ্যাপের বৈধ JSON ব্যাকআপ নয়।');
   }
 
-  const { routines = [], routineProgress = [], globalLastRead = [], readingHistory = [], settings } =
-    payload.data;
+  const {
+    routines = [],
+    routineProgress = [],
+    globalLastRead = [],
+    readingHistory = [],
+    settings,
+    customDuas = [],
+  } = payload.data;
 
-  if (!Array.isArray(routines) || !Array.isArray(readingHistory)) {
+  if (
+    !Array.isArray(routines) ||
+    !Array.isArray(readingHistory) ||
+    !Array.isArray(customDuas)
+  ) {
     throw new Error('ব্যাকআপ ফাইলের কাঠামো সঠিক নয়।');
   }
+
+  const validCustomDuas = customDuas
+    .map((d) => normalizeStoredCustomDua(d))
+    .filter((d): d is CustomDua => d !== null);
 
   await db.transaction(
     'rw',
@@ -1264,13 +1419,18 @@ export async function importUserData(raw: unknown): Promise<{
       db.readingHistory,
       db.cachedSurahs,
       db.settings,
+      db.customDuas,
     ],
     async () => {
       await db.routines.clear();
       await db.routineProgress.clear();
       await db.globalLastRead.clear();
       await db.readingHistory.clear();
+      await db.customDuas.clear();
 
+      if (validCustomDuas.length > 0) {
+        await db.customDuas.bulkPut(validCustomDuas);
+      }
       if (routines.length > 0) await db.routines.bulkPut(routines);
       if (routineProgress.length > 0) await db.routineProgress.bulkPut(routineProgress);
       if (globalLastRead.length > 0) await db.globalLastRead.bulkPut(globalLastRead);
@@ -1316,13 +1476,17 @@ export async function importUserData(raw: unknown): Promise<{
           hijriOffsetDays: resolvedHijri.hijriOffsetDays,
           key: 'app',
           offlineDownloaded: cachedCount >= 114,
+          userModifiedAt: Date.now(),
         });
       }
     }
   );
 
+  setCustomDuasSnapshot(validCustomDuas);
+
   return {
     routinesCount: routines.length,
     historyDays: readingHistory.length,
+    customDuasCount: validCustomDuas.length,
   };
 }

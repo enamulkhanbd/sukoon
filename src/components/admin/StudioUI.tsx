@@ -9,7 +9,20 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, ChevronDown, Loader2, Search, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  FilePenLine,
+  Loader2,
+  RotateCcw,
+  Search,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react';
 
 export type StudioBadgeTone = 'neutral' | 'emerald' | 'amber' | 'blue' | 'danger';
 
@@ -894,6 +907,154 @@ export function StudioMetricCard({
         </p>
       )}
     </div>
+  );
+}
+
+/** Shared non-redundant sticky top bar for all Studio editor sheets */
+export function StudioEditorHeader({
+  title,
+  statusBadge,
+  saving = false,
+  isPublishedClean = false,
+  onRevert,
+  revertTitle = 'Revert to built-in default',
+  onDelete,
+  deleteTitle = 'Delete',
+  onCancel,
+  onSaveDraft,
+  showPreview,
+  onTogglePreview,
+  onPublish,
+}: {
+  title: string;
+  statusBadge?: { label: string; tone: StudioBadgeTone } | null;
+  saving?: boolean;
+  isPublishedClean?: boolean;
+  onRevert?: () => void;
+  revertTitle?: string;
+  onDelete?: () => void;
+  deleteTitle?: string;
+  onCancel: () => void;
+  onSaveDraft?: () => void;
+  showPreview?: boolean;
+  onTogglePreview?: () => void;
+  onPublish: () => void;
+}) {
+  return (
+    <header
+      className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
+      style={{
+        backgroundColor: 'var(--st-bg)',
+        borderColor: 'var(--st-border)',
+      }}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-[13.5px] font-semibold tracking-tight truncate">
+          {title}
+        </span>
+        {statusBadge && (
+          <StudioBadge tone={statusBadge.tone} dot>
+            {statusBadge.label}
+          </StudioBadge>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        {onRevert && (
+          <StudioButton
+            variant="ghost"
+            size="sm"
+            disabled={saving}
+            onClick={onRevert}
+            title={revertTitle}
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </StudioButton>
+        )}
+
+        {onDelete && (
+          <StudioButton
+            variant="ghost"
+            size="sm"
+            disabled={saving}
+            onClick={onDelete}
+            style={{ color: 'var(--st-danger)' }}
+            title={deleteTitle}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </StudioButton>
+        )}
+
+        <StudioButton
+          variant="ghost"
+          size="sm"
+          disabled={saving}
+          onClick={onCancel}
+        >
+          Cancel
+        </StudioButton>
+
+        {onSaveDraft && (
+          <StudioButton
+            variant="secondary"
+            size="sm"
+            disabled={saving}
+            onClick={onSaveDraft}
+          >
+            <FilePenLine className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Save Draft</span>
+          </StudioButton>
+        )}
+
+        {onTogglePreview && (
+          <StudioButton
+            variant="secondary"
+            size="sm"
+            onClick={onTogglePreview}
+            style={
+              showPreview
+                ? {
+                    backgroundColor: 'var(--st-bg-active)',
+                    borderColor: 'var(--st-border-strong)',
+                  }
+                : undefined
+            }
+            title="Toggle live Sukoon preview"
+          >
+            {showPreview ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">Preview</span>
+          </StudioButton>
+        )}
+
+        <StudioButton
+          variant={isPublishedClean ? 'secondary' : 'primary'}
+          size="sm"
+          loading={saving}
+          onClick={onPublish}
+          style={
+            isPublishedClean
+              ? {
+                  color: 'var(--st-accent)',
+                  borderColor:
+                    'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
+                }
+              : undefined
+          }
+        >
+          {!saving &&
+            (isPublishedClean ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Send className="w-3.5 h-3.5" />
+            ))}
+          <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
+        </StudioButton>
+      </div>
+    </header>
   );
 }
 

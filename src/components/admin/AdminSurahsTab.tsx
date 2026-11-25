@@ -1,11 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Check,
   ChevronRight,
   Plus,
-  RotateCcw,
   Search,
-  Send,
   X,
 } from 'lucide-react';
 import { SURAH_DESCRIPTIONS } from '../../data/surahDescriptions';
@@ -20,6 +17,7 @@ import {
   StudioBadge,
   StudioButton,
   StudioConfirmDialog,
+  StudioEditorHeader,
   StudioEditorSheet,
   StudioField,
   StudioInput,
@@ -343,78 +341,21 @@ export function AdminSurahsTab() {
         open={selectedId !== null}
         header={
           selectedId !== null && (
-            <header
-              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
-              style={{
-                backgroundColor: 'var(--st-bg)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[13.5px] font-semibold tracking-tight truncate">
-                  {selectedId}. {activeSurah?.nameBangla}
-                </span>
-                {isDirty ? (
-                  <StudioBadge tone="amber" dot>
-                    Unsaved
-                  </StudioBadge>
-                ) : isOverridden ? (
-                  <StudioBadge tone="emerald" dot>
-                    Published
-                  </StudioBadge>
-                ) : (
-                  <StudioBadge tone="neutral">Default</StudioBadge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {isOverridden && (
-                  <StudioButton
-                    variant="ghost"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => void handleRevert()}
-                    title="Revert to built-in default"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Revert</span>
-                  </StudioButton>
-                )}
-
-                <StudioButton
-                  variant="ghost"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </StudioButton>
-
-                <StudioButton
-                  variant={!isDirty && isOverridden ? 'secondary' : 'primary'}
-                  size="sm"
-                  loading={saving}
-                  onClick={() => void handleSave()}
-                  style={
-                    !isDirty && isOverridden
-                      ? {
-                          color: 'var(--st-accent)',
-                          borderColor:
-                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
-                        }
-                      : undefined
-                  }
-                >
-                  {!saving &&
-                    (!isDirty && isOverridden ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    ))}
-                  <span>{!isDirty && isOverridden ? 'Published' : 'Publish'}</span>
-                </StudioButton>
-              </div>
-            </header>
+            <StudioEditorHeader
+              title={`${selectedId}. ${activeSurah?.nameBangla ?? ''}`}
+              statusBadge={
+                isDirty
+                  ? { label: 'Unsaved', tone: 'amber' }
+                  : !isOverridden
+                    ? { label: 'Default', tone: 'neutral' }
+                    : null
+              }
+              saving={saving}
+              isPublishedClean={!isDirty && isOverridden}
+              onRevert={isOverridden ? () => void handleRevert() : undefined}
+              onCancel={handleCancel}
+              onPublish={() => void handleSave()}
+            />
           )
         }
       >

@@ -49,7 +49,6 @@ import { AdminFeaturedTab } from './AdminFeaturedTab';
 import { AdminOverviewTab } from './AdminOverviewTab';
 import { AdminRoutinesTab } from './AdminRoutinesTab';
 import { AdminSurahsTab } from './AdminSurahsTab';
-import { QuickChapterModal } from './QuickChapterModal';
 
 type AdminTab = AdminSection;
 
@@ -95,7 +94,6 @@ export default function AdminPanelView({
   const tab = section;
   const setTab = onNavigateSection;
   const [launchIntent, setLaunchIntent] = useState<StudioLaunchIntent | null>(null);
-  const [quickChapterOpen, setQuickChapterOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [themePopoverOpen, setThemePopoverOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -444,21 +442,9 @@ export default function AdminPanelView({
       },
     ];
 
-  const handleQuickCreate = (
-    target: 'dua' | 'chapter' | 'routine' | 'featured'
-  ) => {
-    if (target === 'chapter') {
-      setQuickChapterOpen(true);
-      return;
-    }
-    const tabMap = {
-      dua: 'duas',
-      routine: 'routines',
-      featured: 'featured',
-    } as const;
-    const nextTab = tabMap[target];
-    setTab(nextTab);
-    setLaunchIntent({ tab: nextTab, mode: 'new', nonce: Date.now() });
+  const handleNewDua = () => {
+    setTab('duas');
+    setLaunchIntent({ tab: 'duas', mode: 'new', nonce: Date.now() });
   };
 
   const handleResumeDraft = (scope: DraftScope, id: string) => {
@@ -471,31 +457,14 @@ export default function AdminPanelView({
   const activeNav = navItems.find((n) => n.id === tab);
   const userInitial = (user.displayName || user.email || 'A').charAt(0).toUpperCase();
 
-  const lastCheckedText = syncStatus.lastCheckedAt
-    ? new Date(syncStatus.lastCheckedAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-    : null;
-
   const sidebarContent = (
     <div className="h-full flex flex-col">
       {/* Brand Row */}
       <div
-        className="h-[52px] px-3.5 border-b flex items-center justify-between gap-2 shrink-0"
+        className="h-[52px] px-3.5 border-b flex items-center shrink-0"
         style={{ borderColor: 'var(--st-border)' }}
       >
         <SukoonLogo className="h-7 w-auto" />
-        <span
-          className="text-[10px] font-medium px-1.5 py-0.5 rounded-[4px] border shrink-0"
-          style={{
-            backgroundColor: 'var(--st-bg)',
-            borderColor: 'var(--st-border)',
-            color: 'var(--st-text-muted)',
-          }}
-        >
-          Studio
-        </span>
       </div>
 
       {/* Navigation */}
@@ -557,82 +526,9 @@ export default function AdminPanelView({
             );
           })}
         </nav>
-
-        {/* Sync Status Panel */}
-        <div
-          className="mx-0.5 p-3 rounded-lg border space-y-2.5"
-          style={{
-            backgroundColor: 'var(--st-bg)',
-            borderColor: 'var(--st-border)',
-          }}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span
-                className={`w-1.5 h-1.5 rounded-full shrink-0 ${syncStatus.syncing ? 'animate-pulse' : ''
-                  }`}
-                style={{
-                  backgroundColor: syncStatus.lastError
-                    ? 'var(--st-danger)'
-                    : syncStatus.syncing
-                      ? 'var(--st-amber)'
-                      : 'var(--st-accent)',
-                }}
-              />
-              <span className="text-[11.5px] font-medium truncate">
-                {syncStatus.syncing
-                  ? 'Syncing…'
-                  : syncStatus.lastError
-                    ? 'Sync error'
-                    : 'Firestore live'}
-              </span>
-            </div>
-            <button
-              type="button"
-              disabled={syncStatus.syncing}
-              onClick={() => void resetCmsSyncCursorsAndResync(toast)}
-              className="p-1 rounded-[5px] border cursor-pointer disabled:opacity-50 transition-colors"
-              style={{
-                backgroundColor: 'var(--st-bg-subtle)',
-                borderColor: 'var(--st-border)',
-                color: 'var(--st-text-secondary)',
-              }}
-              title="Force full resync from Firestore"
-              aria-label="Resync"
-            >
-              <RefreshCw
-                className={`w-3 h-3 ${syncStatus.syncing ? 'animate-spin' : ''}`}
-              />
-            </button>
-          </div>
-
-          <div
-            className="grid grid-cols-2 gap-1.5 pt-2 border-t text-[11px]"
-            style={{ borderColor: 'var(--st-border)' }}
-          >
-            <div>
-              <span className="block" style={{ color: 'var(--st-text-faint)' }}>
-                Remote Duas
-              </span>
-              <span className="font-semibold tabular-nums">{remoteDuasCount}</span>
-            </div>
-            <div>
-              <span className="block" style={{ color: 'var(--st-text-faint)' }}>
-                Surah Edits
-              </span>
-              <span className="font-semibold tabular-nums">{remoteSurahCount}</span>
-            </div>
-          </div>
-
-          {lastCheckedText && (
-            <p className="text-[10.5px]" style={{ color: 'var(--st-text-faint)' }}>
-              Checked at {lastCheckedText}
-            </p>
-          )}
-        </div>
       </div>
 
-      {/* Footer: Account & Theme Picker */}
+      {/* Footer: Account, Sync & Theme Picker */}
       <div
         className="p-2.5 border-t shrink-0 relative"
         style={{ borderColor: 'var(--st-border)' }}
@@ -793,6 +689,30 @@ export default function AdminPanelView({
           <div className="flex items-center gap-0.5 shrink-0">
             <button
               type="button"
+              disabled={syncStatus.syncing}
+              onClick={() => void resetCmsSyncCursorsAndResync(toast)}
+              className="studio-hover p-1.5 rounded-[6px] cursor-pointer disabled:opacity-50 transition-colors shrink-0"
+              style={{
+                color: syncStatus.lastError
+                  ? 'var(--st-danger)'
+                  : 'var(--st-text-muted)',
+              }}
+              title={
+                syncStatus.syncing
+                  ? 'Syncing from Firestore…'
+                  : syncStatus.lastError
+                    ? 'Sync error — click to retry'
+                    : 'Resync content from Firestore'
+              }
+              aria-label="Resync content from Firestore"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${syncStatus.syncing ? 'animate-spin' : ''}`}
+              />
+            </button>
+
+            <button
+              type="button"
               onClick={() => setThemePopoverOpen((v) => !v)}
               className="studio-hover p-1.5 rounded-[6px] cursor-pointer transition-colors shrink-0"
               style={{
@@ -924,7 +844,7 @@ export default function AdminPanelView({
         {tab === 'overview' && (
           <AdminOverviewTab
             onNavigateTab={(next) => setTab(next)}
-            onQuickCreate={handleQuickCreate}
+            onNewDua={handleNewDua}
             onResumeDraft={handleResumeDraft}
           />
         )}
@@ -954,11 +874,6 @@ export default function AdminPanelView({
           />
         )}
       </main>
-
-      <QuickChapterModal
-        open={quickChapterOpen}
-        onClose={() => setQuickChapterOpen(false)}
-      />
     </div>
   );
 }

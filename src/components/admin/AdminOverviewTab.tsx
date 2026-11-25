@@ -7,7 +7,6 @@ import {
   CalendarDays,
   FilePenLine,
   FolderOpen,
-  FolderPlus,
   Info,
   Monitor,
   Plus,
@@ -36,13 +35,13 @@ interface DraftPreviewItem {
 
 interface AdminOverviewTabProps {
   onNavigateTab: (tab: StudioContentTab) => void;
-  onQuickCreate: (target: 'dua' | 'chapter' | 'routine' | 'featured') => void;
+  onNewDua: () => void;
   onResumeDraft: (scope: DraftScope, id: string) => void;
 }
 
 export function AdminOverviewTab({
   onNavigateTab,
-  onQuickCreate,
+  onNewDua,
   onResumeDraft,
 }: AdminOverviewTabProps) {
   const catalog = useCatalog();
@@ -172,21 +171,7 @@ export function AdminOverviewTab({
           borderColor: 'var(--st-border)',
         }}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <h1 className="text-[14px] font-semibold tracking-tight">Overview</h1>
-          {metrics && (
-            <span
-              className="hidden sm:inline text-[11px]"
-              style={{ color: 'var(--st-text-muted)' }}
-            >
-              Updated{' '}
-              {new Date(metrics.fetchedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </span>
-          )}
-        </div>
+        <h1 className="text-[14px] font-semibold tracking-tight">Overview</h1>
 
         <div className="flex items-center gap-2 shrink-0">
           <StudioButton
@@ -201,19 +186,7 @@ export function AdminOverviewTab({
             />
             <span className="hidden sm:inline">Refresh</span>
           </StudioButton>
-          <StudioButton
-            variant="secondary"
-            size="sm"
-            onClick={() => onQuickCreate('chapter')}
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Chapter</span>
-          </StudioButton>
-          <StudioButton
-            variant="primary"
-            size="sm"
-            onClick={() => onQuickCreate('dua')}
-          >
+          <StudioButton variant="primary" size="sm" onClick={onNewDua}>
             <Plus className="w-3.5 h-3.5" />
             <span>New Dua</span>
           </StudioButton>
@@ -223,22 +196,14 @@ export function AdminOverviewTab({
       {/* Scrollable Executive Dashboard */}
       <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--st-bg-subtle)' }}>
         <div className="max-w-5xl mx-auto px-5 sm:px-7 py-6 space-y-8">
-          {/* Section 1: User Analytics */}
+          {/* Audience & Usage */}
           <section className="space-y-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <h2
-                className="text-[11px] font-semibold uppercase tracking-[0.07em]"
-                style={{ color: 'var(--st-text-muted)' }}
-              >
-                Audience & Usage
-              </h2>
-              <span
-                className="text-[11px]"
-                style={{ color: 'var(--st-text-muted)' }}
-              >
-                Anonymous daily device telemetry
-              </span>
-            </div>
+            <h2
+              className="text-[11px] font-semibold uppercase tracking-[0.07em]"
+              style={{ color: 'var(--st-text-muted)' }}
+            >
+              Audience & Usage
+            </h2>
 
             {metricsError && (
               <div
@@ -254,16 +219,9 @@ export function AdminOverviewTab({
                     style={{ color: 'var(--st-accent)' }}
                   />
                   <div className="space-y-1">
-                    <p className="font-medium">User telemetry awaiting Firestore rules deployment</p>
+                    <p className="font-medium">Unable to load user metrics</p>
                     <p style={{ color: 'var(--st-text-secondary)' }}>
-                      Deploy the updated rules via{' '}
-                      <code
-                        className="px-1.5 py-0.5 rounded text-[11px] font-mono"
-                        style={{ backgroundColor: 'var(--st-bg-muted)' }}
-                      >
-                        firebase deploy --only firestore:rules
-                      </code>{' '}
-                      to activate live user counts. ({metricsError})
+                      {metricsError}
                     </p>
                   </div>
                 </div>
@@ -281,21 +239,21 @@ export function AdminOverviewTab({
               <StudioMetricCard
                 label="Total Users"
                 value={metrics ? metrics.totalUsers.toLocaleString() : '—'}
-                sublabel="Unique anonymous devices"
+                sublabel="Unique devices"
                 icon={<Users className="w-4 h-4" />}
                 loading={loadingMetrics}
               />
               <StudioMetricCard
                 label="Active Today"
                 value={metrics ? metrics.activeToday.toLocaleString() : '—'}
-                sublabel="Opened Sukoon today"
+                sublabel="Opened today"
                 icon={<Activity className="w-4 h-4" />}
                 loading={loadingMetrics}
               />
               <StudioMetricCard
                 label="Active (7 Days)"
                 value={metrics ? metrics.activeLast7Days.toLocaleString() : '—'}
-                sublabel="Rolling 7-day active devices"
+                sublabel="Last 7 days"
                 icon={<CalendarDays className="w-4 h-4" />}
                 loading={loadingMetrics}
               />
@@ -304,7 +262,7 @@ export function AdminOverviewTab({
                 value={metrics ? metrics.pwaInstalls.toLocaleString() : '—'}
                 sublabel={
                   metrics && metrics.totalUsers > 0
-                    ? `${Math.round((metrics.pwaInstalls / metrics.totalUsers) * 100)}% of total users`
+                    ? `${Math.round((metrics.pwaInstalls / metrics.totalUsers) * 100)}% of total`
                     : 'Home-screen installs'
                 }
                 icon={<Smartphone className="w-4 h-4" />}
@@ -312,7 +270,6 @@ export function AdminOverviewTab({
               />
             </div>
 
-            {/* Platform Breakdown */}
             {metrics && totalPlatformCount > 0 && (
               <div
                 className="rounded-lg border px-4 py-3 flex flex-wrap items-center justify-between gap-4"
@@ -326,7 +283,7 @@ export function AdminOverviewTab({
                     className="w-3.5 h-3.5"
                     style={{ color: 'var(--st-text-muted)' }}
                   />
-                  <span>Device Platforms</span>
+                  <span>Platforms</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-5 text-xs">
                   <span className="flex items-center gap-1.5">
@@ -364,34 +321,14 @@ export function AdminOverviewTab({
             )}
           </section>
 
-          {/* Section 2: Content Library */}
+          {/* Content Overview */}
           <section className="space-y-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <h2
-                className="text-[11px] font-semibold uppercase tracking-[0.07em]"
-                style={{ color: 'var(--st-text-muted)' }}
-              >
-                Content Library
-              </h2>
-              <div className="flex items-center gap-1.5">
-                <StudioButton
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => onQuickCreate('routine')}
-                >
-                  <Plus className="w-3 h-3" />
-                  Routine
-                </StudioButton>
-                <StudioButton
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => onQuickCreate('featured')}
-                >
-                  <Plus className="w-3 h-3" />
-                  Spotlight
-                </StudioButton>
-              </div>
-            </div>
+            <h2
+              className="text-[11px] font-semibold uppercase tracking-[0.07em]"
+              style={{ color: 'var(--st-text-muted)' }}
+            >
+              Content Overview
+            </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {contentCards.map((card) => {
@@ -438,17 +375,15 @@ export function AdminOverviewTab({
             </div>
           </section>
 
-          {/* Section 3: Local Drafts in Progress */}
+          {/* Local Drafts in Progress */}
           {savedDrafts.length > 0 && (
             <section className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2
-                  className="text-[11px] font-semibold uppercase tracking-[0.07em]"
-                  style={{ color: 'var(--st-text-muted)' }}
-                >
-                  Saved Local Drafts ({savedDrafts.length})
-                </h2>
-              </div>
+              <h2
+                className="text-[11px] font-semibold uppercase tracking-[0.07em]"
+                style={{ color: 'var(--st-text-muted)' }}
+              >
+                Saved Local Drafts ({savedDrafts.length})
+              </h2>
 
               <div
                 className="rounded-lg border overflow-hidden divide-y"
@@ -475,18 +410,17 @@ export function AdminOverviewTab({
                         <div className="flex items-center gap-2 mt-0.5">
                           <StudioBadge tone="blue" dot>
                             {item.scope === 'duas'
-                              ? 'Dua Draft'
+                              ? 'Dua'
                               : item.scope === 'chapters'
-                                ? 'Chapter Draft'
+                                ? 'Chapter'
                                 : item.scope === 'routines'
-                                  ? 'Routine Draft'
-                                  : 'Spotlight Draft'}
+                                  ? 'Routine'
+                                  : 'Spotlight'}
                           </StudioBadge>
                           <span
                             className="text-[11px]"
                             style={{ color: 'var(--st-text-muted)' }}
                           >
-                            Saved{' '}
                             {new Date(item.savedAt).toLocaleString([], {
                               month: 'short',
                               day: 'numeric',

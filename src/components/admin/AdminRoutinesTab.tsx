@@ -4,14 +4,9 @@ import {
   ArrowUp,
   BookOpen,
   CalendarCheck2,
-  Check,
   ChevronRight,
-  Eye,
-  EyeOff,
-  FilePenLine,
   Plus,
   ScrollText,
-  Send,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -22,7 +17,7 @@ import {
   adminPublishRoutineTemplate,
 } from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
-import { DAY_SHORT_BN, toBanglaDigits } from '../../utils/formatters';
+import { DAY_SHORT_BN } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
 import {
   deleteDraftFromStorage,
@@ -36,6 +31,7 @@ import {
   StudioButton,
   StudioConfirmDialog,
   StudioDropdown,
+  StudioEditorHeader,
   StudioEditorSheet,
   StudioEmptyState,
   StudioField,
@@ -73,7 +69,6 @@ export function AdminRoutinesTab({
   const [savedDrafts, setSavedDrafts] = useState<Record<string, StoredDraft<TemplateDraft>>>(
     () => loadDraftsMap<TemplateDraft>('routines')
   );
-  const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
@@ -156,7 +151,6 @@ export function AdminRoutinesTab({
     };
     setDraft(fresh);
     setBaselineHash(JSON.stringify(fresh));
-    setShowPreview(false);
   }, [catalog.routineTemplates]);
 
   const openListItem = useCallback(
@@ -397,12 +391,6 @@ export function AdminRoutinesTab({
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-[13.5px] font-medium truncate">{tpl.title}</p>
-                    <span
-                      className="text-[11px] font-mono"
-                      style={{ color: 'var(--st-text-muted)' }}
-                    >
-                      v{tpl.version}
-                    </span>
                     {tpl.hasLocalDraft && (
                       <StudioBadge tone="blue" dot>
                         Draft
@@ -449,216 +437,31 @@ export function AdminRoutinesTab({
       {/* Full-Screen Editor Sheet */}
       <StudioEditorSheet
         open={Boolean(draft)}
-        showPreview={showPreview}
         header={
           draft && (
-            <header
-              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
-              style={{
-                backgroundColor: 'var(--st-bg)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[13.5px] font-semibold tracking-tight truncate">
-                  {draft.isNew ? 'New Routine' : 'Edit Routine'}
-                </span>
-                <code
-                  className="hidden sm:inline-block text-[11px] font-mono px-1.5 py-0.5 rounded-[5px] border"
-                  style={{
-                    backgroundColor: 'var(--st-bg-subtle)',
-                    borderColor: 'var(--st-border)',
-                    color: 'var(--st-text-muted)',
-                  }}
-                >
-                  v{draft.version}
-                </code>
-                {isDirty ? (
-                  <StudioBadge tone="amber" dot>
-                    Unsaved
-                  </StudioBadge>
-                ) : hasSavedDraft ? (
-                  <StudioBadge tone="blue" dot>
-                    Draft Saved
-                  </StudioBadge>
-                ) : draft.isNew ? (
-                  <StudioBadge tone="blue" dot>
-                    New Draft
-                  </StudioBadge>
-                ) : (
-                  <StudioBadge tone="emerald" dot>
-                    Published
-                  </StudioBadge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {(!draft.isNew || hasSavedDraft) && (
-                  <StudioButton
-                    variant="ghost"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => setConfirmOpen(true)}
-                    style={{ color: 'var(--st-danger)' }}
-                    title={draft.isNew ? 'Delete draft' : 'Delete template'}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </StudioButton>
-                )}
-
-                <StudioButton
-                  variant="ghost"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </StudioButton>
-
-                <StudioButton
-                  variant="secondary"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleSaveDraft}
-                >
-                  <FilePenLine className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Save Draft</span>
-                </StudioButton>
-
-                <StudioButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowPreview((v) => !v)}
-                  style={
-                    showPreview
-                      ? {
-                          backgroundColor: 'var(--st-bg-active)',
-                          borderColor: 'var(--st-border-strong)',
-                        }
-                      : undefined
-                  }
-                >
-                  {showPreview ? (
-                    <EyeOff className="w-3.5 h-3.5" />
-                  ) : (
-                    <Eye className="w-3.5 h-3.5" />
-                  )}
-                  <span className="hidden sm:inline">Preview</span>
-                </StudioButton>
-
-                <StudioButton
-                  variant={isPublishedClean ? 'secondary' : 'primary'}
-                  size="sm"
-                  loading={saving}
-                  onClick={() => void handlePublish()}
-                  style={
-                    isPublishedClean
-                      ? {
-                          color: 'var(--st-accent)',
-                          borderColor:
-                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
-                        }
-                      : undefined
-                  }
-                >
-                  {!saving &&
-                    (isPublishedClean ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    ))}
-                  <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
-                </StudioButton>
-              </div>
-            </header>
-          )
-        }
-        previewPane={
-          draft && (
-            <aside
-              className="w-full xl:w-[370px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
-              style={{
-                backgroundColor: 'var(--st-bg-subtle)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div
-                className="h-10 px-4 border-b flex items-center shrink-0"
-                style={{ borderColor: 'var(--st-border)' }}
-              >
-                <span
-                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-                  style={{ color: 'var(--st-text-muted)' }}
-                >
-                  Routine Card Preview
-                </span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-5 flex justify-center">
-                <div
-                  className="w-full max-w-[320px] h-fit rounded-2xl border p-4 space-y-3"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {draft.featured && (
-                      <span
-                        className="inline-flex items-center gap-1 text-[10.5px] font-medium px-2 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: 'var(--gold-soft)',
-                          color: 'var(--gold)',
-                        }}
-                      >
-                        <Sparkles className="w-2.5 h-2.5" />
-                        ফিচার্ড
-                      </span>
-                    )}
-                    {draft.seasonTag && (
-                      <span
-                        className="text-[10.5px] px-2 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: 'var(--accent-soft)',
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        {draft.seasonTag}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold">
-                      {draft.title || '(রুটিনের নাম নেই)'}
-                    </h4>
-                    {draft.description && (
-                      <p
-                        className="text-xs mt-1 leading-relaxed"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        {draft.description}
-                      </p>
-                    )}
-                  </div>
-                  <div
-                    className="text-[11px] pt-2 border-t flex items-center justify-between"
-                    style={{
-                      borderColor: 'var(--border-subtle)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <span>{toBanglaDigits(draft.items.length)}টি আমল</span>
-                    <span>
-                      {draft.assignedDays.length === 0
-                        ? 'ম্যানুয়াল'
-                        : draft.assignedDays.length === 7
-                          ? 'প্রতিদিন'
-                          : draft.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </aside>
+            <StudioEditorHeader
+              title={draft.isNew ? 'New Routine' : 'Edit Routine'}
+              statusBadge={
+                isDirty
+                  ? { label: 'Unsaved', tone: 'amber' }
+                  : hasSavedDraft
+                    ? { label: 'Draft Saved', tone: 'blue' }
+                    : draft.isNew
+                      ? { label: 'New Draft', tone: 'blue' }
+                      : null
+              }
+              saving={saving}
+              isPublishedClean={isPublishedClean}
+              onDelete={
+                !draft.isNew || hasSavedDraft
+                  ? () => setConfirmOpen(true)
+                  : undefined
+              }
+              deleteTitle={draft.isNew ? 'Delete draft' : 'Delete template'}
+              onCancel={handleCancel}
+              onSaveDraft={handleSaveDraft}
+              onPublish={() => void handlePublish()}
+            />
           )
         }
       >

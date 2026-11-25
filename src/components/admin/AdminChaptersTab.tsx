@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Check,
   ChevronRight,
-  Eye,
-  EyeOff,
-  FilePenLine,
   Plus,
-  RotateCcw,
   Search,
-  Send,
-  Trash2,
   X,
 } from 'lucide-react';
 import { DUA_CHAPTERS as STATIC_CHAPTERS } from '../../data/duas';
@@ -20,7 +13,6 @@ import {
   adminRevertBuiltInChapter,
 } from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
-import { toBanglaDigits } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
 import {
   deleteDraftFromStorage,
@@ -33,6 +25,7 @@ import {
   StudioBadge,
   StudioButton,
   StudioConfirmDialog,
+  StudioEditorHeader,
   StudioEditorSheet,
   StudioField,
   StudioInput,
@@ -64,7 +57,6 @@ export function AdminChaptersTab({
     () => loadDraftsMap<ChapterDraft>('chapters')
   );
   const [aliasInput, setAliasInput] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
@@ -154,7 +146,6 @@ export function AdminChaptersTab({
     setDraft(fresh);
     setBaselineHash(JSON.stringify(fresh));
     setAliasInput('');
-    setShowPreview(false);
   }, [allRows]);
 
   const openChapter = useCallback(
@@ -436,195 +427,44 @@ export function AdminChaptersTab({
       {/* Full-Screen Editor Sheet */}
       <StudioEditorSheet
         open={Boolean(draft)}
-        showPreview={showPreview}
         header={
           draft && (
-            <header
-              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
-              style={{
-                backgroundColor: 'var(--st-bg)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[13.5px] font-semibold tracking-tight truncate">
-                  {draft.isNew ? `New Chapter #${draft.id}` : `Chapter #${draft.id}`}
-                </span>
-                {isDirty ? (
-                  <StudioBadge tone="amber" dot>
-                    Unsaved
-                  </StudioBadge>
-                ) : hasSavedDraft ? (
-                  <StudioBadge tone="blue" dot>
-                    Draft Saved
-                  </StudioBadge>
-                ) : draft.isNew ? (
-                  <StudioBadge tone="blue" dot>
-                    New Draft
-                  </StudioBadge>
-                ) : (
-                  <StudioBadge tone="emerald" dot>
-                    Published
-                  </StudioBadge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {isBuiltIn && hasRemote && (
-                  <StudioButton
-                    variant="ghost"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => void handleRevert(draft.id)}
-                    title="Revert to built-in default"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </StudioButton>
-                )}
-                {(!draft.isNew || hasSavedDraft) && (
-                  <StudioButton
-                    variant="ghost"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => setConfirmOpen(true)}
-                    style={{ color: 'var(--st-danger)' }}
-                    title={
-                      draft.isNew
-                        ? 'Delete draft'
-                        : isBuiltIn
-                          ? 'Hide chapter'
-                          : 'Delete chapter'
-                    }
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </StudioButton>
-                )}
-
-                <StudioButton
-                  variant="ghost"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </StudioButton>
-
-                <StudioButton
-                  variant="secondary"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleSaveDraft}
-                >
-                  <FilePenLine className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Save Draft</span>
-                </StudioButton>
-
-                <StudioButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowPreview((v) => !v)}
-                  style={
-                    showPreview
-                      ? {
-                          backgroundColor: 'var(--st-bg-active)',
-                          borderColor: 'var(--st-border-strong)',
-                        }
-                      : undefined
-                  }
-                >
-                  {showPreview ? (
-                    <EyeOff className="w-3.5 h-3.5" />
-                  ) : (
-                    <Eye className="w-3.5 h-3.5" />
-                  )}
-                  <span className="hidden sm:inline">Preview</span>
-                </StudioButton>
-
-                <StudioButton
-                  variant={isPublishedClean ? 'secondary' : 'primary'}
-                  size="sm"
-                  loading={saving}
-                  onClick={() => void handleSave()}
-                  style={
-                    isPublishedClean
-                      ? {
-                          color: 'var(--st-accent)',
-                          borderColor:
-                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
-                        }
-                      : undefined
-                  }
-                >
-                  {!saving &&
-                    (isPublishedClean ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    ))}
-                  <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
-                </StudioButton>
-              </div>
-            </header>
-          )
-        }
-        previewPane={
-          draft && (
-            <aside
-              className="w-full xl:w-[370px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
-              style={{
-                backgroundColor: 'var(--st-bg-subtle)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div
-                className="h-10 px-4 border-b flex items-center shrink-0"
-                style={{ borderColor: 'var(--st-border)' }}
-              >
-                <span
-                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-                  style={{ color: 'var(--st-text-muted)' }}
-                >
-                  Chapter Row Preview
-                </span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-5 flex justify-center">
-                <div
-                  className="w-full max-w-[320px] h-fit rounded-2xl border p-4 flex items-center justify-between gap-3"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-semibold shrink-0"
-                      style={{
-                        backgroundColor: 'var(--accent-soft)',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {toBanglaDigits(draft.id)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">
-                        {draft.titleBangla || '(শিরোনাম নেই)'}
-                      </p>
-                      <p
-                        className="text-xs truncate mt-0.5"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {draft.subtitleBangla || 'উপশিরোনাম নেই'}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight
-                    className="w-4 h-4 shrink-0"
-                    style={{ color: 'var(--text-muted)' }}
-                  />
-                </div>
-              </div>
-            </aside>
+            <StudioEditorHeader
+              title={
+                draft.isNew ? `New Chapter #${draft.id}` : `Chapter #${draft.id}`
+              }
+              statusBadge={
+                isDirty
+                  ? { label: 'Unsaved', tone: 'amber' }
+                  : hasSavedDraft
+                    ? { label: 'Draft Saved', tone: 'blue' }
+                    : draft.isNew
+                      ? { label: 'New Draft', tone: 'blue' }
+                      : null
+              }
+              saving={saving}
+              isPublishedClean={isPublishedClean}
+              onRevert={
+                isBuiltIn && hasRemote
+                  ? () => void handleRevert(draft.id)
+                  : undefined
+              }
+              onDelete={
+                !draft.isNew || hasSavedDraft
+                  ? () => setConfirmOpen(true)
+                  : undefined
+              }
+              deleteTitle={
+                draft.isNew
+                  ? 'Delete draft'
+                  : isBuiltIn
+                    ? 'Hide chapter'
+                    : 'Delete chapter'
+              }
+              onCancel={handleCancel}
+              onSaveDraft={handleSaveDraft}
+              onPublish={() => void handleSave()}
+            />
           )
         }
       >

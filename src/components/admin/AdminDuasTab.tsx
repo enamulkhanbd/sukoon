@@ -1,17 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Check,
   ChevronDown,
   ChevronRight,
-  Eye,
-  EyeOff,
-  FilePenLine,
-  FolderPlus,
   Plus,
-  RotateCcw,
   Search,
-  Send,
-  Trash2,
   X,
 } from 'lucide-react';
 import { DUAS as STATIC_DUAS } from '../../data/duas';
@@ -39,6 +31,7 @@ import {
   StudioButton,
   StudioConfirmDialog,
   StudioDropdown,
+  StudioEditorHeader,
   StudioEditorSheet,
   StudioField,
   StudioInput,
@@ -49,7 +42,6 @@ import {
 } from './StudioUI';
 
 type SourceFilter = 'all' | 'draft' | 'remote' | 'override' | 'hidden';
-type PreviewTheme = 'paper' | 'dark';
 
 interface DuaDraft {
   id: string;
@@ -105,7 +97,6 @@ export function AdminDuasTab({
   const [chapterFilter, setChapterFilter] = useState<number | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [showPreview, setShowPreview] = useState(false);
-  const [previewTheme, setPreviewTheme] = useState<PreviewTheme>('paper');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<DuaDraft | null>(null);
@@ -428,26 +419,13 @@ export function AdminDuasTab({
   const isSelectedBuiltIn = draft ? isBuiltInDuaId(draft.id) : false;
   const hasRemoteRecord = draft ? Boolean(catalog.remoteDuasMap[draft.id]) : false;
 
-  const previewColors =
-    previewTheme === 'paper'
-      ? {
-          bg: '#faf6ee',
-          surface: '#f2ead9',
-          border: '#e3d8c3',
-          text: '#1f241e',
-          secondary: '#5e5a4f',
-          muted: '#8a8373',
-          accent: '#8c6223',
-        }
-      : {
-          bg: '#110f0c',
-          surface: '#1b1712',
-          border: '#352d24',
-          text: '#f0e8da',
-          secondary: '#b8ad9b',
-          muted: '#867b6b',
-          accent: '#d4a654',
-        };
+  const duaStatusBadge = isDirty
+    ? { label: 'Unsaved', tone: 'amber' as const }
+    : hasSavedDraft
+      ? { label: 'Draft Saved', tone: 'blue' as const }
+      : draft?.isNew
+        ? { label: 'New Draft', tone: 'blue' as const }
+        : null;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -472,20 +450,10 @@ export function AdminDuasTab({
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <StudioButton
-            variant="secondary"
-            size="sm"
-            onClick={() => setQuickChapterOpen(true)}
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Chapter</span>
-          </StudioButton>
-          <StudioButton variant="primary" size="sm" onClick={startNewDua}>
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Dua</span>
-          </StudioButton>
-        </div>
+        <StudioButton variant="primary" size="sm" onClick={startNewDua}>
+          <Plus className="w-3.5 h-3.5" />
+          <span>New Dua</span>
+        </StudioButton>
       </header>
 
       {/* Filter Bar */}
@@ -641,9 +609,7 @@ export function AdminDuasTab({
                       <StudioBadge tone="danger" dot>
                         Hidden
                       </StudioBadge>
-                    ) : (
-                      <StudioBadge tone="neutral">Built-in</StudioBadge>
-                    )}
+                    ) : null}
                     {item.hasLocalDraft && item.source !== 'draft' && (
                       <StudioBadge tone="blue" dot>
                         Draft
@@ -667,144 +633,34 @@ export function AdminDuasTab({
         showPreview={showPreview}
         header={
           draft && (
-            <header
-              className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
-              style={{
-                backgroundColor: 'var(--st-bg)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                <span className="text-[13.5px] font-semibold tracking-tight truncate">
-                  {draft.isNew ? 'New Dua' : 'Edit Dua'}
-                </span>
-                <code
-                  className="hidden md:inline-block text-[11px] font-mono px-1.5 py-0.5 rounded-[5px] border truncate max-w-[180px]"
-                  style={{
-                    backgroundColor: 'var(--st-bg-subtle)',
-                    borderColor: 'var(--st-border)',
-                    color: 'var(--st-text-muted)',
-                  }}
-                >
-                  {draft.id}
-                </code>
-                {isDirty ? (
-                  <StudioBadge tone="amber" dot>
-                    Unsaved
-                  </StudioBadge>
-                ) : hasSavedDraft ? (
-                  <StudioBadge tone="blue" dot>
-                    Draft Saved
-                  </StudioBadge>
-                ) : draft.isNew ? (
-                  <StudioBadge tone="blue" dot>
-                    New Draft
-                  </StudioBadge>
-                ) : (
-                  <StudioBadge tone="emerald" dot>
-                    Published
-                  </StudioBadge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 shrink-0">
-                {isSelectedBuiltIn && hasRemoteRecord && (
-                  <StudioButton
-                    variant="ghost"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => void handleRevert(draft.id)}
-                    title="Revert to built-in default"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </StudioButton>
-                )}
-
-                {(!draft.isNew || hasSavedDraft) && (
-                  <StudioButton
-                    variant="ghost"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => setConfirmDeleteOpen(true)}
-                    style={{ color: 'var(--st-danger)' }}
-                    title={
-                      draft.isNew
-                        ? 'Delete saved draft'
-                        : isSelectedBuiltIn
-                          ? 'Hide built-in Dua'
-                          : 'Delete Dua'
-                    }
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </StudioButton>
-                )}
-
-                <StudioButton
-                  variant="ghost"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </StudioButton>
-
-                <StudioButton
-                  variant="secondary"
-                  size="sm"
-                  disabled={saving}
-                  onClick={handleSaveDraft}
-                >
-                  <FilePenLine className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Save Draft</span>
-                </StudioButton>
-
-                <StudioButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowPreview((v) => !v)}
-                  style={
-                    showPreview
-                      ? {
-                          backgroundColor: 'var(--st-bg-active)',
-                          borderColor: 'var(--st-border-strong)',
-                        }
-                      : undefined
-                  }
-                  title="Toggle live Sukoon preview"
-                >
-                  {showPreview ? (
-                    <EyeOff className="w-3.5 h-3.5" />
-                  ) : (
-                    <Eye className="w-3.5 h-3.5" />
-                  )}
-                  <span className="hidden sm:inline">Preview</span>
-                </StudioButton>
-
-                <StudioButton
-                  variant={isPublishedClean ? 'secondary' : 'primary'}
-                  size="sm"
-                  loading={saving}
-                  onClick={() => void handlePublish()}
-                  style={
-                    isPublishedClean
-                      ? {
-                          color: 'var(--st-accent)',
-                          borderColor:
-                            'color-mix(in srgb, var(--st-accent) 35%, var(--st-border))',
-                        }
-                      : undefined
-                  }
-                >
-                  {!saving &&
-                    (isPublishedClean ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <Send className="w-3.5 h-3.5" />
-                    ))}
-                  <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
-                </StudioButton>
-              </div>
-            </header>
+            <StudioEditorHeader
+              title={draft.isNew ? 'New Dua' : 'Edit Dua'}
+              statusBadge={duaStatusBadge}
+              saving={saving}
+              isPublishedClean={isPublishedClean}
+              onRevert={
+                isSelectedBuiltIn && hasRemoteRecord
+                  ? () => void handleRevert(draft.id)
+                  : undefined
+              }
+              onDelete={
+                !draft.isNew || hasSavedDraft
+                  ? () => setConfirmDeleteOpen(true)
+                  : undefined
+              }
+              deleteTitle={
+                draft.isNew
+                  ? 'Delete saved draft'
+                  : isSelectedBuiltIn
+                    ? 'Hide built-in Dua'
+                    : 'Delete Dua'
+              }
+              onCancel={handleCancel}
+              onSaveDraft={handleSaveDraft}
+              showPreview={showPreview}
+              onTogglePreview={() => setShowPreview((v) => !v)}
+              onPublish={() => void handlePublish()}
+            />
           )
         }
         previewPane={
@@ -817,7 +673,7 @@ export function AdminDuasTab({
               }}
             >
               <div
-                className="h-10 px-4 border-b flex items-center justify-between gap-2 shrink-0"
+                className="h-10 px-4 border-b flex items-center shrink-0"
                 style={{ borderColor: 'var(--st-border)' }}
               >
                 <span
@@ -826,59 +682,21 @@ export function AdminDuasTab({
                 >
                   Sukoon App Preview
                 </span>
-                <div
-                  className="inline-flex p-0.5 rounded-[5px] border text-[11px] font-medium"
-                  style={{
-                    backgroundColor: 'var(--st-bg)',
-                    borderColor: 'var(--st-border)',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTheme('paper')}
-                    className="px-2 py-0.5 rounded-[4px] cursor-pointer"
-                    style={{
-                      backgroundColor:
-                        previewTheme === 'paper' ? 'var(--st-bg-active)' : 'transparent',
-                      color:
-                        previewTheme === 'paper'
-                          ? 'var(--st-text)'
-                          : 'var(--st-text-muted)',
-                    }}
-                  >
-                    Paper
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTheme('dark')}
-                    className="px-2 py-0.5 rounded-[4px] cursor-pointer"
-                    style={{
-                      backgroundColor:
-                        previewTheme === 'dark' ? 'var(--st-bg-active)' : 'transparent',
-                      color:
-                        previewTheme === 'dark'
-                          ? 'var(--st-text)'
-                          : 'var(--st-text-muted)',
-                    }}
-                  >
-                    Dark
-                  </button>
-                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 flex justify-center">
                 <div
                   className="w-full max-w-[340px] h-fit rounded-2xl border p-5 space-y-4"
                   style={{
-                    backgroundColor: previewColors.bg,
-                    borderColor: previewColors.border,
-                    color: previewColors.text,
+                    backgroundColor: 'var(--bg-page)',
+                    borderColor: 'var(--border-subtle)',
+                    color: 'var(--text-primary)',
                   }}
                 >
                   <div className="space-y-1">
                     <p
                       className="text-[11px] font-medium"
-                      style={{ color: previewColors.accent }}
+                      style={{ color: 'var(--accent)' }}
                     >
                       {catalog.chapterMap[draft.chapterId]?.titleBangla ??
                         `অধ্যায় ${draft.chapterId}`}
@@ -887,7 +705,7 @@ export function AdminDuasTab({
                       {draft.titleBangla || '(শিরোনাম নেই)'}
                     </h3>
                     {draft.occasionNote && (
-                      <p className="text-xs" style={{ color: previewColors.muted }}>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                         {draft.occasionNote}
                       </p>
                     )}
@@ -896,7 +714,7 @@ export function AdminDuasTab({
                   <div
                     dir="rtl"
                     className="font-indopak text-2xl leading-[2.3] text-right py-4 px-4 rounded-xl"
-                    style={{ backgroundColor: previewColors.surface }}
+                    style={{ backgroundColor: 'var(--bg-surface)' }}
                   >
                     {normalizeIndoPakText(draft.arabic || 'بِسْمِ اللّٰهِ')}
                   </div>
@@ -905,13 +723,13 @@ export function AdminDuasTab({
                     <div className="space-y-1">
                       <p
                         className="text-[11px] font-semibold"
-                        style={{ color: previewColors.accent }}
+                        style={{ color: 'var(--accent)' }}
                       >
                         উচ্চারণ
                       </p>
                       <p
                         className="text-xs leading-relaxed whitespace-pre-line"
-                        style={{ color: previewColors.secondary }}
+                        style={{ color: 'var(--text-secondary)' }}
                       >
                         {draft.transliteration}
                       </p>
@@ -922,7 +740,7 @@ export function AdminDuasTab({
                     <div className="space-y-1">
                       <p
                         className="text-[11px] font-semibold"
-                        style={{ color: previewColors.accent }}
+                        style={{ color: 'var(--accent)' }}
                       >
                         অর্থ
                       </p>
@@ -935,8 +753,8 @@ export function AdminDuasTab({
                   <div
                     className="flex items-center justify-between gap-2 pt-3 border-t text-[11px]"
                     style={{
-                      borderColor: previewColors.border,
-                      color: previewColors.muted,
+                      borderColor: 'var(--border-subtle)',
+                      color: 'var(--text-muted)',
                     }}
                   >
                     <span className="truncate">

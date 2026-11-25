@@ -785,7 +785,7 @@ export function RoutinesView({
       >
         <div className="max-w-2xl mx-auto px-5 pt-5 pb-6">
           <TabHeader
-            title="তিলাওয়াত রুটিন"
+            title="আমলের রুটিন"
             subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
             rightAction={
               <button

@@ -513,28 +513,28 @@ export function AdminFeaturedTab({
                 {(draft && !listItems.some((item) => item.id === draft.id)
                   ? listItems.length + 1
                   : listItems.length) > 1 && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--st-text-secondary)' }}
-                    >
-                      Priority
-                    </span>
-                    <StudioInput
-                      type="number"
-                      min={0}
-                      max={10000}
-                      value={draft.priority}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          priority: Math.max(0, Number(e.target.value) || 0),
-                        })
-                      }
-                      className="!w-20 !h-8 font-mono tabular-nums text-center"
-                    />
-                  </div>
-                )}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-xs font-medium"
+                        style={{ color: 'var(--st-text-secondary)' }}
+                      >
+                        Priority
+                      </span>
+                      <StudioInput
+                        type="number"
+                        min={0}
+                        max={10000}
+                        value={draft.priority}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            priority: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        className="!w-20 !h-8 font-mono tabular-nums text-center"
+                      />
+                    </div>
+                  )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

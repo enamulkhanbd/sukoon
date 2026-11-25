@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft,
   BookOpen,
+  Calendar,
   CalendarCheck2,
   Check,
   FolderOpen,
@@ -41,6 +42,7 @@ import type { DraftScope } from './adminDrafts';
 import { AdminChaptersTab } from './AdminChaptersTab';
 import { AdminDuasTab } from './AdminDuasTab';
 import { AdminFeaturedTab } from './AdminFeaturedTab';
+import { AdminHijriTab } from './AdminHijriTab';
 import { AdminOverviewTab } from './AdminOverviewTab';
 import { AdminRoutinesTab } from './AdminRoutinesTab';
 import { AdminSurahsTab } from './AdminSurahsTab';
@@ -434,6 +436,11 @@ export default function AdminPanelView({
         label: 'Spotlight',
         icon: Sparkles,
         count: remoteFeaturedCount,
+      },
+      {
+        id: 'hijri',
+        label: 'Hijri Calendar',
+        icon: Calendar,
       },
     ];
 
@@ -849,6 +856,7 @@ export default function AdminPanelView({
             onConsumeIntent={clearLaunchIntent}
           />
         )}
+        {tab === 'hijri' && <AdminHijriTab />}
       </main>
     </div>
   );

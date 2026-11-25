@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   getHijriCalendarRegion,
   type FastingLocation,
@@ -10,6 +11,7 @@ import {
   parseIsoDateToDayNumber,
   type HijriMonthAnchor,
 } from '../utils/hijri';
+import { getFirestoreDb, isFirebaseConfigured } from './firebase';
 
 export interface HijriRegionCalendarConfig {
   defaultOffsetDays?: number;
@@ -234,8 +236,56 @@ export function getActiveAnchorsForSettings(
   return months && months.length > 0 ? months : undefined;
 }
 
+async function fetchHijriCalendarFromFirestore(): Promise<HijriCalendarConfig | null> {
+  if (!isFirebaseConfigured()) return null;
+  try {
+    const firestoreDb = await getFirestoreDb();
+    if (!firestoreDb) return null;
+    const snap = await getDoc(doc(firestoreDb, 'cmsSettings', 'hijriCalendar'));
+    if (!snap.exists()) return null;
+    return parseHijriCalendarConfig(snap.data());
+  } catch {
+    return null;
+  }
+}
+
+function applyFetchedConfig(parsed: HijriCalendarConfig): void {
+  const prevSerialized = currentConfig ? JSON.stringify(currentConfig) : '';
+  const nextSerialized = JSON.stringify(parsed);
+  writeCachedConfig(parsed);
+  if (prevSerialized !== nextSerialized) {
+    emit(parsed);
+  }
+}
+
 /**
- * Fetches the remote/static Hijri calendar JSON and caches it locally.
+ * Publishes the Hijri calendar configuration to Firestore (`cmsSettings/hijriCalendar`)
+ * and updates the local cache immediately.
+ */
+export async function adminPublishHijriCalendarConfig(
+  config: HijriCalendarConfig
+): Promise<HijriCalendarConfig> {
+  const firestoreDb = await getFirestoreDb();
+  if (!firestoreDb) {
+    throw new Error('Firebase Firestore is not configured.');
+  }
+  const parsed = parseHijriCalendarConfig(config);
+  if (!parsed) {
+    throw new Error('Invalid Hijri calendar configuration.');
+  }
+  const payload: HijriCalendarConfig = {
+    version: 1,
+    updatedAt: parsed.updatedAt || new Date().toISOString().slice(0, 10),
+    regions: parsed.regions,
+  };
+  await setDoc(doc(firestoreDb, 'cmsSettings', 'hijriCalendar'), payload);
+  applyFetchedConfig(payload);
+  return payload;
+}
+
+/**
+ * Fetches the remote Hijri calendar config (Firestore first, then Gist/static JSON fallback)
+ * and caches it locally.
  * Returns true if a valid config was fetched and stored, false otherwise.
  */
 export async function syncHijriCalendarConfig(options?: {
@@ -260,6 +310,12 @@ export async function syncHijriCalendarConfig(options?: {
 
   inFlightSync = (async () => {
     try {
+      const remoteConfig = await fetchHijriCalendarFromFirestore();
+      if (remoteConfig) {
+        applyFetchedConfig(remoteConfig);
+        return true;
+      }
+
       if (typeof fetch !== 'function') return false;
       const primaryUrl = getHijriCalendarUrl();
       const candidateUrls =
@@ -278,14 +334,7 @@ export async function syncHijriCalendarConfig(options?: {
           const parsed = parseHijriCalendarConfig(json);
           if (!parsed) continue;
 
-          const prevSerialized = currentConfig
-            ? JSON.stringify(currentConfig)
-            : '';
-          const nextSerialized = JSON.stringify(parsed);
-          writeCachedConfig(parsed);
-          if (prevSerialized !== nextSerialized) {
-            emit(parsed);
-          }
+          applyFetchedConfig(parsed);
           return true;
         } catch {
           // Try next fallback URL

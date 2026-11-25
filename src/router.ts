@@ -8,7 +8,8 @@ export type AdminSection =
   | 'chapters'
   | 'routines'
   | 'surahs'
-  | 'featured';
+  | 'featured'
+  | 'hijri';
 
 export type AppRoute =
   | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
@@ -32,6 +33,7 @@ const ADMIN_SLUG_TO_SECTION: Record<string, AdminSection> = {
   surahs: 'surahs',
   spotlight: 'featured',
   featured: 'featured',
+  hijri: 'hijri',
 };
 
 const ADMIN_SECTION_TO_SLUG: Record<AdminSection, string> = {
@@ -41,6 +43,7 @@ const ADMIN_SECTION_TO_SLUG: Record<AdminSection, string> = {
   routines: 'routines',
   surahs: 'surahs',
   featured: 'spotlight',
+  hijri: 'hijri',
 };
 
 function normalizePathname(pathname: string): string {

@@ -26,6 +26,7 @@ import { toBanglaDigits } from '../utils/formatters';
 import { isBuiltInChapterId, isBuiltInDuaId } from './catalogSnapshot';
 import { hydrateCatalogFromDb } from './contentCatalog';
 import { getFirestoreDb, isFirebaseConfigured } from './firebase';
+import { syncHijriCalendarConfig } from './hijriCalendarService';
 
 const AUTO_SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between silent background checks
 
@@ -438,6 +439,8 @@ export async function syncCmsFromFirestore(options?: {
     if (totalChanged > 0) {
       await hydrateCatalogFromDb();
     }
+
+    await syncHijriCalendarConfig({ force });
 
     emitSyncState({ syncing: false, lastCheckedAt: now, lastError: null });
 

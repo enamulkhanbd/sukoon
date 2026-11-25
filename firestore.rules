@@ -133,6 +133,19 @@ rules_version = '2';
 //      - theme: string in ['paper', 'olive', 'sky']
 //      - appVersion: string (1..32 chars)
 //
+// 7. Collection: /cmsSettings/{settingId} (currently only `settingId == 'hijriCalendar'`)
+//    Document ID: 'hijriCalendar'
+//    Access:
+//      - read: public (`settingId == 'hijriCalendar'`)
+//      - create / update / delete: admin only (`isAdmin() && settingId == 'hijriCalendar'`)
+//    Allowed & Required Top-Level Fields: ['version', 'updatedAt', 'regions']
+//      - version: int (== 1)
+//      - updatedAt: string (1..32 chars, e.g. YYYY-MM-DD)
+//      - regions: map (keys subset of ['bd', 'sa', 'default'])
+//        Each present region value is a map with:
+//          - defaultOffsetDays: int (optional, -2..2)
+//          - months: list (required, size 0..120)
+//
 // ===============================================================
 
 service cloud.firestore {
@@ -457,6 +470,29 @@ service cloud.firestore {
         data.firstSeenAt == existingData.firstSeenAt;
     }
 
+    // --- 7. CMS Settings (Hijri Calendar Config) ---
+
+    function isValidHijriRegionConfig(regionObj) {
+      return regionObj is map &&
+        hasRequiredFields(regionObj, ['months']) &&
+        hasOnlyAllowedFields(regionObj, ['defaultOffsetDays', 'months']) &&
+        isOptionalIntInRange(regionObj, 'defaultOffsetDays', -2, 2) &&
+        isListInRange(regionObj.months, 0, 120);
+    }
+
+    function isValidHijriCalendar(data) {
+      return hasRequiredFields(data, ['version', 'updatedAt', 'regions']) &&
+        hasOnlyAllowedFields(data, ['version', 'updatedAt', 'regions']) &&
+        data.version is int &&
+        data.version == 1 &&
+        isStringInRange(data.updatedAt, 1, 32) &&
+        data.regions is map &&
+        data.regions.keys().hasOnly(['bd', 'sa', 'default']) &&
+        (!('bd' in data.regions) || isValidHijriRegionConfig(data.regions['bd'])) &&
+        (!('sa' in data.regions) || isValidHijriRegionConfig(data.regions['sa'])) &&
+        (!('default' in data.regions) || isValidHijriRegionConfig(data.regions['default']));
+    }
+
     // ===============================================================
     // Collection Match Rules (Public Read CMS, Admin-Only Validated Write)
     // ===============================================================
@@ -502,6 +538,13 @@ service cloud.firestore {
       allow create: if isValidAppUserCreate(request.resource.data, installId);
       allow update: if isValidAppUserUpdate(request.resource.data, resource.data, installId);
       allow delete: if isAdmin();
+    }
+
+    // Public-read, admin-only validated CMS settings (currently `/cmsSettings/hijriCalendar`)
+    match /cmsSettings/{settingId} {
+      allow read: if settingId == 'hijriCalendar';
+      allow create, update: if isAdmin() && settingId == 'hijriCalendar' && isValidHijriCalendar(request.resource.data);
+      allow delete: if isAdmin() && settingId == 'hijriCalendar';
     }
 
     // Explicit default-deny catch-all for all unmatched collections and subcollections

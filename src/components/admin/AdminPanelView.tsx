@@ -38,6 +38,7 @@ import {
   isFirebaseConfigured,
   loadFirebaseAuth,
 } from '../../services/firebase';
+import type { AdminSection } from '../../router';
 import { getThemeVariantMeta } from '../../utils/themeRegistry';
 import { SukoonEmblem, SukoonLogo } from '../SukoonLogo';
 import { useToast } from '../ToastProvider';
@@ -50,7 +51,7 @@ import { AdminRoutinesTab } from './AdminRoutinesTab';
 import { AdminSurahsTab } from './AdminSurahsTab';
 import { QuickChapterModal } from './QuickChapterModal';
 
-type AdminTab = 'overview' | 'duas' | 'chapters' | 'routines' | 'surahs' | 'featured';
+type AdminTab = AdminSection;
 
 export interface StudioLaunchIntent {
   tab: Exclude<AdminTab, 'overview'>;
@@ -60,6 +61,8 @@ export interface StudioLaunchIntent {
 }
 
 interface AdminPanelViewProps {
+  section: AdminSection;
+  onNavigateSection: (section: AdminSection) => void;
   onExitAdmin: () => void;
 }
 
@@ -75,7 +78,11 @@ const THEME_OPTIONS: Array<{ id: ThemeMode; label: string }> = [
   { id: 'sky', label: 'Sky' },
 ];
 
-export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
+export default function AdminPanelView({
+  section,
+  onNavigateSection,
+  onExitAdmin,
+}: AdminPanelViewProps) {
   const toast = useToast();
   const catalog = useCatalog();
   const syncStatus = useCmsSyncStatus();
@@ -85,7 +92,8 @@ export default function AdminPanelView({ onExitAdmin }: AdminPanelViewProps) {
     rawSettings?.colorMode
   );
 
-  const [tab, setTab] = useState<AdminTab>('overview');
+  const tab = section;
+  const setTab = onNavigateSection;
   const [launchIntent, setLaunchIntent] = useState<StudioLaunchIntent | null>(null);
   const [quickChapterOpen, setQuickChapterOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);

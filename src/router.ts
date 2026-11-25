@@ -2,12 +2,20 @@ import type { AppTab } from './components/BottomNav';
 import { SURAH_MAP } from './data/surahs';
 import { getCatalogSnapshot } from './services/catalogSnapshot';
 
+export type AdminSection =
+  | 'overview'
+  | 'duas'
+  | 'chapters'
+  | 'routines'
+  | 'surahs'
+  | 'featured';
+
 export type AppRoute =
   | { type: 'tab'; tab: AppTab; duaChapterId?: number | null }
   | { type: 'surah'; surahId: number; initialAyah: number; initialPage?: number }
   | { type: 'dua'; duaId: string }
   | { type: 'ramadan' }
-  | { type: 'admin' }
+  | { type: 'admin'; section: AdminSection }
   | { type: 'routineDetail'; routineId: string }
   | {
       type: 'routineRead';
@@ -15,6 +23,25 @@ export type AppRoute =
       itemIndex: number;
       ayah?: number;
     };
+
+const ADMIN_SLUG_TO_SECTION: Record<string, AdminSection> = {
+  overview: 'overview',
+  duas: 'duas',
+  chapters: 'chapters',
+  routines: 'routines',
+  surahs: 'surahs',
+  spotlight: 'featured',
+  featured: 'featured',
+};
+
+const ADMIN_SECTION_TO_SLUG: Record<AdminSection, string> = {
+  overview: '',
+  duas: 'duas',
+  chapters: 'chapters',
+  routines: 'routines',
+  surahs: 'surahs',
+  featured: 'spotlight',
+};
 
 function normalizePathname(pathname: string): string {
   if (!pathname || pathname === '/') return '/';
@@ -56,7 +83,16 @@ export function parseRoute(
     return { type: 'ramadan' };
   }
   if (path === '/admin') {
-    return { type: 'admin' };
+    return { type: 'admin', section: 'overview' };
+  }
+  const adminMatch = /^\/admin\/([^/]+)$/.exec(path);
+  if (adminMatch) {
+    const slug = adminMatch[1].toLowerCase();
+    const section = ADMIN_SLUG_TO_SECTION[slug] ?? 'overview';
+    return { type: 'admin', section };
+  }
+  if (path.startsWith('/admin/')) {
+    return { type: 'admin', section: 'overview' };
   }
 
   const catalog = getCatalogSnapshot();
@@ -172,8 +208,10 @@ export function buildPath(route: AppRoute): string {
       return `/dua/${encodeURIComponent(route.duaId)}`;
     case 'ramadan':
       return '/ramadan';
-    case 'admin':
-      return '/admin';
+    case 'admin': {
+      const slug = ADMIN_SECTION_TO_SLUG[route.section];
+      return slug ? `/admin/${slug}` : '/admin';
+    }
     case 'routineDetail':
       return `/routines/${encodeURIComponent(route.routineId)}`;
     case 'routineRead':

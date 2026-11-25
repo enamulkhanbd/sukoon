@@ -538,6 +538,10 @@ export function App() {
     return (
       <Suspense fallback={<SplashScreen />}>
         <LazyAdminPanelView
+          section={route.section}
+          onNavigateSection={(section) =>
+            navigate({ type: 'admin', section })
+          }
           onExitAdmin={() => navigate({ type: 'tab', tab: 'home' })}
         />
       </Suspense>

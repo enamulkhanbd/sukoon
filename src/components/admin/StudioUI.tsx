@@ -13,11 +13,10 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
-  Eye,
-  EyeOff,
   FilePenLine,
   Loader2,
   RotateCcw,
+  Save,
   Search,
   Send,
   Trash2,
@@ -738,80 +737,49 @@ export function StudioConfirmDialog({
   );
 }
 
-/** Full-screen focused editor sheet overlay (covers viewport with sticky bar & optional preview) */
+/** Responsive Drawer (right slide-over on desktop, bottom sheet on mobile) */
 export function StudioEditorSheet({
   open,
   header,
   children,
-  previewPane,
-  showPreview = false,
+  footer,
+  onCloseRequest,
+  zIndexClass = 'z-40',
+  maxWidthClass = 'md:max-w-[540px]',
 }: {
   open: boolean;
   header: ReactNode;
   children: ReactNode;
-  previewPane?: ReactNode;
-  showPreview?: boolean;
-}) {
-  if (!open) return null;
-
-  return createPortal(
-    <div
-      className="sukoon-studio fixed inset-0 z-40 flex flex-col overflow-hidden"
-      style={{ backgroundColor: 'var(--st-bg)' }}
-    >
-      {header}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div
-          className={`flex-1 min-w-0 overflow-y-auto ${
-            showPreview && previewPane ? 'hidden xl:block' : 'block'
-          }`}
-        >
-          {children}
-        </div>
-        {showPreview && previewPane}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-/** Lightweight centered modal for quick creation dialogs */
-export function StudioModal({
-  open,
-  title,
-  description,
-  onClose,
-  children,
-  footer,
-  maxWidthClass = 'max-w-lg',
-}: {
-  open: boolean;
-  title: string;
-  description?: string;
-  onClose: () => void;
-  children: ReactNode;
   footer?: ReactNode;
+  onCloseRequest?: () => void;
+  zIndexClass?: string;
   maxWidthClass?: string;
 }) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !onCloseRequest) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCloseRequest();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onCloseRequest]);
 
   if (!open) return null;
 
   return createPortal(
     <div
-      className="sukoon-studio fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(9, 9, 11, 0.48)', backdropFilter: 'blur(4px)' }}
-      onClick={onClose}
+      className={`sukoon-studio fixed inset-0 ${zIndexClass} flex items-end md:items-stretch md:justify-end`}
+      style={{
+        backgroundColor: 'rgba(9, 9, 11, 0.42)',
+        backdropFilter: 'blur(2px)',
+      }}
+      onClick={onCloseRequest}
     >
       <div
-        className={`w-full ${maxWidthClass} rounded-xl border overflow-hidden flex flex-col max-h-[90dvh]`}
+        className={`studio-drawer-panel w-full ${maxWidthClass} max-h-[90dvh] md:h-full md:max-h-none rounded-t-2xl md:rounded-none border-t md:border-t-0 md:border-l flex flex-col overflow-hidden`}
         style={{
           backgroundColor: 'var(--st-bg)',
           borderColor: 'var(--st-border)',
@@ -819,42 +787,19 @@ export function StudioModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="px-5 py-4 border-b flex items-start justify-between gap-3 shrink-0"
-          style={{ borderColor: 'var(--st-border)' }}
-        >
-          <div>
-            <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
-            {description && (
-              <p className="text-xs mt-0.5" style={{ color: 'var(--st-text-muted)' }}>
-                {description}
-              </p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-md cursor-pointer"
-            style={{ color: 'var(--st-text-muted)' }}
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        {/* Mobile grab handle */}
+        <div className="md:hidden pt-2 pb-0.5 flex justify-center shrink-0">
+          <span
+            className="w-9 h-1 rounded-full"
+            style={{ backgroundColor: 'var(--st-border-strong)' }}
+          />
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-4">{children}</div>
+        {header}
 
-        {footer && (
-          <div
-            className="px-5 py-3.5 border-t flex items-center justify-end gap-2 shrink-0"
-            style={{
-              backgroundColor: 'var(--st-bg-subtle)',
-              borderColor: 'var(--st-border)',
-            }}
-          >
-            {footer}
-          </div>
-        )}
+        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+
+        {footer}
       </div>
     </div>,
     document.body
@@ -910,7 +855,7 @@ export function StudioMetricCard({
   );
 }
 
-/** Shared non-redundant sticky top bar for all Studio editor sheets */
+/** Shared non-redundant sticky top bar for all Studio drawers */
 export function StudioEditorHeader({
   title,
   statusBadge,
@@ -922,9 +867,8 @@ export function StudioEditorHeader({
   deleteTitle = 'Delete',
   onCancel,
   onSaveDraft,
-  showPreview,
-  onTogglePreview,
   onPublish,
+  publishLabel,
 }: {
   title: string;
   statusBadge?: { label: string; tone: StudioBadgeTone } | null;
@@ -936,13 +880,12 @@ export function StudioEditorHeader({
   deleteTitle?: string;
   onCancel: () => void;
   onSaveDraft?: () => void;
-  showPreview?: boolean;
-  onTogglePreview?: () => void;
   onPublish: () => void;
+  publishLabel?: string;
 }) {
   return (
     <header
-      className="h-[52px] px-4 sm:px-6 border-b flex items-center justify-between gap-3 shrink-0"
+      className="h-[52px] px-4 sm:px-5 border-b flex items-center justify-between gap-2.5 shrink-0"
       style={{
         backgroundColor: 'var(--st-bg)',
         borderColor: 'var(--st-border)',
@@ -1006,30 +949,6 @@ export function StudioEditorHeader({
           </StudioButton>
         )}
 
-        {onTogglePreview && (
-          <StudioButton
-            variant="secondary"
-            size="sm"
-            onClick={onTogglePreview}
-            style={
-              showPreview
-                ? {
-                    backgroundColor: 'var(--st-bg-active)',
-                    borderColor: 'var(--st-border-strong)',
-                  }
-                : undefined
-            }
-            title="Toggle live Sukoon preview"
-          >
-            {showPreview ? (
-              <EyeOff className="w-3.5 h-3.5" />
-            ) : (
-              <Eye className="w-3.5 h-3.5" />
-            )}
-            <span className="hidden sm:inline">Preview</span>
-          </StudioButton>
-        )}
-
         <StudioButton
           variant={isPublishedClean ? 'secondary' : 'primary'}
           size="sm"
@@ -1046,12 +965,16 @@ export function StudioEditorHeader({
           }
         >
           {!saving &&
-            (isPublishedClean ? (
+            (publishLabel ? (
+              <Save className="w-3.5 h-3.5" />
+            ) : isPublishedClean ? (
               <Check className="w-3.5 h-3.5" />
             ) : (
               <Send className="w-3.5 h-3.5" />
             ))}
-          <span>{isPublishedClean ? 'Published' : 'Publish'}</span>
+          <span>
+            {publishLabel ?? (isPublishedClean ? 'Published' : 'Publish')}
+          </span>
         </StudioButton>
       </div>
     </header>

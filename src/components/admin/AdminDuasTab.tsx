@@ -12,11 +12,11 @@ import { SURAHS } from '../../data/surahs';
 import { isBuiltInDuaId } from '../../services/catalogSnapshot';
 import {
   adminDeleteOrHideDua,
+  adminPublishChapter,
   adminPublishDua,
   adminRevertBuiltInDua,
 } from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
-import { normalizeIndoPakText, toBanglaDigits } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
 import {
   deleteDraftFromStorage,
@@ -25,7 +25,7 @@ import {
   type StoredDraft,
 } from './adminDrafts';
 import type { StudioLaunchIntent } from './AdminPanelView';
-import { QuickChapterModal } from './QuickChapterModal';
+import { QuickChapterModal, type ChapterDraftShape } from './QuickChapterModal';
 import {
   StudioBadge,
   StudioButton,
@@ -96,7 +96,6 @@ export function AdminDuasTab({
   const [query, setQuery] = useState('');
   const [chapterFilter, setChapterFilter] = useState<number | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [showPreview, setShowPreview] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<DuaDraft | null>(null);
@@ -104,6 +103,9 @@ export function AdminDuasTab({
   const [savedDrafts, setSavedDrafts] = useState<Record<string, StoredDraft<DuaDraft>>>(() =>
     loadDraftsMap<DuaDraft>('duas')
   );
+  const [savedChapterDrafts, setSavedChapterDrafts] = useState<
+    Record<string, StoredDraft<ChapterDraftShape>>
+  >(() => loadDraftsMap<ChapterDraftShape>('chapters'));
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [quickChapterOpen, setQuickChapterOpen] = useState(false);
@@ -221,7 +223,6 @@ export function AdminDuasTab({
     setDraft(fresh);
     setBaselineHash(serializeDraft(fresh));
     setShowAdvanced(false);
-    setShowPreview(false);
   }, [chapterFilter, catalog.chapters, catalog.duasByChapter]);
 
   const openExistingDua = useCallback(
@@ -269,13 +270,18 @@ export function AdminDuasTab({
     [savedDrafts, catalog.duaMap]
   );
 
-  // Honor external launch intents from Overview (New Dua / Resume Draft)
+  // Honor external launch intents from Overview (New Dua / Resume Draft / Drafts Filter)
   useEffect(() => {
     if (!launchIntent) return;
     if (launchIntent.mode === 'new') {
       startNewDua();
     } else if (launchIntent.mode === 'edit' && launchIntent.id) {
       openExistingDua(launchIntent.id);
+    } else if (launchIntent.mode === 'filter' && launchIntent.filter === 'draft') {
+      setSourceFilter('draft');
+      setChapterFilter('all');
+      setQuery('');
+      setDraft(null);
     }
     onConsumeIntent?.();
   }, [launchIntent, startNewDua, openExistingDua, onConsumeIntent]);
@@ -305,6 +311,23 @@ export function AdminDuasTab({
     }
     setSaving(true);
     try {
+      // If the selected chapter is an unpublished local draft, publish it first
+      const draftChapter = savedChapterDrafts[String(draft.chapterId)]?.data;
+      if (draftChapter && !catalog.chapterMap[draft.chapterId]) {
+        await adminPublishChapter({
+          id: draftChapter.id,
+          titleBangla: draftChapter.titleBangla,
+          subtitleBangla: draftChapter.subtitleBangla,
+          searchAliases: draftChapter.aliases,
+        });
+        setSavedChapterDrafts(
+          deleteDraftFromStorage<ChapterDraftShape>(
+            'chapters',
+            String(draft.chapterId)
+          )
+        );
+      }
+
       const cleanedParts = draft.parts
         .filter((p) => p.arabic.trim().length > 0)
         .map((p, i) => ({
@@ -348,7 +371,7 @@ export function AdminDuasTab({
     } finally {
       setSaving(false);
     }
-  }, [draft, saving, toast]);
+  }, [draft, saving, savedChapterDrafts, catalog.chapterMap, toast]);
 
   useKeyboardSave(Boolean(draft) && !saving && !quickChapterOpen, () => {
     void handlePublish();
@@ -415,6 +438,25 @@ export function AdminDuasTab({
       setSaving(false);
     }
   };
+
+  const availableChapters = useMemo(() => {
+    const merged = catalog.chapters.map((ch) => ({
+      id: ch.id,
+      titleBangla: ch.titleBangla,
+      isDraft: false,
+    }));
+    const existingIds = new Set(merged.map((c) => c.id));
+    for (const entry of Object.values(savedChapterDrafts)) {
+      if (!existingIds.has(entry.data.id)) {
+        merged.push({
+          id: entry.data.id,
+          titleBangla: entry.data.titleBangla || '(Draft Chapter)',
+          isDraft: true,
+        });
+      }
+    }
+    return merged.sort((a, b) => a.id - b.id);
+  }, [catalog.chapters, savedChapterDrafts]);
 
   const isSelectedBuiltIn = draft ? isBuiltInDuaId(draft.id) : false;
   const hasRemoteRecord = draft ? Boolean(catalog.remoteDuasMap[draft.id]) : false;
@@ -627,10 +669,10 @@ export function AdminDuasTab({
         )}
       </div>
 
-      {/* Full-Screen Editor Sheet */}
+      {/* Responsive Drawer / Bottom Sheet */}
       <StudioEditorSheet
         open={Boolean(draft)}
-        showPreview={showPreview}
+        onCloseRequest={quickChapterOpen ? undefined : handleCancel}
         header={
           draft && (
             <StudioEditorHeader
@@ -657,121 +699,13 @@ export function AdminDuasTab({
               }
               onCancel={handleCancel}
               onSaveDraft={handleSaveDraft}
-              showPreview={showPreview}
-              onTogglePreview={() => setShowPreview((v) => !v)}
               onPublish={() => void handlePublish()}
             />
           )
         }
-        previewPane={
-          draft && (
-            <aside
-              className="w-full xl:w-[390px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
-              style={{
-                backgroundColor: 'var(--st-bg-subtle)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div
-                className="h-10 px-4 border-b flex items-center shrink-0"
-                style={{ borderColor: 'var(--st-border)' }}
-              >
-                <span
-                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-                  style={{ color: 'var(--st-text-muted)' }}
-                >
-                  Sukoon App Preview
-                </span>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-5 flex justify-center">
-                <div
-                  className="w-full max-w-[340px] h-fit rounded-2xl border p-5 space-y-4"
-                  style={{
-                    backgroundColor: 'var(--bg-page)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <div className="space-y-1">
-                    <p
-                      className="text-[11px] font-medium"
-                      style={{ color: 'var(--accent)' }}
-                    >
-                      {catalog.chapterMap[draft.chapterId]?.titleBangla ??
-                        `অধ্যায় ${draft.chapterId}`}
-                    </p>
-                    <h3 className="text-[15px] font-semibold leading-snug">
-                      {draft.titleBangla || '(শিরোনাম নেই)'}
-                    </h3>
-                    {draft.occasionNote && (
-                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {draft.occasionNote}
-                      </p>
-                    )}
-                  </div>
-
-                  <div
-                    dir="rtl"
-                    className="font-indopak text-2xl leading-[2.3] text-right py-4 px-4 rounded-xl"
-                    style={{ backgroundColor: 'var(--bg-surface)' }}
-                  >
-                    {normalizeIndoPakText(draft.arabic || 'بِسْمِ اللّٰهِ')}
-                  </div>
-
-                  {draft.transliteration && (
-                    <div className="space-y-1">
-                      <p
-                        className="text-[11px] font-semibold"
-                        style={{ color: 'var(--accent)' }}
-                      >
-                        উচ্চারণ
-                      </p>
-                      <p
-                        className="text-xs leading-relaxed whitespace-pre-line"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        {draft.transliteration}
-                      </p>
-                    </div>
-                  )}
-
-                  {draft.translationBangla && (
-                    <div className="space-y-1">
-                      <p
-                        className="text-[11px] font-semibold"
-                        style={{ color: 'var(--accent)' }}
-                      >
-                        অর্থ
-                      </p>
-                      <p className="text-xs leading-relaxed whitespace-pre-line">
-                        {draft.translationBangla}
-                      </p>
-                    </div>
-                  )}
-
-                  <div
-                    className="flex items-center justify-between gap-2 pt-3 border-t text-[11px]"
-                    style={{
-                      borderColor: 'var(--border-subtle)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <span className="truncate">
-                      {draft.reference || 'রেফারেন্স নেই'}
-                    </span>
-                    <span className="shrink-0">
-                      {toBanglaDigits(draft.repeatCount)} বার
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </aside>
-          )
-        }
       >
         {draft && (
-          <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+          <div className="px-5 py-5 space-y-6">
             {/* Section 1: Identity & Placement */}
             <StudioSection title="Identity & Placement">
               <StudioField label="Title (Bangla)" required>
@@ -784,46 +718,42 @@ export function AdminDuasTab({
                 />
               </StudioField>
 
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                <StudioField
-                  label="Chapter"
-                  className="sm:col-span-6"
-                  action={
-                    <button
-                      type="button"
-                      onClick={() => setQuickChapterOpen(true)}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium cursor-pointer hover:underline"
-                      style={{ color: 'var(--st-accent)' }}
-                    >
-                      <Plus className="w-3 h-3" />
-                      New Chapter
-                    </button>
-                  }
-                >
-                  <StudioDropdown<number>
-                    value={draft.chapterId}
-                    onChange={(val) => setDraft({ ...draft, chapterId: val })}
-                    searchPlaceholder="Search chapters…"
-                    options={catalog.chapters.map((ch) => ({
-                      value: ch.id,
-                      label: `${ch.id}. ${ch.titleBangla}`,
-                    }))}
-                  />
-                </StudioField>
-
-                <StudioField label="Order" className="sm:col-span-2">
-                  <StudioInput
-                    type="number"
-                    min={0}
-                    value={draft.order}
-                    onChange={(e) =>
-                      setDraft({ ...draft, order: Number(e.target.value) || 0 })
+              <StudioField
+                label="Chapter"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setQuickChapterOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium cursor-pointer hover:underline"
+                    style={{ color: 'var(--st-accent)' }}
+                  >
+                    <Plus className="w-3 h-3" />
+                    New Chapter
+                  </button>
+                }
+              >
+                <StudioDropdown<number>
+                  value={draft.chapterId}
+                  onChange={(val) => {
+                    if (draft.isNew) {
+                      const inCh = catalog.duasByChapter[val] ?? [];
+                      const nextOrder =
+                        inCh.reduce((max, d) => Math.max(max, d.order), 0) + 1;
+                      setDraft({ ...draft, chapterId: val, order: nextOrder });
+                    } else {
+                      setDraft({ ...draft, chapterId: val });
                     }
-                    className="font-mono tabular-nums"
-                  />
-                </StudioField>
+                  }}
+                  searchPlaceholder="Search chapters…"
+                  options={availableChapters.map((ch) => ({
+                    value: ch.id,
+                    label: `${ch.id}. ${ch.titleBangla}`,
+                    meta: ch.isDraft ? 'Draft' : undefined,
+                  }))}
+                />
+              </StudioField>
 
-                <StudioField label="Repeat Target" className="sm:col-span-4">
+              <StudioField label="Repeat Target">
                   <div className="flex items-center gap-1">
                     <div
                       className="inline-flex p-0.5 rounded-[7px] border h-9 items-center"
@@ -870,7 +800,6 @@ export function AdminDuasTab({
                     />
                   </div>
                 </StudioField>
-              </div>
             </StudioSection>
 
             {/* Section 2: Scripture & Translation */}
@@ -1203,8 +1132,12 @@ export function AdminDuasTab({
 
       <QuickChapterModal
         open={quickChapterOpen}
-        onClose={() => setQuickChapterOpen(false)}
+        onClose={() => {
+          setQuickChapterOpen(false);
+          setSavedChapterDrafts(loadDraftsMap<ChapterDraftShape>('chapters'));
+        }}
         onCreated={(newChapterId) => {
+          setSavedChapterDrafts(loadDraftsMap<ChapterDraftShape>('chapters'));
           if (draft) {
             setDraft({ ...draft, chapterId: newChapterId, order: 1 });
           } else {

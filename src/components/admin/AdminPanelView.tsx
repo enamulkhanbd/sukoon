@@ -49,8 +49,9 @@ type AdminTab = AdminSection;
 
 export interface StudioLaunchIntent {
   tab: Exclude<AdminTab, 'overview'>;
-  mode: 'new' | 'edit';
+  mode: 'new' | 'edit' | 'filter';
   id?: string;
+  filter?: 'draft';
   nonce: number;
 }
 
@@ -436,14 +437,19 @@ export default function AdminPanelView({
       },
     ];
 
-  const handleNewDua = () => {
-    setTab('duas');
-    setLaunchIntent({ tab: 'duas', mode: 'new', nonce: Date.now() });
-  };
-
   const handleResumeDraft = (scope: DraftScope, id: string) => {
     setTab(scope);
     setLaunchIntent({ tab: scope, mode: 'edit', id, nonce: Date.now() });
+  };
+
+  const handleOpenDuaDrafts = () => {
+    setTab('duas');
+    setLaunchIntent({
+      tab: 'duas',
+      mode: 'filter',
+      filter: 'draft',
+      nonce: Date.now(),
+    });
   };
 
   const clearLaunchIntent = () => setLaunchIntent(null);
@@ -814,8 +820,8 @@ export default function AdminPanelView({
         {tab === 'overview' && (
           <AdminOverviewTab
             onNavigateTab={(next) => setTab(next)}
-            onNewDua={handleNewDua}
             onResumeDraft={handleResumeDraft}
+            onOpenDuaDrafts={handleOpenDuaDrafts}
           />
         )}
         {tab === 'duas' && (

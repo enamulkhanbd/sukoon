@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight,
   ChevronRight,
   Plus,
+  Search,
   Sparkles,
+  X,
 } from 'lucide-react';
 import type {
   ActiveFeaturedCard,
@@ -16,7 +17,6 @@ import {
   adminPublishFeaturedCard,
 } from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
-import { normalizeIndoPakText } from '../../utils/formatters';
 import { useToast } from '../ToastProvider';
 import {
   deleteDraftFromStorage,
@@ -75,9 +75,9 @@ export function AdminFeaturedTab({
     () => loadDraftsMap<CardDraft>('featured')
   );
   const [saving, setSaving] = useState(false);
-  const [showPreview, setShowPreview] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [query, setQuery] = useState('');
 
   const listItems = useMemo(() => {
     const seen = new Set<string>();
@@ -152,7 +152,6 @@ export function AdminFeaturedTab({
     };
     setDraft(fresh);
     setBaselineHash(JSON.stringify(fresh));
-    setShowPreview(true);
   }, [catalog.duas, catalog.routineTemplates]);
 
   const openListItem = useCallback(
@@ -305,9 +304,20 @@ export function AdminFeaturedTab({
     }
   };
 
+  const filteredItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return listItems;
+    return listItems.filter(
+      (card) =>
+        card.titleBangla.toLowerCase().includes(q) ||
+        card.bodyBangla.toLowerCase().includes(q) ||
+        card.id.toLowerCase().includes(q)
+    );
+  }, [listItems, query]);
+
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-      {/* Header */}
+      {/* Header Bar */}
       <header
         className="h-[52px] px-5 sm:px-7 border-b flex items-center justify-between gap-3 shrink-0"
         style={{
@@ -324,7 +334,7 @@ export function AdminFeaturedTab({
               color: 'var(--st-text-muted)',
             }}
           >
-            {listItems.length}
+            {filteredItems.length}
           </span>
         </div>
         <StudioButton variant="primary" size="sm" onClick={startNewCard}>
@@ -333,7 +343,40 @@ export function AdminFeaturedTab({
         </StudioButton>
       </header>
 
-      {/* Full-Width List */}
+      {/* Search Bar */}
+      <div
+        className="px-5 sm:px-7 py-3 border-b shrink-0"
+        style={{
+          backgroundColor: 'var(--st-bg-subtle)',
+          borderColor: 'var(--st-border)',
+        }}
+      >
+        <div className="relative max-w-sm">
+          <Search
+            className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--st-text-faint)' }}
+          />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search spotlights…"
+            className="studio-field-control w-full h-8 pl-8 pr-7 text-[12.5px]"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 cursor-pointer"
+              style={{ color: 'var(--st-text-muted)' }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Full-Width Spotlight List */}
       <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--st-bg)' }}>
         {listItems.length === 0 ? (
           <StudioEmptyState
@@ -347,9 +390,13 @@ export function AdminFeaturedTab({
               </StudioButton>
             }
           />
+        ) : filteredItems.length === 0 ? (
+          <div className="py-16 px-4 text-center text-xs" style={{ color: 'var(--st-text-muted)' }}>
+            No matching spotlights.
+          </div>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--st-border)' }}>
-            {listItems.map((card) => (
+            {filteredItems.map((card, idx) => (
               <button
                 key={card.id}
                 type="button"
@@ -357,43 +404,49 @@ export function AdminFeaturedTab({
                 className="studio-hover w-full px-5 sm:px-7 py-3.5 text-left flex items-center justify-between gap-4 transition-colors cursor-pointer"
                 style={{ borderColor: 'var(--st-border)' }}
               >
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <span
+                    className="text-[11.5px] font-mono tabular-nums w-7 shrink-0"
+                    style={{ color: 'var(--st-text-muted)' }}
+                  >
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[13.5px] font-medium truncate">
                       {card.titleBangla}
                     </p>
+                    <p
+                      className="text-[12px] truncate mt-0.5"
+                      style={{ color: 'var(--st-text-muted)' }}
+                    >
+                      {card.bodyBangla || 'No description'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {listItems.length > 1 && (
                     <span
-                      className="text-[11px] font-mono"
+                      className="text-[11px] font-mono tabular-nums"
                       style={{ color: 'var(--st-text-muted)' }}
                     >
                       P{card.priority}
                     </span>
-                    {card.isLocalOnly ? (
-                      <StudioBadge tone="blue" dot>
-                        Draft
-                      </StudioBadge>
-                    ) : (
-                      <StudioBadge tone={card.active ? 'emerald' : 'neutral'} dot>
-                        {card.active ? 'Active' : 'Paused'}
-                      </StudioBadge>
-                    )}
-                    {card.hasLocalDraft && !card.isLocalOnly && (
-                      <StudioBadge tone="blue" dot>
-                        Draft
-                      </StudioBadge>
-                    )}
-                  </div>
-                  {card.bodyBangla && (
-                    <p
-                      className="text-xs truncate"
-                      style={{ color: 'var(--st-text-muted)' }}
-                    >
-                      {card.bodyBangla}
-                    </p>
                   )}
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
+                  {card.isLocalOnly ? (
+                    <StudioBadge tone="blue" dot>
+                      Draft
+                    </StudioBadge>
+                  ) : (
+                    <StudioBadge tone={card.active ? 'emerald' : 'neutral'} dot>
+                      {card.active ? 'Active' : 'Paused'}
+                    </StudioBadge>
+                  )}
+                  {card.hasLocalDraft && !card.isLocalOnly && (
+                    <StudioBadge tone="blue" dot>
+                      Draft
+                    </StudioBadge>
+                  )}
                   {(card.startDate || card.endDate) && (
                     <span
                       className="hidden sm:inline text-[11px] font-mono"
@@ -413,10 +466,10 @@ export function AdminFeaturedTab({
         )}
       </div>
 
-      {/* Full-Screen Editor Sheet */}
+      {/* Responsive Drawer / Bottom Sheet */}
       <StudioEditorSheet
         open={Boolean(draft)}
-        showPreview={showPreview}
+        onCloseRequest={handleCancel}
         header={
           draft && (
             <StudioEditorHeader
@@ -442,92 +495,13 @@ export function AdminFeaturedTab({
               deleteTitle={draft.isNew ? 'Delete draft' : 'Delete card'}
               onCancel={handleCancel}
               onSaveDraft={handleSaveDraft}
-              showPreview={showPreview}
-              onTogglePreview={() => setShowPreview((v) => !v)}
               onPublish={() => void handlePublish()}
             />
           )
         }
-        previewPane={
-          draft && (
-            <aside
-              className="w-full xl:w-[380px] shrink-0 xl:border-l h-full flex flex-col overflow-hidden"
-              style={{
-                backgroundColor: 'var(--st-bg-subtle)',
-                borderColor: 'var(--st-border)',
-              }}
-            >
-              <div
-                className="h-10 px-4 border-b flex items-center shrink-0"
-                style={{ borderColor: 'var(--st-border)' }}
-              >
-                <span
-                  className="text-[11px] font-semibold uppercase tracking-[0.06em]"
-                  style={{ color: 'var(--st-text-muted)' }}
-                >
-                  Home Card Preview
-                </span>
-              </div>
-
-              <div
-                className="flex-1 overflow-y-auto p-5 flex items-start justify-center"
-                style={{ backgroundColor: 'var(--bg-page)' }}
-              >
-                <div
-                  className="w-full max-w-[330px] rounded-2xl border p-4 space-y-2.5"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    borderColor: 'var(--border-subtle)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <p
-                    className="text-[11px] font-semibold inline-flex items-center gap-1"
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    {draft.badgeLabel || 'বিশেষ আমল'}
-                  </p>
-                  <h4 className="text-[15px] font-semibold leading-snug">
-                    {draft.titleBangla || '(শিরোনাম)'}
-                  </h4>
-                  {draft.arabicSnippet && (
-                    <p
-                      dir="rtl"
-                      className="font-indopak text-xl leading-[2.2] text-right py-2 px-3 rounded-xl"
-                      style={{ backgroundColor: 'var(--bg-surface)' }}
-                    >
-                      {normalizeIndoPakText(draft.arabicSnippet)}
-                    </p>
-                  )}
-                  <p
-                    className="text-xs leading-relaxed"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {draft.bodyBangla || '(সংক্ষিপ্ত বার্তা এখানে দেখাবে)'}
-                  </p>
-                  {draft.actionType !== 'none' && (
-                    <div className="pt-1">
-                      <span
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium"
-                        style={{
-                          backgroundColor: 'var(--accent)',
-                          color: 'var(--accent-text)',
-                        }}
-                      >
-                        {draft.ctaLabel || 'পাঠ করুন'}
-                        <ArrowRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </aside>
-          )
-        }
       >
         {draft && (
-          <div className="max-w-[700px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+          <div className="px-5 py-5 space-y-6">
             <StudioSection title="Visibility & Schedule">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <StudioSwitch
@@ -536,27 +510,31 @@ export function AdminFeaturedTab({
                   label="Active on Home"
                   description="Show this spotlight banner to users"
                 />
-                <div className="flex items-center gap-2">
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: 'var(--st-text-secondary)' }}
-                  >
-                    Priority
-                  </span>
-                  <StudioInput
-                    type="number"
-                    min={0}
-                    max={10000}
-                    value={draft.priority}
-                    onChange={(e) =>
-                      setDraft({
-                        ...draft,
-                        priority: Math.max(0, Number(e.target.value) || 0),
-                      })
-                    }
-                    className="!w-20 !h-8 font-mono tabular-nums text-center"
-                  />
-                </div>
+                {(draft && !listItems.some((item) => item.id === draft.id)
+                  ? listItems.length + 1
+                  : listItems.length) > 1 && (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--st-text-secondary)' }}
+                    >
+                      Priority
+                    </span>
+                    <StudioInput
+                      type="number"
+                      min={0}
+                      max={10000}
+                      value={draft.priority}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          priority: Math.max(0, Number(e.target.value) || 0),
+                        })
+                      }
+                      className="!w-20 !h-8 font-mono tabular-nums text-center"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

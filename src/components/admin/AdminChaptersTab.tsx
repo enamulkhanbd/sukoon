@@ -197,6 +197,10 @@ export function AdminChaptersTab({
 
   const handleSaveDraft = () => {
     if (!draft) return;
+    if (!draft.titleBangla.trim()) {
+      toast.warning('Chapter Bangla title is required.');
+      return;
+    }
     const pendingAliases = aliasInput
       .split(',')
       .map((s) => s.trim())
@@ -225,6 +229,13 @@ export function AdminChaptersTab({
     if (!draft || saving) return;
     if (!draft.titleBangla.trim()) {
       toast.warning('Chapter Bangla title is required.');
+      return;
+    }
+    const duaCount = catalog.duasByChapter[draft.id]?.length ?? 0;
+    if (duaCount === 0) {
+      toast.warning(
+        'Cannot publish an empty chapter. Add and publish at least one Dua in this chapter first (use Save Draft for now).'
+      );
       return;
     }
     const pendingAliases = aliasInput
@@ -256,7 +267,7 @@ export function AdminChaptersTab({
     } finally {
       setSaving(false);
     }
-  }, [draft, saving, aliasInput, toast]);
+  }, [draft, saving, aliasInput, catalog.duasByChapter, toast]);
 
   useKeyboardSave(Boolean(draft) && !saving, () => {
     void handleSave();
@@ -305,6 +316,8 @@ export function AdminChaptersTab({
 
   const isBuiltIn = draft ? isBuiltInChapterId(draft.id) : false;
   const hasRemote = draft ? Boolean(catalog.remoteChaptersMap[draft.id]) : false;
+  const draftDuaCount = draft ? (catalog.duasByChapter[draft.id]?.length ?? 0) : 0;
+  const canPublishChapter = draftDuaCount > 0;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -424,9 +437,10 @@ export function AdminChaptersTab({
         </div>
       </div>
 
-      {/* Full-Screen Editor Sheet */}
+      {/* Responsive Drawer / Bottom Sheet */}
       <StudioEditorSheet
         open={Boolean(draft)}
+        onCloseRequest={handleCancel}
         header={
           draft && (
             <StudioEditorHeader
@@ -462,14 +476,17 @@ export function AdminChaptersTab({
                     : 'Delete chapter'
               }
               onCancel={handleCancel}
-              onSaveDraft={handleSaveDraft}
-              onPublish={() => void handleSave()}
+              onSaveDraft={canPublishChapter ? handleSaveDraft : undefined}
+              publishLabel={canPublishChapter ? undefined : 'Save'}
+              onPublish={
+                canPublishChapter ? () => void handleSave() : handleSaveDraft
+              }
             />
           )
         }
       >
         {draft && (
-          <div className="max-w-[680px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+          <div className="px-5 py-5 space-y-6">
             <StudioSection title="Chapter Details">
               <StudioField label="Title (Bangla)" required>
                 <StudioInput

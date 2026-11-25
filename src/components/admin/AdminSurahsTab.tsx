@@ -336,9 +336,10 @@ export function AdminSurahsTab() {
         )}
       </div>
 
-      {/* Full-Screen Editor Sheet */}
+      {/* Responsive Drawer / Bottom Sheet */}
       <StudioEditorSheet
         open={selectedId !== null}
+        onCloseRequest={handleCancel}
         header={
           selectedId !== null && (
             <StudioEditorHeader
@@ -360,7 +361,7 @@ export function AdminSurahsTab() {
         }
       >
         {activeSurah && (
-          <div className="max-w-[720px] mx-auto px-5 sm:px-8 py-7 space-y-8">
+          <div className="px-5 py-5 space-y-6">
             <div
               className="rounded-lg border px-4 py-3.5 flex items-center justify-between gap-4"
               style={{

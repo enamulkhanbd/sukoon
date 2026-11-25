@@ -9,7 +9,6 @@ import {
   FolderOpen,
   Info,
   Monitor,
-  Plus,
   RefreshCw,
   ScrollText,
   Smartphone,
@@ -27,7 +26,7 @@ import {
 } from '../../services/userTelemetry';
 import { useToast } from '../ToastProvider';
 import { loadDraftsMap, type DraftScope } from './adminDrafts';
-import { StudioBadge, StudioButton, StudioMetricCard } from './StudioUI';
+import { StudioButton, StudioMetricCard } from './StudioUI';
 
 export type StudioContentTab = 'duas' | 'chapters' | 'routines' | 'surahs' | 'featured';
 
@@ -40,14 +39,14 @@ interface DraftPreviewItem {
 
 interface AdminOverviewTabProps {
   onNavigateTab: (tab: StudioContentTab) => void;
-  onNewDua: () => void;
   onResumeDraft: (scope: DraftScope, id: string) => void;
+  onOpenDuaDrafts: () => void;
 }
 
 export function AdminOverviewTab({
   onNavigateTab,
-  onNewDua,
   onResumeDraft,
+  onOpenDuaDrafts,
 }: AdminOverviewTabProps) {
   const toast = useToast();
   const catalog = useCatalog();
@@ -186,26 +185,20 @@ export function AdminOverviewTab({
       >
         <h1 className="text-[14px] font-semibold tracking-tight">Overview</h1>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <StudioButton
-            variant="secondary"
-            size="sm"
-            disabled={isSyncingAll}
-            onClick={handleSyncAll}
-            title="Sync content & user analytics from Firestore"
-          >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`}
-            />
-            <span className="hidden sm:inline">
-              {isSyncingAll ? 'Syncing…' : 'Sync Data'}
-            </span>
-          </StudioButton>
-          <StudioButton variant="primary" size="sm" onClick={onNewDua}>
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Dua</span>
-          </StudioButton>
-        </div>
+        <StudioButton
+          variant="secondary"
+          size="sm"
+          disabled={isSyncingAll}
+          onClick={handleSyncAll}
+          title="Sync content & user analytics from Firestore"
+        >
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`}
+          />
+          <span className="hidden sm:inline">
+            {isSyncingAll ? 'Syncing…' : 'Sync Data'}
+          </span>
+        </StudioButton>
       </header>
 
       {/* Scrollable Executive Dashboard */}
@@ -392,9 +385,13 @@ export function AdminOverviewTab({
                 <button
                   key="saved-drafts"
                   type="button"
-                  onClick={() =>
-                    onResumeDraft(savedDrafts[0].scope, savedDrafts[0].id)
-                  }
+                  onClick={() => {
+                    if (savedDrafts.length > 1) {
+                      onOpenDuaDrafts();
+                    } else {
+                      onResumeDraft(savedDrafts[0].scope, savedDrafts[0].id);
+                    }
+                  }}
                   className="studio-hover rounded-lg border p-4 text-left flex items-start justify-between gap-3 cursor-pointer transition-colors group"
                   style={{
                     backgroundColor: 'var(--st-bg)',
@@ -419,7 +416,9 @@ export function AdminOverviewTab({
                       className="text-[11.5px] truncate"
                       style={{ color: 'var(--st-text-muted)' }}
                     >
-                      Resume: {savedDrafts[0].title}
+                      {savedDrafts.length > 1
+                        ? 'View all saved drafts'
+                        : `Resume: ${savedDrafts[0].title}`}
                     </p>
                   </div>
                   <ArrowRight
@@ -430,76 +429,6 @@ export function AdminOverviewTab({
               )}
             </div>
           </section>
-
-          {/* Additional Saved Drafts (when more than 1 draft exists) */}
-          {savedDrafts.length > 1 && (
-            <section className="space-y-3">
-              <h2
-                className="text-[11px] font-semibold uppercase tracking-[0.07em]"
-                style={{ color: 'var(--st-text-muted)' }}
-              >
-                Saved Local Drafts ({savedDrafts.length})
-              </h2>
-
-              <div
-                className="rounded-lg border overflow-hidden divide-y"
-                style={{
-                  backgroundColor: 'var(--st-bg)',
-                  borderColor: 'var(--st-border)',
-                }}
-              >
-                {savedDrafts.map((item) => (
-                  <div
-                    key={`${item.scope}:${item.id}`}
-                    className="px-4 py-3 flex items-center justify-between gap-3"
-                    style={{ borderColor: 'var(--st-border)' }}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FilePenLine
-                        className="w-4 h-4 shrink-0"
-                        style={{ color: 'var(--st-blue)' }}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-medium truncate">
-                          {item.title}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <StudioBadge tone="blue" dot>
-                            {item.scope === 'duas'
-                              ? 'Dua'
-                              : item.scope === 'chapters'
-                                ? 'Chapter'
-                                : item.scope === 'routines'
-                                  ? 'Routine'
-                                  : 'Spotlight'}
-                          </StudioBadge>
-                          <span
-                            className="text-[11px]"
-                            style={{ color: 'var(--st-text-muted)' }}
-                          >
-                            {new Date(item.savedAt).toLocaleString([], {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <StudioButton
-                      variant="secondary"
-                      size="xs"
-                      onClick={() => onResumeDraft(item.scope, item.id)}
-                    >
-                      Resume
-                    </StudioButton>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
       </div>
     </div>

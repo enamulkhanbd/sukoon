@@ -12,7 +12,6 @@ import {
   Menu,
   Moon,
   Palette,
-  RefreshCw,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -27,10 +26,6 @@ import {
   type ColorMode,
   type ThemeMode,
 } from '../../db/database';
-import {
-  resetCmsSyncCursorsAndResync,
-  useCmsSyncStatus,
-} from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
 import {
   ADMIN_EMAIL,
@@ -84,7 +79,6 @@ export default function AdminPanelView({
 }: AdminPanelViewProps) {
   const toast = useToast();
   const catalog = useCatalog();
-  const syncStatus = useCmsSyncStatus();
   const rawSettings = useLiveQuery(() => db.settings.get('app'), []);
   const { theme: activeTheme, colorMode: activeMode } = normalizeThemeSettings(
     rawSettings?.theme,
@@ -687,30 +681,6 @@ export default function AdminPanelView({
           </div>
 
           <div className="flex items-center gap-0.5 shrink-0">
-            <button
-              type="button"
-              disabled={syncStatus.syncing}
-              onClick={() => void resetCmsSyncCursorsAndResync(toast)}
-              className="studio-hover p-1.5 rounded-[6px] cursor-pointer disabled:opacity-50 transition-colors shrink-0"
-              style={{
-                color: syncStatus.lastError
-                  ? 'var(--st-danger)'
-                  : 'var(--st-text-muted)',
-              }}
-              title={
-                syncStatus.syncing
-                  ? 'Syncing from Firestore…'
-                  : syncStatus.lastError
-                    ? 'Sync error — click to retry'
-                    : 'Resync content from Firestore'
-              }
-              aria-label="Resync content from Firestore"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${syncStatus.syncing ? 'animate-spin' : ''}`}
-              />
-            </button>
-
             <button
               type="button"
               onClick={() => setThemePopoverOpen((v) => !v)}

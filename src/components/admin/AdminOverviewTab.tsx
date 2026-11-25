@@ -16,11 +16,16 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
+import {
+  resetCmsSyncCursorsAndResync,
+  useCmsSyncStatus,
+} from '../../services/cmsSync';
 import { useCatalog } from '../../services/contentCatalog';
 import {
   fetchUserTelemetrySummary,
   type UserTelemetrySummary,
 } from '../../services/userTelemetry';
+import { useToast } from '../ToastProvider';
 import { loadDraftsMap, type DraftScope } from './adminDrafts';
 import { StudioBadge, StudioButton, StudioMetricCard } from './StudioUI';
 
@@ -44,7 +49,9 @@ export function AdminOverviewTab({
   onNewDua,
   onResumeDraft,
 }: AdminOverviewTabProps) {
+  const toast = useToast();
   const catalog = useCatalog();
+  const syncStatus = useCmsSyncStatus();
   const [metrics, setMetrics] = useState<UserTelemetrySummary | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
@@ -63,6 +70,12 @@ export function AdminOverviewTab({
       setLoadingMetrics(false);
     }
   }, []);
+
+  const isSyncingAll = loadingMetrics || syncStatus.syncing;
+
+  const handleSyncAll = () => {
+    void Promise.all([loadMetrics(), resetCmsSyncCursorsAndResync(toast)]);
+  };
 
   useEffect(() => {
     void loadMetrics();
@@ -177,14 +190,16 @@ export function AdminOverviewTab({
           <StudioButton
             variant="secondary"
             size="sm"
-            disabled={loadingMetrics}
-            onClick={() => void loadMetrics()}
-            title="Refresh user analytics"
+            disabled={isSyncingAll}
+            onClick={handleSyncAll}
+            title="Sync content & user analytics from Firestore"
           >
             <RefreshCw
-              className={`w-3.5 h-3.5 ${loadingMetrics ? 'animate-spin' : ''}`}
+              className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`}
             />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">
+              {isSyncingAll ? 'Syncing…' : 'Sync Data'}
+            </span>
           </StudioButton>
           <StudioButton variant="primary" size="sm" onClick={onNewDua}>
             <Plus className="w-3.5 h-3.5" />

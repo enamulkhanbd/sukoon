@@ -807,6 +807,122 @@ export function RoutinesView({
 
       {/* Open Editorial Canvas Below (Zero Boxes) */}
       <div className="max-w-2xl mx-auto px-5 pt-5">
+        {/* Suggested / Admin-Published Routine Templates (Top of List) */}
+        {routineTemplates.length > 0 && (
+          <section
+            className="mb-6 pb-6 border-b space-y-4"
+            style={{
+              borderColor:
+                'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                  সাজেস্টেড রুটিন
+                </h2>
+                <p
+                  className="text-xs mt-0.5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  ১ ট্যাপে নিজের রুটিনে যোগ করে নিজের মতো সাজিয়ে নিন
+                </p>
+              </div>
+              <span
+                className="text-[11px] tabular-nums"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {toBanglaDigits(routineTemplates.length)}টি
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {routineTemplates.map((tpl) => {
+                const isAdopted = adoptedTemplateIds.has(tpl.id);
+                const { items: tplItems } = templateToRoutineItems(tpl);
+                const summary = getRoutineSummaryCounts(tplItems);
+                return (
+                  <div
+                    key={tpl.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setPreviewTemplate(tpl)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setPreviewTemplate(tpl);
+                      }
+                    }}
+                    className="rounded-2xl p-4 border space-y-2 transition-opacity active:opacity-80 cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {tpl.seasonTag && (
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                              style={{
+                                backgroundColor: 'var(--gold-soft)',
+                                color: 'var(--gold)',
+                              }}
+                            >
+                              {tpl.seasonTag}
+                            </span>
+                          )}
+                          {isAdopted && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                              style={{
+                                backgroundColor: 'var(--accent-soft)',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              <Check className="w-2.5 h-2.5" />
+                              যোগ করা আছে
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-semibold leading-snug">
+                          {tpl.title}
+                        </h3>
+                        {tpl.description && (
+                          <p
+                            className="text-xs line-clamp-2 leading-relaxed"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {tpl.description}
+                          </p>
+                        )}
+                      </div>
+                      <ChevronRight
+                        className="w-4 h-4 shrink-0 mt-1"
+                        style={{ color: 'var(--text-muted)' }}
+                      />
+                    </div>
+                    <p
+                      className="text-[11px]"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {tpl.assignedDays.length === 7
+                        ? 'প্রতিদিন'
+                        : tpl.assignedDays.length === 0
+                          ? 'ম্যানুয়াল'
+                          : tpl.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
+                      {' • '}
+                      {formatRoutineSummaryBn(summary)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {(routines ?? []).length === 0 ? (
           <div className="py-12 text-center space-y-3">
             <div className="space-y-1">
@@ -996,122 +1112,6 @@ export function RoutinesView({
               );
             })}
           </div>
-        )}
-
-        {/* Suggested / Admin-Published Routine Templates */}
-        {routineTemplates.length > 0 && (
-          <section
-            className="mt-8 pt-6 border-t space-y-4"
-            style={{
-              borderColor:
-                'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
-            }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4" style={{ color: 'var(--accent)' }} />
-                  সাজেস্টেড রুটিন
-                </h2>
-                <p
-                  className="text-xs mt-0.5"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  ১ ট্যাপে নিজের রুটিনে যোগ করে নিজের মতো সাজিয়ে নিন
-                </p>
-              </div>
-              <span
-                className="text-[11px] tabular-nums"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                {toBanglaDigits(routineTemplates.length)}টি
-              </span>
-            </div>
-
-            <div className="space-y-2.5">
-              {routineTemplates.map((tpl) => {
-                const isAdopted = adoptedTemplateIds.has(tpl.id);
-                const { items: tplItems } = templateToRoutineItems(tpl);
-                const summary = getRoutineSummaryCounts(tplItems);
-                return (
-                  <div
-                    key={tpl.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setPreviewTemplate(tpl)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setPreviewTemplate(tpl);
-                      }
-                    }}
-                    className="rounded-2xl p-4 border space-y-2 transition-opacity active:opacity-80 cursor-pointer"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      borderColor: 'var(--border-subtle)',
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-0.5">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {tpl.seasonTag && (
-                            <span
-                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                              style={{
-                                backgroundColor: 'var(--gold-soft)',
-                                color: 'var(--gold)',
-                              }}
-                            >
-                              {tpl.seasonTag}
-                            </span>
-                          )}
-                          {isAdopted && (
-                            <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                              style={{
-                                backgroundColor: 'var(--accent-soft)',
-                                color: 'var(--accent)',
-                              }}
-                            >
-                              <Check className="w-2.5 h-2.5" />
-                              যোগ করা আছে
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="text-sm font-semibold leading-snug">
-                          {tpl.title}
-                        </h3>
-                        {tpl.description && (
-                          <p
-                            className="text-xs line-clamp-2 leading-relaxed"
-                            style={{ color: 'var(--text-secondary)' }}
-                          >
-                            {tpl.description}
-                          </p>
-                        )}
-                      </div>
-                      <ChevronRight
-                        className="w-4 h-4 shrink-0 mt-1"
-                        style={{ color: 'var(--text-muted)' }}
-                      />
-                    </div>
-                    <p
-                      className="text-[11px]"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {tpl.assignedDays.length === 7
-                        ? 'প্রতিদিন'
-                        : tpl.assignedDays.length === 0
-                          ? 'ম্যানুয়াল'
-                          : tpl.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
-                      {' • '}
-                      {formatRoutineSummaryBn(summary)}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
         )}
       </div>
 

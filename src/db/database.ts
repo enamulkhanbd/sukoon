@@ -75,6 +75,12 @@ export interface Routine {
   updatedAt?: number;
 }
 
+export interface RoutineItemManualGrant {
+  dhikir?: number;
+  duas?: number;
+  ayahs?: number;
+}
+
 export interface RoutineProgress {
   routineId: string;
   dayKey?: string; // Islamic day key (YYYY-MM-DD, Maghrib-to-Maghrib)
@@ -84,6 +90,10 @@ export interface RoutineProgress {
   lastReadItemIndex?: number;
   lastItemCompleted?: boolean;
   completedItemIndexes?: number[];
+  itemEarnedDhikir?: Record<string, number>;
+  itemEarnedDuas?: Record<string, number>;
+  itemEarnedAyahs?: Record<string, number>;
+  manualGrantedByItem?: Record<string, RoutineItemManualGrant>;
   completedAyahsCount: number; // Stored progress units completed (ayahs + completed duas)
   totalAyahsCount: number; // Stored total progress units (ayahs + duas)
   percentage: number;
@@ -597,7 +607,7 @@ export async function addReadingSeconds(params: {
   return { totalSeconds, justReachedGoal };
 }
 
-function applyDuaCountDelta(
+export function applyDuaCountDelta(
   record: ReadingHistory,
   duaId: string,
   delta: number
@@ -617,55 +627,303 @@ function applyDuaCountDelta(
   };
 }
 
+export function applyDhikirDeltaToRecord(
+  record: ReadingHistory,
+  duaId: string,
+  delta: number
+): { record: ReadingHistory; appliedDelta: number } {
+  if (!duaId || delta === 0) {
+    return { record, appliedDelta: 0 };
+  }
+  const nextByDua = { ...(record.dhikirByDua ?? {}) };
+  const currentForDua = nextByDua[duaId] ?? 0;
+  const nextForDua = Math.max(0, currentForDua + delta);
+  const actualDelta = nextForDua - currentForDua;
+
+  if (nextForDua > 0) {
+    nextByDua[duaId] = nextForDua;
+  } else {
+    delete nextByDua[duaId];
+  }
+
+  const nextTotal = Math.max(
+    0,
+    (record.dhikirCount ?? 0) + (delta > 0 ? delta : actualDelta)
+  );
+
+  return {
+    record: {
+      ...record,
+      dhikirCount: nextTotal,
+      dhikirByDua: nextByDua,
+    },
+    appliedDelta: delta > 0 ? delta : actualDelta,
+  };
+}
+
+export function applyAyahsDeltaToRecord(
+  record: ReadingHistory,
+  delta: number
+): ReadingHistory {
+  if (delta === 0) return record;
+  return {
+    ...record,
+    ayahsCount: Math.max(0, (record.ayahsCount ?? 0) + delta),
+  };
+}
+
+export function getRoutineItemTargetDhikirCount(
+  item: NormalizedDuaRoutineItem
+): number {
+  const dua = resolveDuaById(item.duaId);
+  if (dua?.parts && dua.parts.length > 0) {
+    return dua.parts.reduce(
+      (sum, part) =>
+        sum + Math.max(1, item.targetCount ?? part.repeatCount ?? dua.repeatCount ?? 1),
+      0
+    );
+  }
+  return Math.max(1, item.targetCount ?? dua?.repeatCount ?? 1);
+}
+
+/**
+ * Computes the remaining counts (dhikir + dua, or surah ayahs) to grant when a
+ * routine item is marked complete without full in-reader tapping/reading.
+ */
+export function computeItemGrantOnComplete(params: {
+  item: NormalizedRoutineItem;
+  itemIndex: number;
+  existingProgress?: RoutineProgress;
+  extraEarnedAyahs?: number;
+  skipDuaHistoryLog?: boolean;
+}): {
+  grant: RoutineItemManualGrant;
+  hasAnyGrant: boolean;
+} {
+  const {
+    item,
+    itemIndex,
+    existingProgress,
+    extraEarnedAyahs = 0,
+    skipDuaHistoryLog = false,
+  } = params;
+  const key = String(itemIndex);
+
+  if (item.kind === 'dua') {
+    const targetDhikir = getRoutineItemTargetDhikirCount(item);
+    const earnedDhikir = existingProgress?.itemEarnedDhikir?.[key] ?? 0;
+    const earnedDuas = existingProgress?.itemEarnedDuas?.[key] ?? 0;
+    const dhikir = Math.max(0, targetDhikir - earnedDhikir);
+    const duas = skipDuaHistoryLog || earnedDuas > 0 ? 0 : 1;
+    const grant: RoutineItemManualGrant = {};
+    if (dhikir > 0) grant.dhikir = dhikir;
+    if (duas > 0) grant.duas = duas;
+    return { grant, hasAnyGrant: dhikir > 0 || duas > 0 };
+  }
+
+  const span = Math.max(0, item.endAyah - item.startAyah + 1);
+  const earnedAyahs =
+    (existingProgress?.itemEarnedAyahs?.[key] ?? 0) + Math.max(0, extraEarnedAyahs);
+  const ayahs = Math.max(0, span - earnedAyahs);
+  const grant: RoutineItemManualGrant = {};
+  if (ayahs > 0) grant.ayahs = ayahs;
+  return { grant, hasAnyGrant: ayahs > 0 };
+}
+
+/**
+ * Computes the exact reversal delta when unchecking a previously completed routine item.
+ * Only subtracts counts that were granted by marking the item complete (preserving reader taps).
+ */
+export function computeItemReversalOnUncheck(params: {
+  item: NormalizedRoutineItem;
+  itemIndex: number;
+  wasCompleted: boolean;
+  existingProgress?: RoutineProgress;
+}): RoutineItemManualGrant {
+  const { item, itemIndex, wasCompleted, existingProgress } = params;
+  if (!wasCompleted) return {};
+  const key = String(itemIndex);
+  const recorded = existingProgress?.manualGrantedByItem?.[key];
+  if (recorded) {
+    return {
+      ...(recorded.dhikir && recorded.dhikir > 0 ? { dhikir: recorded.dhikir } : {}),
+      ...(recorded.duas && recorded.duas > 0 ? { duas: recorded.duas } : {}),
+      ...(recorded.ayahs && recorded.ayahs > 0 ? { ayahs: recorded.ayahs } : {}),
+    };
+  }
+  // Backwards-compatible fallback for legacy dua checks stored before manualGrantedByItem
+  if (item.kind === 'dua') {
+    const earnedDuas = existingProgress?.itemEarnedDuas?.[key] ?? 0;
+    return earnedDuas > 0 ? {} : { duas: 1 };
+  }
+  return {};
+}
+
+function resolveDuaItemIndex(
+  items: NormalizedRoutineItem[],
+  duaId: string,
+  routineItemIndex?: number
+): number {
+  const indexed =
+    routineItemIndex !== undefined ? items[routineItemIndex] : undefined;
+  if (indexed && isDuaRoutineItem(indexed) && indexed.duaId === duaId) {
+    return routineItemIndex!;
+  }
+  return items.findIndex((it) => isDuaRoutineItem(it) && it.duaId === duaId);
+}
+
 export async function recordDhikirDelta(params: {
   duaId: string;
   delta: number;
   dateKey?: string;
+  routineId?: string;
+  routineItemIndex?: number;
 }): Promise<void> {
-  const { duaId, delta, dateKey = getTodayDateKey() } = params;
+  const {
+    duaId,
+    delta,
+    dateKey = getTodayDateKey(),
+    routineId,
+    routineItemIndex,
+  } = params;
   if (!duaId || delta === 0) return;
 
-  await db.transaction('rw', db.readingHistory, async () => {
-    const existing = await db.readingHistory.get(dateKey);
-    const record = normalizeHistoryRecord(dateKey, existing);
-    const nextByDua = { ...(record.dhikirByDua ?? {}) };
-    const currentForDua = nextByDua[duaId] ?? 0;
-    const nextForDua = Math.max(0, currentForDua + delta);
-    const actualDelta = nextForDua - currentForDua;
+  await db.transaction(
+    'rw',
+    [db.readingHistory, db.routineProgress, db.routines],
+    async () => {
+      const existing = await db.readingHistory.get(dateKey);
+      const record = normalizeHistoryRecord(dateKey, existing);
+      const { record: nextRecord, appliedDelta } = applyDhikirDeltaToRecord(
+        record,
+        duaId,
+        delta
+      );
+      await db.readingHistory.put(nextRecord);
 
-    if (nextForDua > 0) {
-      nextByDua[duaId] = nextForDua;
-    } else {
-      delete nextByDua[duaId];
+      if (routineId && appliedDelta !== 0) {
+        const routine = await db.routines.get(routineId);
+        if (!routine) return;
+        const items = getRoutineItems(routine);
+        const resolvedIdx = resolveDuaItemIndex(items, duaId, routineItemIndex);
+        if (resolvedIdx === -1) return;
+
+        const rawProgress = await db.routineProgress.get(routineId);
+        const existingProgress = isRoutineProgressCurrent(rawProgress, dateKey)
+          ? rawProgress
+          : undefined;
+        const idxKey = String(resolvedIdx);
+        const prevEarned = existingProgress?.itemEarnedDhikir?.[idxKey] ?? 0;
+        const nextEarned = Math.max(0, prevEarned + appliedDelta);
+        const nextEarnedMap = { ...(existingProgress?.itemEarnedDhikir ?? {}) };
+        if (nextEarned > 0) {
+          nextEarnedMap[idxKey] = nextEarned;
+        } else {
+          delete nextEarnedMap[idxKey];
+        }
+
+        if (existingProgress) {
+          await db.routineProgress.put({
+            ...existingProgress,
+            itemEarnedDhikir: nextEarnedMap,
+            lastUpdated: Date.now(),
+          });
+        } else {
+          const { totalUnits } = computeRoutineProgressMetrics(routine, []);
+          await db.routineProgress.put({
+            routineId,
+            dayKey: dateKey,
+            lastReadSurah: 0,
+            lastReadAyah: 0,
+            lastReadDuaId: duaId,
+            lastReadItemIndex: resolvedIdx,
+            lastItemCompleted: false,
+            completedItemIndexes: [],
+            itemEarnedDhikir: nextEarnedMap,
+            completedAyahsCount: 0,
+            totalAyahsCount: totalUnits,
+            percentage: 0,
+            lastUpdated: Date.now(),
+          });
+        }
+      }
     }
-
-    const nextTotal = Math.max(
-      0,
-      (record.dhikirCount ?? 0) + (delta > 0 ? delta : actualDelta)
-    );
-
-    await db.readingHistory.put({
-      ...record,
-      dhikirCount: nextTotal,
-      dhikirByDua: nextByDua,
-    });
-  });
+  );
 }
 
 export async function recordDuaCompleted(params: {
   duaId: string;
   delta?: number;
   dateKey?: string;
+  routineId?: string;
+  routineItemIndex?: number;
 }): Promise<void> {
-  const { duaId, delta = 1, dateKey = getTodayDateKey() } = params;
+  const {
+    duaId,
+    delta = 1,
+    dateKey = getTodayDateKey(),
+    routineId,
+    routineItemIndex,
+  } = params;
   if (!duaId || delta === 0) return;
 
-  await db.transaction('rw', db.readingHistory, async () => {
-    const existing = await db.readingHistory.get(dateKey);
-    const record = normalizeHistoryRecord(dateKey, existing);
-    const next = applyDuaCountDelta(record, duaId, delta);
-    await db.readingHistory.put(next);
-  });
+  await db.transaction(
+    'rw',
+    [db.readingHistory, db.routineProgress, db.routines],
+    async () => {
+      const existing = await db.readingHistory.get(dateKey);
+      const record = normalizeHistoryRecord(dateKey, existing);
+      const next = applyDuaCountDelta(record, duaId, delta);
+      await db.readingHistory.put(next);
+
+      if (routineId) {
+        const routine = await db.routines.get(routineId);
+        if (!routine) return;
+        const items = getRoutineItems(routine);
+        const resolvedIdx = resolveDuaItemIndex(items, duaId, routineItemIndex);
+        if (resolvedIdx === -1) return;
+
+        const rawProgress = await db.routineProgress.get(routineId);
+        const existingProgress = isRoutineProgressCurrent(rawProgress, dateKey)
+          ? rawProgress
+          : undefined;
+        const idxKey = String(resolvedIdx);
+        const prevEarned = existingProgress?.itemEarnedDuas?.[idxKey] ?? 0;
+        const nextEarned = Math.max(0, prevEarned + delta);
+        const nextEarnedMap = { ...(existingProgress?.itemEarnedDuas ?? {}) };
+        if (nextEarned > 0) {
+          nextEarnedMap[idxKey] = nextEarned;
+        } else {
+          delete nextEarnedMap[idxKey];
+        }
+
+        if (existingProgress) {
+          await db.routineProgress.put({
+            ...existingProgress,
+            itemEarnedDuas: nextEarnedMap,
+            lastUpdated: Date.now(),
+          });
+        } else {
+          const { totalUnits } = computeRoutineProgressMetrics(routine, []);
+          await db.routineProgress.put({
+            routineId,
+            dayKey: dateKey,
+            lastReadSurah: 0,
+            lastReadAyah: 0,
+            lastReadDuaId: duaId,
+            lastReadItemIndex: resolvedIdx,
+            lastItemCompleted: false,
+            completedItemIndexes: [],
+            itemEarnedDuas: nextEarnedMap,
+            completedAyahsCount: 0,
+            totalAyahsCount: totalUnits,
+            percentage: 0,
+            lastUpdated: Date.now(),
+          });
+        }
+      }
+    }
+  );
 }
 
 export function getRoutineItems(
@@ -965,6 +1223,38 @@ export async function toggleRoutineItemCompleted(params: {
       const { completedUnits, totalUnits, percentage } =
         computeRoutineProgressMetrics(routine, nextCompletedIndexes, partialSurah);
 
+      const idxKey = String(itemIndex);
+      const toggledItem = items[itemIndex];
+      const nextManualGranted = { ...(existing?.manualGrantedByItem ?? {}) };
+      let dhikirDelta = 0;
+      let duaDelta = 0;
+      let ayahsDelta = 0;
+
+      if (completed && !wasCompleted) {
+        const { grant, hasAnyGrant } = computeItemGrantOnComplete({
+          item: toggledItem,
+          itemIndex,
+          existingProgress: existing,
+        });
+        if (hasAnyGrant) {
+          nextManualGranted[idxKey] = grant;
+          dhikirDelta = grant.dhikir ?? 0;
+          duaDelta = grant.duas ?? 0;
+          ayahsDelta = grant.ayahs ?? 0;
+        }
+      } else if (!completed && wasCompleted) {
+        const reversal = computeItemReversalOnUncheck({
+          item: toggledItem,
+          itemIndex,
+          wasCompleted,
+          existingProgress: existing,
+        });
+        dhikirDelta = -(reversal.dhikir ?? 0);
+        duaDelta = -(reversal.duas ?? 0);
+        ayahsDelta = -(reversal.ayahs ?? 0);
+        delete nextManualGranted[idxKey];
+      }
+
       updated = {
         routineId,
         dayKey: todayKey,
@@ -979,6 +1269,10 @@ export async function toggleRoutineItemCompleted(params: {
               ? completedSet.has(existing.lastReadItemIndex)
               : completed,
         completedItemIndexes: nextCompletedIndexes,
+        itemEarnedDhikir: existing?.itemEarnedDhikir,
+        itemEarnedDuas: existing?.itemEarnedDuas,
+        itemEarnedAyahs: existing?.itemEarnedAyahs,
+        manualGrantedByItem: nextManualGranted,
         completedAyahsCount: completedUnits,
         totalAyahsCount: totalUnits,
         percentage,
@@ -987,9 +1281,6 @@ export async function toggleRoutineItemCompleted(params: {
 
       await db.routineProgress.put(updated);
 
-      const toggledItem = items[itemIndex];
-      const duaChanged =
-        toggledItem.kind === 'dua' && wasCompleted !== completed;
       const existingHistory = await db.readingHistory.get(todayKey);
       const hasRoutineLogged = Boolean(
         existingHistory?.routinesCompleted?.includes(routineId)
@@ -997,15 +1288,33 @@ export async function toggleRoutineItemCompleted(params: {
       const shouldAddRoutine = percentage >= 100 && !hasRoutineLogged;
       const shouldRemoveRoutine = percentage < 100 && hasRoutineLogged;
 
-      if (duaChanged || shouldAddRoutine || shouldRemoveRoutine) {
+      if (
+        dhikirDelta !== 0 ||
+        duaDelta !== 0 ||
+        ayahsDelta !== 0 ||
+        shouldAddRoutine ||
+        shouldRemoveRoutine
+      ) {
         let nextRecord = normalizeHistoryRecord(todayKey, existingHistory);
-        if (duaChanged && toggledItem.kind === 'dua') {
-          nextRecord = applyDuaCountDelta(
-            nextRecord,
-            toggledItem.duaId,
-            completed ? 1 : -1
-          );
+        if (toggledItem.kind === 'dua') {
+          if (dhikirDelta !== 0) {
+            nextRecord = applyDhikirDeltaToRecord(
+              nextRecord,
+              toggledItem.duaId,
+              dhikirDelta
+            ).record;
+          }
+          if (duaDelta !== 0) {
+            nextRecord = applyDuaCountDelta(
+              nextRecord,
+              toggledItem.duaId,
+              duaDelta
+            );
+          }
+        } else if (ayahsDelta !== 0) {
+          nextRecord = applyAyahsDeltaToRecord(nextRecord, ayahsDelta);
         }
+
         if (shouldAddRoutine) {
           nextRecord = {
             ...nextRecord,
@@ -1125,6 +1434,7 @@ export async function updateReadingProgress(params: {
       }
 
       let completedRoutineNow = false;
+      let extraManualAyahs = 0;
       if (routineId) {
         const routine = await db.routines.get(routineId);
         const items = routine ? getRoutineItems(routine) : [];
@@ -1147,6 +1457,7 @@ export async function updateReadingProgress(params: {
           const completedSet = new Set(
             getCompletedItemIndexes(routine, existingProgress)
           );
+          const wasAlreadyCompleted = completedSet.has(resolvedIdx);
           const itemDone =
             markItemCompleted ||
             (!isDuaRoutineItem(matchedItem) && ayahNumber >= matchedItem.endAyah);
@@ -1154,6 +1465,27 @@ export async function updateReadingProgress(params: {
             completedSet.add(resolvedIdx);
           }
           const nextCompletedIndexes = Array.from(completedSet).sort((a, b) => a - b);
+
+          const idxKey = String(resolvedIdx);
+          const nextItemEarnedAyahs = { ...(existingProgress?.itemEarnedAyahs ?? {}) };
+          if (incrementTodayAyahs > 0) {
+            nextItemEarnedAyahs[idxKey] =
+              (nextItemEarnedAyahs[idxKey] ?? 0) + incrementTodayAyahs;
+          }
+
+          const nextManualGranted = { ...(existingProgress?.manualGrantedByItem ?? {}) };
+          if (itemDone && !wasAlreadyCompleted && !isDuaRoutineItem(matchedItem)) {
+            const { grant, hasAnyGrant } = computeItemGrantOnComplete({
+              item: matchedItem,
+              itemIndex: resolvedIdx,
+              existingProgress,
+              extraEarnedAyahs: incrementTodayAyahs,
+            });
+            if (hasAnyGrant && grant.ayahs) {
+              extraManualAyahs = grant.ayahs;
+              nextManualGranted[idxKey] = grant;
+            }
+          }
 
           const { completedUnits, totalUnits, percentage } =
             computeRoutineProgressMetrics(routine, nextCompletedIndexes, {
@@ -1170,6 +1502,10 @@ export async function updateReadingProgress(params: {
             lastReadItemIndex: resolvedIdx,
             lastItemCompleted: completedSet.has(resolvedIdx),
             completedItemIndexes: nextCompletedIndexes,
+            itemEarnedDhikir: existingProgress?.itemEarnedDhikir,
+            itemEarnedDuas: existingProgress?.itemEarnedDuas,
+            itemEarnedAyahs: nextItemEarnedAyahs,
+            manualGrantedByItem: nextManualGranted,
             completedAyahsCount: completedUnits,
             totalAyahsCount: totalUnits,
             percentage,
@@ -1182,7 +1518,8 @@ export async function updateReadingProgress(params: {
         }
       }
 
-      if (incrementTodayAyahs > 0 || completedRoutineNow) {
+      const totalAyahsIncrement = incrementTodayAyahs + extraManualAyahs;
+      if (totalAyahsIncrement > 0 || completedRoutineNow) {
         const existingHistory = await db.readingHistory.get(todayKey);
         const todayRecord = normalizeHistoryRecord(todayKey, existingHistory);
         const updatedRoutines = [...todayRecord.routinesCompleted];
@@ -1195,7 +1532,7 @@ export async function updateReadingProgress(params: {
         }
         await db.readingHistory.put({
           ...todayRecord,
-          ayahsCount: todayRecord.ayahsCount + incrementTodayAyahs,
+          ayahsCount: todayRecord.ayahsCount + totalAyahsIncrement,
           routinesCompleted: updatedRoutines,
         });
       }
@@ -1292,6 +1629,26 @@ export async function updateDuaRoutineProgress(params: {
             }
           : undefined;
 
+      const idxKey = String(resolvedIdx);
+      const matchedItem = items[resolvedIdx];
+      const nextManualGranted = { ...(existingProgress?.manualGrantedByItem ?? {}) };
+      let dhikirGrant = 0;
+      let duaGrant = 0;
+
+      if (completed && !wasAlreadyCompleted) {
+        const { grant, hasAnyGrant } = computeItemGrantOnComplete({
+          item: matchedItem,
+          itemIndex: resolvedIdx,
+          existingProgress,
+          skipDuaHistoryLog,
+        });
+        if (hasAnyGrant) {
+          nextManualGranted[idxKey] = grant;
+          dhikirGrant = grant.dhikir ?? 0;
+          duaGrant = grant.duas ?? 0;
+        }
+      }
+
       const { completedUnits, totalUnits, percentage } =
         computeRoutineProgressMetrics(routine, nextCompletedIndexes, partialSurah);
 
@@ -1304,19 +1661,28 @@ export async function updateDuaRoutineProgress(params: {
         lastReadItemIndex: resolvedIdx,
         lastItemCompleted: completedSet.has(resolvedIdx),
         completedItemIndexes: nextCompletedIndexes,
+        itemEarnedDhikir: existingProgress?.itemEarnedDhikir,
+        itemEarnedDuas: existingProgress?.itemEarnedDuas,
+        itemEarnedAyahs: existingProgress?.itemEarnedAyahs,
+        manualGrantedByItem: nextManualGranted,
         completedAyahsCount: completedUnits,
         totalAyahsCount: totalUnits,
         percentage,
         lastUpdated: now,
       });
 
-      const newlyCompletedDua =
-        completed && !wasAlreadyCompleted && !skipDuaHistoryLog;
-      if (newlyCompletedDua || percentage >= 100) {
+      if (dhikirGrant > 0 || duaGrant > 0 || percentage >= 100) {
         const existingHistory = await db.readingHistory.get(todayKey);
         let todayRecord = normalizeHistoryRecord(todayKey, existingHistory);
-        if (newlyCompletedDua) {
-          todayRecord = applyDuaCountDelta(todayRecord, duaId, 1);
+        if (dhikirGrant > 0) {
+          todayRecord = applyDhikirDeltaToRecord(
+            todayRecord,
+            duaId,
+            dhikirGrant
+          ).record;
+        }
+        if (duaGrant > 0) {
+          todayRecord = applyDuaCountDelta(todayRecord, duaId, duaGrant);
         }
         if (percentage >= 100 && !todayRecord.routinesCompleted.includes(routineId)) {
           todayRecord = {

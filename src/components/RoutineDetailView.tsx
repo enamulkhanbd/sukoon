@@ -127,7 +127,14 @@ export function RoutineDetailView({
     if (nextChecked && updated && updated.percentage >= 100) {
       toast.success(`মাশাআল্লাহ! “${routine.title}” সম্পন্ন হয়েছে`);
     } else if (nextChecked) {
-      toast.success('পড়া হয়েছে হিসেবে চিহ্নিত করা হয়েছে');
+      const grant = updated?.manualGrantedByItem?.[String(itemIndex)];
+      if (grant?.dhikir && grant.dhikir > 0) {
+        toast.success(`পড়া হয়েছে • +${toBanglaDigits(grant.dhikir)} জিকির যুক্ত হয়েছে`);
+      } else if (grant?.ayahs && grant.ayahs > 0) {
+        toast.success(`পড়া হয়েছে • +${toBanglaDigits(grant.ayahs)} আয়াত যুক্ত হয়েছে`);
+      } else {
+        toast.success('পড়া হয়েছে হিসেবে চিহ্নিত করা হয়েছে');
+      }
     } else {
       toast.info('বাকি হিসেবে চিহ্নিত করা হয়েছে');
     }

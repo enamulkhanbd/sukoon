@@ -661,6 +661,23 @@ export function mergeGlobalLastRead(
   return Array.from(byId.values());
 }
 
+function mergeItemCountMaps(
+  a?: Readonly<Record<string, number>>,
+  b?: Readonly<Record<string, number>>
+): Record<string, number> | undefined {
+  if (!a && !b) return undefined;
+  const out: Record<string, number> = {};
+  for (const src of [a, b]) {
+    if (!src) continue;
+    for (const [k, v] of Object.entries(src)) {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0) {
+        out[k] = Math.max(out[k] ?? 0, Math.floor(v));
+      }
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function mergeRoutineProgress(
   localList: readonly RoutineProgress[],
   cloudList: readonly RoutineProgress[] = [],
@@ -692,10 +709,22 @@ export function mergeRoutineProgress(
       .sort((a, b) => a - b);
 
     const newer = (p.lastUpdated ?? 0) >= (existing.lastUpdated ?? 0) ? p : existing;
+    const older = newer === p ? existing : p;
+    const mergedManual = {
+      ...(older.manualGrantedByItem ?? {}),
+      ...(newer.manualGrantedByItem ?? {}),
+    };
+
     byRoutine.set(p.routineId, {
       ...newer,
       dayKey: currentDayKey,
       completedItemIndexes: mergedCompleted,
+      itemEarnedDhikir: mergeItemCountMaps(existing.itemEarnedDhikir, p.itemEarnedDhikir),
+      itemEarnedDuas: mergeItemCountMaps(existing.itemEarnedDuas, p.itemEarnedDuas),
+      itemEarnedAyahs: mergeItemCountMaps(existing.itemEarnedAyahs, p.itemEarnedAyahs),
+      ...(Object.keys(mergedManual).length > 0
+        ? { manualGrantedByItem: mergedManual }
+        : {}),
       completedAyahsCount: Math.max(
         existing.completedAyahsCount ?? 0,
         p.completedAyahsCount ?? 0

@@ -354,6 +354,50 @@ async function commitBatchedWrites(ops: QueuedWriteOp[]): Promise<void> {
   }
 }
 
+function sanitizeItemCountMapForCloud(
+  raw: Record<string, number> | undefined,
+  maxVal = 100000
+): Record<string, number> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Record<string, number> = {};
+  let count = 0;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!/^\d{1,3}$/.test(k)) continue;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) continue;
+    out[k] = Math.min(maxVal, Math.floor(v));
+    count += 1;
+    if (count >= 500) break;
+  }
+  return count > 0 ? out : undefined;
+}
+
+function sanitizeManualGrantedForCloud(
+  raw: RoutineProgress['manualGrantedByItem']
+): RoutineProgress['manualGrantedByItem'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: NonNullable<RoutineProgress['manualGrantedByItem']> = {};
+  let count = 0;
+  for (const [k, v] of Object.entries(raw)) {
+    if (!/^\d{1,3}$/.test(k) || !v || typeof v !== 'object') continue;
+    const entry: { dhikir?: number; duas?: number; ayahs?: number } = {};
+    if (typeof v.dhikir === 'number' && v.dhikir > 0) {
+      entry.dhikir = Math.min(100000, Math.floor(v.dhikir));
+    }
+    if (typeof v.duas === 'number' && v.duas > 0) {
+      entry.duas = Math.min(1000, Math.floor(v.duas));
+    }
+    if (typeof v.ayahs === 'number' && v.ayahs > 0) {
+      entry.ayahs = Math.min(10000, Math.floor(v.ayahs));
+    }
+    if (entry.dhikir || entry.duas || entry.ayahs) {
+      out[k] = entry;
+      count += 1;
+      if (count >= 500) break;
+    }
+  }
+  return count > 0 ? out : undefined;
+}
+
 function sanitizeRoutineProgressForCloud(
   progressList: readonly RoutineProgress[]
 ): RoutineProgress[] {
@@ -386,6 +430,10 @@ function sanitizeRoutineProgressForCloud(
             .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx <= 500)
             .slice(0, 500)
         : undefined,
+      itemEarnedDhikir: sanitizeItemCountMapForCloud(p.itemEarnedDhikir),
+      itemEarnedDuas: sanitizeItemCountMapForCloud(p.itemEarnedDuas, 1000),
+      itemEarnedAyahs: sanitizeItemCountMapForCloud(p.itemEarnedAyahs, 10000),
+      manualGrantedByItem: sanitizeManualGrantedForCloud(p.manualGrantedByItem),
       completedAyahsCount: Math.max(
         0,
         Math.min(100000, Math.floor(p.completedAyahsCount || 0))

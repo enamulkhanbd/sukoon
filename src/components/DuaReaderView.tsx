@@ -247,11 +247,21 @@ export function DuaReaderView({
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(next === targetCount ? [20, 40, 20] : 12);
     }
-    void recordDhikirDelta({ duaId: dua.id, delta: 1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: 1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
     if (next === targetCount && !singleRoundLoggedRef.current) {
       singleRoundLoggedRef.current = true;
       duaCompletedInSessionRef.current = true;
-      void recordDuaCompleted({ duaId: dua.id, delta: 1 });
+      void recordDuaCompleted({
+        duaId: dua.id,
+        delta: 1,
+        routineId: routine?.id,
+        routineItemIndex: routineNav?.index,
+      });
     }
   };
 
@@ -260,7 +270,12 @@ export function DuaReaderView({
     const next = tapCountRef.current - 1;
     tapCountRef.current = next;
     setTapCount(next);
-    void recordDhikirDelta({ duaId: dua.id, delta: -1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: -1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
   };
 
   const handleResetCounter = () => {
@@ -280,7 +295,12 @@ export function DuaReaderView({
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(next === partTarget ? [20, 40, 20] : 12);
     }
-    void recordDhikirDelta({ duaId: dua.id, delta: 1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: 1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
 
     if (parts && next === partTarget && !multiPartRoundLoggedRef.current) {
       const allPartsDone = parts.every((p) => {
@@ -293,7 +313,12 @@ export function DuaReaderView({
       if (allPartsDone) {
         multiPartRoundLoggedRef.current = true;
         duaCompletedInSessionRef.current = true;
-        void recordDuaCompleted({ duaId: dua.id, delta: 1 });
+        void recordDuaCompleted({
+          duaId: dua.id,
+          delta: 1,
+          routineId: routine?.id,
+          routineItemIndex: routineNav?.index,
+        });
       }
     }
   };
@@ -304,7 +329,12 @@ export function DuaReaderView({
     const nextMap = { ...partTapCountsRef.current, [partId]: prevCount - 1 };
     partTapCountsRef.current = nextMap;
     setPartTapCounts(nextMap);
-    void recordDhikirDelta({ duaId: dua.id, delta: -1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: -1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
   };
 
   const handleResetPartCounter = (partId: string) => {

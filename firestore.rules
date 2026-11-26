@@ -1,0 +1,877 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model (Sukoon PWA CMS - Standard Edition Firestore)
+// ===============================================================
+//
+// Access Architecture:
+//   - Regular Sukoon PWA users do NOT authenticate; they delta-sync
+//     the 5 public, non-PII CMS collections into local IndexedDB
+//     using `updatedAt` server-timestamp cursors.
+//   - CMS writes (create, update, delete) are restricted exclusively
+//     to the single verified admin account (`anamul.ipa@gmail.com`).
+//   - For `/appUsers/{installId}` (privacy-first anonymous device
+//     telemetry), unauthenticated PWA devices may ONLY create/update
+//     strictly validated non-PII heartbeat documents; reads, counts,
+//     and deletes are restricted exclusively to the verified admin.
+//   - Every unmatched collection or subcollection is denied by default.
+//
+// 1. Collection: /duas/{duaId}
+//    Document ID: string (1..120 chars, matches `id` field)
+//    Always Required:
+//      - id: string (1..120 chars, == duaId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone / Revert Mode (when `deleted == true` or `reverted == true`):
+//      Allowed keys: ['id', 'chapterId', 'deleted', 'reverted', 'isBuiltInOverride', 'updatedAt']
+//      - chapterId: int (optional, 1..9999)
+//      - deleted: bool (optional)
+//      - reverted: bool (optional)
+//      - isBuiltInOverride: bool (optional)
+//    Active Mode:
+//      Required:
+//        - chapterId: int (1..9999)
+//        - order: int (0..100000)
+//        - titleBangla: string (1..300 chars)
+//        - arabic: string (1..25000 chars)
+//        - translationBangla: string (0..25000 chars)
+//      Optional:
+//        - transliteration: string (0..25000 chars)
+//        - repeatCount: int (1..10000)
+//        - occasionNote: string (0..500 chars)
+//        - reference: string (0..500 chars)
+//        - quranRef: map { surahId: int (1..114), startAyah: int (1..286), endAyah: int (startAyah..286) }
+//        - parts: list (size 0..50)
+//        - isBuiltInOverride: bool
+//        - deleted: bool
+//        - reverted: bool
+//
+// 2. Collection: /duaChapters/{chapterId}
+//    Document ID: stringified integer (matches `string(id)`)
+//    Always Required:
+//      - id: int (1..9999, string(id) == chapterId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone / Revert Mode (when `deleted == true` or `reverted == true`):
+//      Allowed keys: ['id', 'deleted', 'reverted', 'updatedAt']
+//    Active Mode:
+//      Required:
+//        - titleBangla: string (1..200 chars)
+//        - subtitleBangla: string (0..400 chars)
+//      Optional:
+//        - searchAliases: list (size 0..40)
+//        - deleted: bool
+//        - reverted: bool
+//
+// 3. Collection: /routineTemplates/{templateId}
+//    Document ID: string (1..120 chars, matches `id` field)
+//    Always Required:
+//      - id: string (1..120 chars, == templateId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone Mode (when `deleted == true`):
+//      Allowed keys: ['id', 'deleted', 'updatedAt']
+//    Active Mode:
+//      Required:
+//        - title: string (1..200 chars)
+//        - assignedDays: list of ints in 0..6 (size 0..7)
+//        - items: list (size 1..100)
+//        - order: int (0..10000)
+//        - version: int (1..100000)
+//      Optional:
+//        - description: string (0..1000 chars)
+//        - featured: bool
+//        - seasonTag: string (0..80 chars)
+//        - deleted: bool
+//
+// 4. Collection: /surahOverrides/{surahId}
+//    Document ID: stringified integer 1..114 (matches `string(surahId)`)
+//    Always Required:
+//      - surahId: int (1..114, string(surahId) == surahId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone / Revert Mode (when `deleted == true` or `reverted == true`):
+//      Allowed keys: ['surahId', 'deleted', 'reverted', 'updatedAt']
+//    Active Mode:
+//      Optional:
+//        - descriptionBangla: string (0..4000 chars)
+//        - fazilatBangla: string (0..4000 chars)
+//        - fazilatRef: string (0..500 chars)
+//        - occasionTags: list (size 0..15)
+//        - deleted: bool
+//        - reverted: bool
+//
+// 5. Collection: /featuredCards/{cardId}
+//    Document ID: string (1..120 chars, matches `id` field)
+//    Always Required:
+//      - id: string (1..120 chars, == cardId, immutable)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//    Tombstone Mode (when `deleted == true`):
+//      Allowed keys: ['id', 'deleted', 'updatedAt']
+//    Active Mode:
+//      Required:
+//        - titleBangla: string (1..200 chars)
+//        - bodyBangla: string (1..2000 chars)
+//        - active: bool
+//        - priority: int (0..10000)
+//      Optional:
+//        - arabicSnippet: string (0..3000 chars)
+//        - badgeLabel: string (0..80 chars)
+//        - action: map (keys subset of ['type', 'surahId', 'startAyah', 'duaId', 'templateId', 'ctaLabel'])
+//        - startDate: string (0..20 chars)
+//        - endDate: string (0..20 chars)
+//        - deleted: bool
+//
+// 6. Collection: /appUsers/{installId}
+//    Document ID: string (16..64 chars, matches ^[a-zA-Z0-9_-]{16,64}$)
+//    Access:
+//      - read / delete: admin only (`isAdmin()`; supports `getCountFromServer()`)
+//      - create / update: unauthenticated PWA devices with strict schema validation
+//    Allowed & Required Fields (exact 8-key allowlist, NO PII permitted):
+//      - installId: string (16..64 chars, matches ^[a-zA-Z0-9_-]{16,64}$, == document ID, immutable)
+//      - firstSeenAt: timestamp (== request.time on create, immutable on update)
+//      - lastSeenAt: timestamp (== request.time via serverTimestamp() on create & update)
+//      - lastActiveDay: string (exact 10 chars, matches ^[0-9]{4}-[0-9]{2}-[0-9]{2}$)
+//      - platform: string in ['ios', 'android', 'desktop']
+//      - isPwa: bool
+//      - theme: string in ['paper', 'olive', 'sky']
+//      - appVersion: string (1..32 chars)
+//
+// 7. Collection: /cmsSettings/{settingId} (currently only `settingId == 'hijriCalendar'`)
+//    Document ID: 'hijriCalendar'
+//    Access:
+//      - read: public (`settingId == 'hijriCalendar'`)
+//      - create / update / delete: admin only (`isAdmin() && settingId == 'hijriCalendar'`)
+//    Allowed & Required Top-Level Fields: ['version', 'updatedAt', 'regions']
+//      - version: int (== 1)
+//      - updatedAt: string (1..32 chars, e.g. YYYY-MM-DD)
+//      - regions: map (keys subset of ['bd', 'sa', 'default'])
+//        Each present region value is a map with:
+//          - defaultOffsetDays: int (optional, -2..2)
+//          - months: list (required, size 0..120)
+//
+// 8. Collection: /userSync/{uid} (Optional Personal Gmail Cloud Sync Root)
+//    Document ID: Firebase Auth `uid` (strictly owner-only, NO PII stored)
+//    Access:
+//      - read / create / update / delete: strictly `isOwner(uid)` ONLY
+//    Required & Allowed Fields:
+//      - uid: string (1..128 chars, == uid == request.auth.uid, immutable)
+//      - schemaVersion: int (== 1)
+//      - settings: map (validated preferences, bookmarks, prayer location/method)
+//      - globalLastRead: list (size 0..120)
+//      - routineProgress: list (size 0..200)
+//      - updatedAt: timestamp (== request.time via serverTimestamp())
+//
+// 9. Subcollection: /userSync/{uid}/customDuas/{duaId}
+//    Document ID: string matching `^custom-dua-[a-zA-Z0-9_-]{1,108}$`
+//    Access: strictly `isOwner(uid)` with parent `/userSync/{uid}` existence check
+//    Active Mode:
+//      - id: string (== duaId, immutable)
+//      - titleBangla: string (1..300 chars)
+//      - arabic: string (0..25000 chars)
+//      - translationBangla: string (0..25000 chars)
+//      - transliteration: string (0..25000 chars, optional)
+//      - repeatCount: int (1..10000)
+//      - reference: string (0..500 chars, optional)
+//      - createdAt: int (immutable across active updates)
+//      - updatedAtMs: int
+//      - updatedAt: timestamp (== request.time)
+//      - At least one of `arabic`, `translationBangla`, or `transliteration` non-empty
+//    Tombstone Mode (`deleted == true`):
+//      - Allowed keys: ['id', 'deleted', 'updatedAtMs', 'updatedAt']
+//
+// 10. Subcollection: /userSync/{uid}/routines/{routineId}
+//     Document ID: string (1..120 chars)
+//     Access: strictly `isOwner(uid)` with parent `/userSync/{uid}` existence check
+//     Active Mode:
+//       - id: string (== routineId, immutable)
+//       - title: string (1..200 chars)
+//       - assignedDays: list of ints in 0..6 (size 0..7)
+//       - surahIds: list (size 0..200)
+//       - items: list (size 0..200)
+//       - sourceTemplateId: string (0..120 chars, optional)
+//       - sourceTemplateVersion: int (1..100000, optional)
+//       - createdAt: int (immutable across active updates)
+//       - updatedAtMs: int
+//       - updatedAt: timestamp (== request.time)
+//     Tombstone Mode (`deleted == true`):
+//       - Allowed keys: ['id', 'deleted', 'updatedAtMs', 'updatedAt']
+//
+// 11. Subcollection: /userSync/{uid}/readingHistory/{dateKey}
+//     Document ID: YYYY-MM-DD (`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+//     Access: strictly `isOwner(uid)` with parent `/userSync/{uid}` existence check
+//     Required Fields:
+//       - date: string (== dateKey, immutable)
+//       - ayahsCount: int (0..1000000)
+//       - routinesCompleted: list (size 0..200)
+//       - dhikirCount: int (0..10000000)
+//       - dhikirByDua: map (size 0..500)
+//       - duasCompleted: list (size 0..500)
+//       - duaCounts: map (size 0..500)
+//       - readingSeconds: int (0..172800)
+//       - goalMinutesTarget: int (1..1440, optional)
+//       - updatedAtMs: int
+//       - updatedAt: timestamp (== request.time)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged(data) {
+      return !('uid' in data) || data.uid == request.auth.uid;
+    }
+
+    function uidNotModified(data, existingData) {
+      return !('uid' in data) || data.uid == existingData.uid;
+    }
+
+    function userSyncParentExists(uid) {
+      return exists(/databases/$(database)/documents/userSync/$(uid)) ||
+        getAfter(/databases/$(database)/documents/userSync/$(uid)) != null;
+    }
+
+    // Single verified admin identity derived strictly from Firebase Auth JWT claims
+    function isAdmin() {
+      return isAuthenticated() &&
+        'email' in request.auth.token &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email == 'anamul.ipa@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(data, fields) {
+      return data.keys().hasOnly(fields);
+    }
+
+    function isStringInRange(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isOptionalStringInRange(data, field, minLen, maxLen) {
+      return !(field in data) || isStringInRange(data[field], minLen, maxLen);
+    }
+
+    function isIntInRange(val, minVal, maxVal) {
+      return val is int && val >= minVal && val <= maxVal;
+    }
+
+    function isOptionalIntInRange(data, field, minVal, maxVal) {
+      return !(field in data) || isIntInRange(data[field], minVal, maxVal);
+    }
+
+    function isOptionalBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function isListInRange(val, minSize, maxSize) {
+      return val is list && val.size() >= minSize && val.size() <= maxSize;
+    }
+
+    function isOptionalListInRange(data, field, minSize, maxSize) {
+      return !(field in data) || isListInRange(data[field], minSize, maxSize);
+    }
+
+    // Enforce serverTimestamp() on every write so delta-sync cursors cannot be backdated or skewed
+    function isValidUpdatedAt(data) {
+      return 'updatedAt' in data &&
+        data.updatedAt is timestamp &&
+        data.updatedAt == request.time;
+    }
+
+    function isTombstone(data) {
+      return 'deleted' in data && data.deleted == true;
+    }
+
+    function isTombstoneOrRevert(data) {
+      return ('deleted' in data && data.deleted == true) ||
+        ('reverted' in data && data.reverted == true);
+    }
+
+    // ===============================================================
+    // Domain Validators (Invoked on BOTH create and update)
+    // ===============================================================
+
+    // --- 1. Duas ---
+
+    function isValidQuranRef(ref) {
+      return ref is map &&
+        ref.keys().hasAll(['surahId', 'startAyah', 'endAyah']) &&
+        ref.keys().hasOnly(['surahId', 'startAyah', 'endAyah']) &&
+        isIntInRange(ref.surahId, 1, 114) &&
+        isIntInRange(ref.startAyah, 1, 286) &&
+        isIntInRange(ref.endAyah, ref.startAyah, 286);
+    }
+
+    function isValidDuaTombstone(data) {
+      return hasOnlyAllowedFields(data, [
+          'id', 'chapterId', 'deleted', 'reverted', 'isBuiltInOverride', 'updatedAt'
+        ]) &&
+        isOptionalIntInRange(data, 'chapterId', 1, 9999) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted') &&
+        isOptionalBool(data, 'isBuiltInOverride');
+    }
+
+    function isValidDuaActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'chapterId', 'order', 'titleBangla', 'arabic', 'translationBangla', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'chapterId', 'order', 'titleBangla', 'arabic', 'translationBangla',
+          'updatedAt', 'transliteration', 'repeatCount', 'occasionNote', 'reference',
+          'quranRef', 'parts', 'isBuiltInOverride', 'deleted', 'reverted'
+        ]) &&
+        isIntInRange(data.chapterId, 1, 9999) &&
+        isIntInRange(data.order, 0, 100000) &&
+        isStringInRange(data.titleBangla, 1, 300) &&
+        isStringInRange(data.arabic, 1, 25000) &&
+        isStringInRange(data.translationBangla, 0, 25000) &&
+        isOptionalStringInRange(data, 'transliteration', 0, 25000) &&
+        isOptionalIntInRange(data, 'repeatCount', 1, 10000) &&
+        isOptionalStringInRange(data, 'occasionNote', 0, 500) &&
+        isOptionalStringInRange(data, 'reference', 0, 500) &&
+        (!('quranRef' in data) || isValidQuranRef(data.quranRef)) &&
+        isOptionalListInRange(data, 'parts', 0, 50) &&
+        isOptionalBool(data, 'isBuiltInOverride') &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidDua(data, duaId) {
+      return isStringInRange(duaId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == duaId &&
+        isValidUpdatedAt(data) &&
+        (isTombstoneOrRevert(data) ? isValidDuaTombstone(data) : isValidDuaActive(data));
+    }
+
+    // --- 2. Dua Chapters ---
+
+    function isValidDuaChapterTombstone(data) {
+      return hasOnlyAllowedFields(data, ['id', 'deleted', 'reverted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidDuaChapterActive(data) {
+      return hasRequiredFields(data, ['id', 'titleBangla', 'subtitleBangla', 'updatedAt']) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'titleBangla', 'subtitleBangla', 'searchAliases',
+          'deleted', 'reverted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.titleBangla, 1, 200) &&
+        isStringInRange(data.subtitleBangla, 0, 400) &&
+        isOptionalListInRange(data, 'searchAliases', 0, 40) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidDuaChapter(data, chapterId) {
+      return 'id' in data &&
+        isIntInRange(data.id, 1, 9999) &&
+        string(data.id) == chapterId &&
+        isValidUpdatedAt(data) &&
+        (isTombstoneOrRevert(data) ? isValidDuaChapterTombstone(data) : isValidDuaChapterActive(data));
+    }
+
+    // --- 3. Routine Templates ---
+
+    function isValidRoutineTemplateTombstone(data) {
+      return hasOnlyAllowedFields(data, ['id', 'deleted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidRoutineTemplateActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'title', 'assignedDays', 'items', 'order', 'version', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'title', 'assignedDays', 'items', 'order', 'version',
+          'description', 'featured', 'seasonTag', 'deleted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.title, 1, 200) &&
+        isListInRange(data.assignedDays, 0, 7) &&
+        data.assignedDays.hasOnly([0, 1, 2, 3, 4, 5, 6]) &&
+        isListInRange(data.items, 1, 100) &&
+        isIntInRange(data.order, 0, 10000) &&
+        isIntInRange(data.version, 1, 100000) &&
+        isOptionalStringInRange(data, 'description', 0, 1000) &&
+        isOptionalBool(data, 'featured') &&
+        isOptionalStringInRange(data, 'seasonTag', 0, 80) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidRoutineTemplate(data, templateId) {
+      return isStringInRange(templateId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == templateId &&
+        isValidUpdatedAt(data) &&
+        (isTombstone(data) ? isValidRoutineTemplateTombstone(data) : isValidRoutineTemplateActive(data));
+    }
+
+    // --- 4. Surah Overrides ---
+
+    function isValidSurahOverrideTombstone(data) {
+      return hasOnlyAllowedFields(data, ['surahId', 'deleted', 'reverted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidSurahOverrideActive(data) {
+      return hasRequiredFields(data, ['surahId', 'updatedAt']) &&
+        hasOnlyAllowedFields(data, [
+          'surahId', 'descriptionBangla', 'fazilatBangla', 'fazilatRef',
+          'occasionTags', 'deleted', 'reverted', 'updatedAt'
+        ]) &&
+        isOptionalStringInRange(data, 'descriptionBangla', 0, 4000) &&
+        isOptionalStringInRange(data, 'fazilatBangla', 0, 4000) &&
+        isOptionalStringInRange(data, 'fazilatRef', 0, 500) &&
+        isOptionalListInRange(data, 'occasionTags', 0, 15) &&
+        isOptionalBool(data, 'deleted') &&
+        isOptionalBool(data, 'reverted');
+    }
+
+    function isValidSurahOverride(data, surahId) {
+      return 'surahId' in data &&
+        isIntInRange(data.surahId, 1, 114) &&
+        string(data.surahId) == surahId &&
+        isValidUpdatedAt(data) &&
+        (isTombstoneOrRevert(data) ? isValidSurahOverrideTombstone(data) : isValidSurahOverrideActive(data));
+    }
+
+    // --- 5. Featured Cards ---
+
+    function isValidFeaturedCardAction(action) {
+      return action is map &&
+        action.keys().hasOnly([
+          'type', 'surahId', 'startAyah', 'duaId', 'templateId', 'ctaLabel'
+        ]) &&
+        isOptionalStringInRange(action, 'type', 1, 40) &&
+        isOptionalIntInRange(action, 'surahId', 1, 114) &&
+        isOptionalIntInRange(action, 'startAyah', 1, 286) &&
+        isOptionalStringInRange(action, 'duaId', 0, 120) &&
+        isOptionalStringInRange(action, 'templateId', 0, 120) &&
+        isOptionalStringInRange(action, 'ctaLabel', 0, 120);
+    }
+
+    function isValidFeaturedCardTombstone(data) {
+      return hasOnlyAllowedFields(data, ['id', 'deleted', 'updatedAt']) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidFeaturedCardActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'titleBangla', 'bodyBangla', 'active', 'priority', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'titleBangla', 'bodyBangla', 'active', 'priority',
+          'arabicSnippet', 'badgeLabel', 'action', 'startDate', 'endDate',
+          'deleted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.titleBangla, 1, 200) &&
+        isStringInRange(data.bodyBangla, 1, 2000) &&
+        data.active is bool &&
+        isIntInRange(data.priority, 0, 10000) &&
+        isOptionalStringInRange(data, 'arabicSnippet', 0, 3000) &&
+        isOptionalStringInRange(data, 'badgeLabel', 0, 80) &&
+        (!('action' in data) || isValidFeaturedCardAction(data.action)) &&
+        isOptionalStringInRange(data, 'startDate', 0, 20) &&
+        isOptionalStringInRange(data, 'endDate', 0, 20) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidFeaturedCard(data, cardId) {
+      return isStringInRange(cardId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == cardId &&
+        isValidUpdatedAt(data) &&
+        (isTombstone(data) ? isValidFeaturedCardTombstone(data) : isValidFeaturedCardActive(data));
+    }
+
+    // --- 6. App Users (Privacy-First Anonymous Telemetry) ---
+
+    function isValidInstallId(val) {
+      return isStringInRange(val, 16, 64) &&
+        val.matches('^[a-zA-Z0-9_-]{16,64}$');
+    }
+
+    function isValidAppUserFields(data, installId) {
+      return isValidInstallId(installId) &&
+        hasRequiredFields(data, [
+          'installId', 'firstSeenAt', 'lastSeenAt', 'lastActiveDay',
+          'platform', 'isPwa', 'theme', 'appVersion'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'installId', 'firstSeenAt', 'lastSeenAt', 'lastActiveDay',
+          'platform', 'isPwa', 'theme', 'appVersion'
+        ]) &&
+        isValidInstallId(data.installId) &&
+        data.installId == installId &&
+        data.firstSeenAt is timestamp &&
+        data.lastSeenAt is timestamp &&
+        data.lastSeenAt == request.time &&
+        isStringInRange(data.lastActiveDay, 10, 10) &&
+        data.lastActiveDay.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        data.platform is string &&
+        data.platform in ['ios', 'android', 'desktop'] &&
+        data.isPwa is bool &&
+        data.theme is string &&
+        data.theme in ['paper', 'olive', 'sky'] &&
+        isStringInRange(data.appVersion, 1, 32);
+    }
+
+    function isValidAppUserCreate(data, installId) {
+      return isValidAppUserFields(data, installId) &&
+        data.firstSeenAt == request.time;
+    }
+
+    function isValidAppUserUpdate(data, existingData, installId) {
+      return isValidAppUserFields(data, installId) &&
+        'installId' in existingData &&
+        'firstSeenAt' in existingData &&
+        !data.diff(existingData).affectedKeys().hasAny(['installId', 'firstSeenAt']) &&
+        data.installId == existingData.installId &&
+        data.firstSeenAt == existingData.firstSeenAt;
+    }
+
+    // --- 7. CMS Settings (Hijri Calendar Config) ---
+
+    function isValidHijriRegionConfig(regionObj) {
+      return regionObj is map &&
+        hasRequiredFields(regionObj, ['months']) &&
+        hasOnlyAllowedFields(regionObj, ['defaultOffsetDays', 'months']) &&
+        isOptionalIntInRange(regionObj, 'defaultOffsetDays', -2, 2) &&
+        isListInRange(regionObj.months, 0, 120);
+    }
+
+    function isValidHijriCalendar(data) {
+      return hasRequiredFields(data, ['version', 'updatedAt', 'regions']) &&
+        hasOnlyAllowedFields(data, ['version', 'updatedAt', 'regions']) &&
+        data.version is int &&
+        data.version == 1 &&
+        isStringInRange(data.updatedAt, 1, 32) &&
+        data.regions is map &&
+        data.regions.keys().hasOnly(['bd', 'sa', 'default']) &&
+        (!('bd' in data.regions) || isValidHijriRegionConfig(data.regions['bd'])) &&
+        (!('sa' in data.regions) || isValidHijriRegionConfig(data.regions['sa'])) &&
+        (!('default' in data.regions) || isValidHijriRegionConfig(data.regions['default']));
+    }
+
+    // --- 8. Personal User Cloud Sync (/userSync/{uid} & subcollections) ---
+
+    function isValidFastingLocation(loc) {
+      return loc is map &&
+        hasRequiredFields(loc, ['id', 'nameBn', 'latitude', 'longitude']) &&
+        hasOnlyAllowedFields(loc, ['id', 'nameBn', 'latitude', 'longitude', 'timeZone']) &&
+        isStringInRange(loc.id, 1, 80) &&
+        isStringInRange(loc.nameBn, 1, 120) &&
+        loc.latitude is number &&
+        loc.latitude >= -90 &&
+        loc.latitude <= 90 &&
+        loc.longitude is number &&
+        loc.longitude >= -180 &&
+        loc.longitude <= 180 &&
+        isOptionalStringInRange(loc, 'timeZone', 0, 80);
+    }
+
+    function isValidUserSyncSettings(s) {
+      return s is map &&
+        hasRequiredFields(s, [
+          'theme', 'colorMode', 'glassMode', 'glassOpacity', 'fontSize',
+          'keepScreenAwake', 'autoScrollSpeed', 'showDuaTransliteration',
+          'bookmarkedDuaIds', 'fastingLocation', 'fastingMethod',
+          'fastingTimeFormat', 'hijriOffsetDays', 'hijriOffsetMode',
+          'dailyGoalMinutes', 'dismissedFeaturedCardIds'
+        ]) &&
+        hasOnlyAllowedFields(s, [
+          'theme', 'colorMode', 'glassMode', 'glassOpacity', 'fontSize',
+          'keepScreenAwake', 'autoScrollSpeed', 'showDuaTransliteration',
+          'bookmarkedDuaIds', 'fastingLocation', 'fastingMethod',
+          'fastingTimeFormat', 'hijriOffsetDays', 'hijriOffsetMode',
+          'dailyGoalMinutes', 'dismissedFeaturedCardIds', 'userModifiedAt'
+        ]) &&
+        s.theme in ['paper', 'olive', 'sky'] &&
+        s.colorMode in ['light', 'dark'] &&
+        s.glassMode in ['clear', 'frosted', 'solid'] &&
+        isIntInRange(s.glassOpacity, 20, 96) &&
+        isIntInRange(s.fontSize, 14, 80) &&
+        s.keepScreenAwake is bool &&
+        isIntInRange(s.autoScrollSpeed, 0, 10) &&
+        s.showDuaTransliteration is bool &&
+        isListInRange(s.bookmarkedDuaIds, 0, 1000) &&
+        isValidFastingLocation(s.fastingLocation) &&
+        s.fastingMethod in ['karachi', 'mwl', 'umm_al_qura', 'isna', 'egyptian'] &&
+        s.fastingTimeFormat in ['12h', '24h'] &&
+        isIntInRange(s.hijriOffsetDays, -5, 5) &&
+        s.hijriOffsetMode in ['auto', 'manual'] &&
+        isIntInRange(s.dailyGoalMinutes, 0, 1440) &&
+        isListInRange(s.dismissedFeaturedCardIds, 0, 500) &&
+        isOptionalIntInRange(s, 'userModifiedAt', 1, 9999999999999);
+    }
+
+    function isValidUserSyncRoot(data, uid) {
+      return isStringInRange(uid, 1, 128) &&
+        hasRequiredFields(data, [
+          'uid', 'schemaVersion', 'settings', 'globalLastRead', 'routineProgress', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'uid', 'schemaVersion', 'settings', 'globalLastRead', 'routineProgress', 'updatedAt'
+        ]) &&
+        isStringInRange(data.uid, 1, 128) &&
+        data.uid == uid &&
+        uidUnchanged(data) &&
+        data.schemaVersion is int &&
+        data.schemaVersion == 1 &&
+        isValidUserSyncSettings(data.settings) &&
+        isListInRange(data.globalLastRead, 0, 120) &&
+        isListInRange(data.routineProgress, 0, 200) &&
+        isValidUpdatedAt(data);
+    }
+
+    function isValidUserCustomDuaTombstone(data) {
+      return hasRequiredFields(data, ['id', 'deleted', 'updatedAtMs', 'updatedAt']) &&
+        hasOnlyAllowedFields(data, ['id', 'deleted', 'updatedAtMs', 'updatedAt']) &&
+        data.deleted is bool &&
+        data.deleted == true &&
+        isIntInRange(data.updatedAtMs, 1, 9999999999999);
+    }
+
+    function isValidUserCustomDuaActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'titleBangla', 'arabic', 'translationBangla',
+          'repeatCount', 'createdAt', 'updatedAtMs', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'titleBangla', 'arabic', 'translationBangla', 'transliteration',
+          'repeatCount', 'reference', 'createdAt', 'updatedAtMs', 'deleted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.titleBangla, 1, 300) &&
+        isStringInRange(data.arabic, 0, 25000) &&
+        isStringInRange(data.translationBangla, 0, 25000) &&
+        isOptionalStringInRange(data, 'transliteration', 0, 25000) &&
+        (
+          data.arabic.size() > 0 ||
+          data.translationBangla.size() > 0 ||
+          ('transliteration' in data && data.transliteration.size() > 0)
+        ) &&
+        isIntInRange(data.repeatCount, 1, 10000) &&
+        isOptionalStringInRange(data, 'reference', 0, 500) &&
+        isIntInRange(data.createdAt, 1, 9999999999999) &&
+        isIntInRange(data.updatedAtMs, 1, 9999999999999) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidUserCustomDua(data, duaId) {
+      return isStringInRange(duaId, 12, 120) &&
+        duaId.matches('^custom-dua-[a-zA-Z0-9_-]{1,108}$') &&
+        'id' in data &&
+        isStringInRange(data.id, 12, 120) &&
+        data.id == duaId &&
+        isValidUpdatedAt(data) &&
+        (isTombstone(data)
+          ? isValidUserCustomDuaTombstone(data)
+          : isValidUserCustomDuaActive(data));
+    }
+
+    function isValidUserCustomDuaUpdate(data, existingData, duaId) {
+      return isValidUserCustomDua(data, duaId) &&
+        data.id == existingData.id &&
+        (isTombstone(data) || isTombstone(existingData) || data.createdAt == existingData.createdAt);
+    }
+
+    function isValidUserRoutineTombstone(data) {
+      return hasRequiredFields(data, ['id', 'deleted', 'updatedAtMs', 'updatedAt']) &&
+        hasOnlyAllowedFields(data, ['id', 'deleted', 'updatedAtMs', 'updatedAt']) &&
+        data.deleted is bool &&
+        data.deleted == true &&
+        isIntInRange(data.updatedAtMs, 1, 9999999999999);
+    }
+
+    function isValidUserRoutineActive(data) {
+      return hasRequiredFields(data, [
+          'id', 'title', 'assignedDays', 'surahIds', 'items',
+          'createdAt', 'updatedAtMs', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'id', 'title', 'assignedDays', 'surahIds', 'items',
+          'sourceTemplateId', 'sourceTemplateVersion',
+          'createdAt', 'updatedAtMs', 'deleted', 'updatedAt'
+        ]) &&
+        isStringInRange(data.title, 1, 200) &&
+        isListInRange(data.assignedDays, 0, 7) &&
+        data.assignedDays.hasOnly([0, 1, 2, 3, 4, 5, 6]) &&
+        isListInRange(data.surahIds, 0, 200) &&
+        isListInRange(data.items, 0, 200) &&
+        isOptionalStringInRange(data, 'sourceTemplateId', 0, 120) &&
+        isOptionalIntInRange(data, 'sourceTemplateVersion', 1, 100000) &&
+        isIntInRange(data.createdAt, 1, 9999999999999) &&
+        isIntInRange(data.updatedAtMs, 1, 9999999999999) &&
+        isOptionalBool(data, 'deleted');
+    }
+
+    function isValidUserRoutine(data, routineId) {
+      return isStringInRange(routineId, 1, 120) &&
+        'id' in data &&
+        isStringInRange(data.id, 1, 120) &&
+        data.id == routineId &&
+        isValidUpdatedAt(data) &&
+        (isTombstone(data)
+          ? isValidUserRoutineTombstone(data)
+          : isValidUserRoutineActive(data));
+    }
+
+    function isValidUserRoutineUpdate(data, existingData, routineId) {
+      return isValidUserRoutine(data, routineId) &&
+        data.id == existingData.id &&
+        (isTombstone(data) || isTombstone(existingData) || data.createdAt == existingData.createdAt);
+    }
+
+    function isValidUserHistory(data, dateKey) {
+      return isStringInRange(dateKey, 10, 10) &&
+        dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        hasRequiredFields(data, [
+          'date', 'ayahsCount', 'routinesCompleted', 'dhikirCount',
+          'dhikirByDua', 'duasCompleted', 'duaCounts', 'readingSeconds',
+          'updatedAtMs', 'updatedAt'
+        ]) &&
+        hasOnlyAllowedFields(data, [
+          'date', 'ayahsCount', 'routinesCompleted', 'dhikirCount',
+          'dhikirByDua', 'duasCompleted', 'duaCounts', 'readingSeconds',
+          'goalMinutesTarget', 'updatedAtMs', 'updatedAt'
+        ]) &&
+        isStringInRange(data.date, 10, 10) &&
+        data.date == dateKey &&
+        isIntInRange(data.ayahsCount, 0, 1000000) &&
+        isListInRange(data.routinesCompleted, 0, 200) &&
+        isIntInRange(data.dhikirCount, 0, 10000000) &&
+        data.dhikirByDua is map &&
+        data.dhikirByDua.size() <= 500 &&
+        isListInRange(data.duasCompleted, 0, 500) &&
+        data.duaCounts is map &&
+        data.duaCounts.size() <= 500 &&
+        isIntInRange(data.readingSeconds, 0, 172800) &&
+        isOptionalIntInRange(data, 'goalMinutesTarget', 1, 1440) &&
+        isIntInRange(data.updatedAtMs, 1, 9999999999999) &&
+        isValidUpdatedAt(data);
+    }
+
+    // ===============================================================
+    // Collection Match Rules (Public Read CMS, Admin-Only Validated Write)
+    // ===============================================================
+
+    match /duas/{duaId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidDua(request.resource.data, duaId);
+      allow update: if isAdmin() && isValidDua(request.resource.data, duaId);
+      allow delete: if isAdmin();
+    }
+
+    match /duaChapters/{chapterId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidDuaChapter(request.resource.data, chapterId);
+      allow update: if isAdmin() && isValidDuaChapter(request.resource.data, chapterId);
+      allow delete: if isAdmin();
+    }
+
+    match /routineTemplates/{templateId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidRoutineTemplate(request.resource.data, templateId);
+      allow update: if isAdmin() && isValidRoutineTemplate(request.resource.data, templateId);
+      allow delete: if isAdmin();
+    }
+
+    match /surahOverrides/{surahId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidSurahOverride(request.resource.data, surahId);
+      allow update: if isAdmin() && isValidSurahOverride(request.resource.data, surahId);
+      allow delete: if isAdmin();
+    }
+
+    match /featuredCards/{cardId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidFeaturedCard(request.resource.data, cardId);
+      allow update: if isAdmin() && isValidFeaturedCard(request.resource.data, cardId);
+      allow delete: if isAdmin();
+    }
+
+    // Privacy-first anonymous device telemetry (Admin-only read/count/delete; strict unauthenticated heartbeat writes)
+    match /appUsers/{installId} {
+      allow read: if isAdmin();
+      allow create: if isValidAppUserCreate(request.resource.data, installId);
+      allow update: if isValidAppUserUpdate(request.resource.data, resource.data, installId);
+      allow delete: if isAdmin();
+    }
+
+    // Public-read, admin-only validated CMS settings (currently `/cmsSettings/hijriCalendar`)
+    match /cmsSettings/{settingId} {
+      allow read: if settingId == 'hijriCalendar';
+      allow create, update: if isAdmin() && settingId == 'hijriCalendar' && isValidHijriCalendar(request.resource.data);
+      allow delete: if isAdmin() && settingId == 'hijriCalendar';
+    }
+
+    // Strictly isolated per-user optional Gmail Cloud Sync
+    match /userSync/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidUserSyncRoot(request.resource.data, uid);
+      allow update: if isOwner(uid) &&
+        isValidUserSyncRoot(request.resource.data, uid) &&
+        uidNotModified(request.resource.data, resource.data);
+      allow delete: if isOwner(uid);
+
+      match /customDuas/{duaId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) &&
+          userSyncParentExists(uid) &&
+          isValidUserCustomDua(request.resource.data, duaId);
+        allow update: if isOwner(uid) &&
+          userSyncParentExists(uid) &&
+          isValidUserCustomDuaUpdate(request.resource.data, resource.data, duaId);
+        allow delete: if isOwner(uid);
+      }
+
+      match /routines/{routineId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) &&
+          userSyncParentExists(uid) &&
+          isValidUserRoutine(request.resource.data, routineId);
+        allow update: if isOwner(uid) &&
+          userSyncParentExists(uid) &&
+          isValidUserRoutineUpdate(request.resource.data, resource.data, routineId);
+        allow delete: if isOwner(uid);
+      }
+
+      match /readingHistory/{dateKey} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) &&
+          userSyncParentExists(uid) &&
+          isValidUserHistory(request.resource.data, dateKey);
+        allow update: if isOwner(uid) &&
+          userSyncParentExists(uid) &&
+          isValidUserHistory(request.resource.data, dateKey) &&
+          request.resource.data.date == resource.data.date;
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Explicit default-deny catch-all for all unmatched collections and subcollections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

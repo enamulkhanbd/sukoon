@@ -1,6 +1,6 @@
-import { DUA_MAP } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 import type { NormalizedRoutineItem } from '../db/database';
+import { resolveDuaById } from '../services/customDuaSnapshot';
 
 const ARABIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
 const BANGLA_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
@@ -77,7 +77,7 @@ export function formatRoutineItemLabel(params: {
 
 export function formatNormalizedRoutineItemLabel(item: NormalizedRoutineItem): string {
   if (item.kind === 'dua') {
-    const dua = DUA_MAP[item.duaId];
+    const dua = resolveDuaById(item.duaId);
     if (!dua) return '';
     return item.targetCount > 1
       ? `${dua.titleBangla} (${toBanglaDigits(item.targetCount)} বার)`

@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen, Clock, Sparkles } from 'lucide-react';
 import { SURAH_MAP, SURAHS, type SurahMeta } from '../data/surahs';
 import { db, type GlobalLastRead, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
+import { useAllSurahOverrides } from '../services/contentCatalog';
 import { isSurahFullyCached } from '../services/quranApi';
 import { toBanglaDigits } from '../utils/formatters';
 import { JUMMAH_SURAH_ID } from '../utils/islamicTime';
@@ -16,11 +17,14 @@ import {
 import {
   SoftSearchInput,
   TabHeader,
+  TwoLineMenuButton,
   UnderlineTabs,
 } from './NavigationChrome';
 
 interface SurahListViewProps {
   settings: Settings;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onOpenSurah: (
     surahId: number,
     initialAyah?: number,
@@ -106,13 +110,17 @@ const PAGE_LIST: PageEntry[] = Array.from(
 
 export function SurahListView({
   settings,
+  menuOpen,
+  onOpenMenu,
   onOpenSurah,
 }: SurahListViewProps) {
   const [query, setQuery] = useState('');
   const [browseTab, setBrowseTab] = useState<BrowseTab>('surah');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [visiblePageCount, setVisiblePageCount] = useState(PAGE_BATCH_SIZE);
   const pageSentinelRef = useRef<HTMLDivElement | null>(null);
   const clock = useIslamicClock(settings);
+  const { surahInfoMap, allSurahTags } = useAllSurahOverrides();
 
   const cachedRows = useLiveQuery(() => db.cachedSurahs.toArray(), []);
   const lastReadRows = useLiveQuery(() => db.globalLastRead.toArray(), []);
@@ -157,8 +165,12 @@ export function SurahListView({
 
   const filteredSurahs = useMemo(() => {
     const trimmed = query.trim();
-    return trimmed ? searchSurahs(trimmed).map((r) => r.surah) : SURAHS;
-  }, [query]);
+    const base = trimmed ? searchSurahs(trimmed).map((r) => r.surah) : SURAHS;
+    if (!selectedTag) return base;
+    return base.filter((s) =>
+      surahInfoMap[s.id]?.occasionTags.includes(selectedTag)
+    );
+  }, [query, selectedTag, surahInfoMap]);
 
   const filteredJuz = useMemo(() => {
     const trimmed = query.trim();
@@ -248,6 +260,9 @@ export function SurahListView({
           <TabHeader
             title="আল-কুরআন"
             subtitle={`১১৪ সূরা • ৩০ পারা • ৬০৪ পৃষ্ঠা • ${toBanglaDigits(cachedSet.size)}টি অফলাইনে`}
+            rightAction={
+              <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
+            }
           />
 
           <SoftSearchInput
@@ -528,6 +543,52 @@ export function SurahListView({
               { id: 'page', label: 'পৃষ্ঠা', count: toBanglaDigits(TOTAL_PAGES_COUNT) },
             ]}
           />
+
+          {browseTab === 'surah' && allSurahTags.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setSelectedTag(null)}
+                className="px-3 py-1 rounded-full text-[11px] font-medium shrink-0 border transition-colors cursor-pointer"
+                style={{
+                  backgroundColor:
+                    selectedTag === null ? 'var(--accent)' : 'var(--bg-elevated)',
+                  borderColor:
+                    selectedTag === null ? 'var(--accent)' : 'var(--border-subtle)',
+                  color:
+                    selectedTag === null
+                      ? 'var(--accent-text)'
+                      : 'var(--text-secondary)',
+                }}
+              >
+                সব সূরা
+              </button>
+              {allSurahTags.map((tag) => {
+                const active = selectedTag === tag;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setSelectedTag(active ? null : tag)}
+                    className="px-3 py-1 rounded-full text-[11px] font-medium shrink-0 border transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: active
+                        ? 'var(--accent)'
+                        : 'var(--bg-elevated)',
+                      borderColor: active
+                        ? 'var(--accent)'
+                        : 'var(--border-subtle)',
+                      color: active
+                        ? 'var(--accent-text)'
+                        : 'var(--text-secondary)',
+                    }}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {browseTab === 'surah' &&
             (filteredSurahs.length === 0 ? (

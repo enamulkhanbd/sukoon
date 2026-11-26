@@ -5,6 +5,7 @@ import {
   CloudDownload,
   Download,
   Loader2,
+  RefreshCw,
   Settings as SettingsIcon,
   Smartphone,
   Upload,
@@ -18,6 +19,10 @@ import {
 } from '../db/database';
 import { usePwaInstall } from '../hooks/usePwaInstall';
 import {
+  syncCmsFromFirestore,
+  useCmsSyncStatus,
+} from '../services/cmsSync';
+import {
   cancelOfflineSync,
   startOfflineSync,
   useOfflineSync,
@@ -26,7 +31,11 @@ import {
   countCompleteCachedSurahs,
   countOutdatedCachedSurahs,
 } from '../services/quranApi';
-import { AUTO_SCROLL_SPEEDS, toBanglaDigits } from '../utils/formatters';
+import {
+  AUTO_SCROLL_SPEEDS,
+  formatRelativeTimeBn,
+  toBanglaDigits,
+} from '../utils/formatters';
 import {
   FontSizeControl,
   GLASS_OPTIONS,
@@ -56,6 +65,7 @@ export function SettingsSheet({
   const outdatedCount = useLiveQuery(() => countOutdatedCachedSurahs(), []) ?? 0;
   const { canInstall, isInstalled, promptInstall } = usePwaInstall();
   const { downloading, progress: downloadProgress } = useOfflineSync();
+  const cmsSync = useCmsSyncStatus();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pushedHistoryRef = useRef(false);
@@ -85,11 +95,22 @@ export function SettingsSheet({
     document.body.style.overflow = 'hidden';
 
     try {
-      window.history.pushState(
-        { sukoonSettingsSheet: true },
-        '',
-        window.location.href
-      );
+      const currentState = window.history.state as
+        | { sukoonMenuDrawer?: boolean; sukoonSearchOverlay?: boolean }
+        | null;
+      if (currentState?.sukoonMenuDrawer || currentState?.sukoonSearchOverlay) {
+        window.history.replaceState(
+          { sukoonSettingsSheet: true },
+          '',
+          window.location.href
+        );
+      } else {
+        window.history.pushState(
+          { sukoonSettingsSheet: true },
+          '',
+          window.location.href
+        );
+      }
       pushedHistoryRef.current = true;
     } catch {
       pushedHistoryRef.current = false;
@@ -154,10 +175,14 @@ export function SettingsSheet({
       const text = await file.text();
       const parsed: unknown = JSON.parse(text);
       const res = await importUserData(parsed);
+      const customNote =
+        res.customDuasCount > 0
+          ? `, ${toBanglaDigits(res.customDuasCount)}টি ব্যক্তিগত দুআ`
+          : '';
       toast.success(
         `সফলভাবে রিস্টোর হয়েছে (${toBanglaDigits(
           res.routinesCount
-        )}টি রুটিন, ${toBanglaDigits(res.historyDays)} দিনের ইতিহাস)।`
+        )}টি রুটিন, ${toBanglaDigits(res.historyDays)} দিনের ইতিহাস${customNote})।`
       );
     } catch (err) {
       toast.error(
@@ -527,6 +552,54 @@ export function SettingsSheet({
               </div>
             )}
           </section>
+
+          {/* 3b. Cloud CMS Content Sync (Duas, Surahs & Routines) */}
+          {cmsSync.configured && (
+            <section
+              className="pt-6 border-t flex items-center justify-between gap-3"
+              style={{
+                borderColor:
+                  'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+              }}
+            >
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold">
+                  কন্টেন্ট আপডেট (দুআ ও রুটিন)
+                </h3>
+                <p
+                  className="text-xs mt-1 leading-relaxed"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  {cmsSync.lastCheckedAt
+                    ? `সর্বশেষ যাচাই: ${formatRelativeTimeBn(cmsSync.lastCheckedAt)}`
+                    : 'নতুন দুআ, সূরা তথ্য ও সাজেস্টেড রুটিন লোকাল স্টোরেজে সিংক হয়।'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={cmsSync.syncing}
+                onClick={() => {
+                  void syncCmsFromFirestore({
+                    force: true,
+                    toast,
+                    showNoChangeToast: true,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium border shrink-0 cursor-pointer disabled:opacity-60 transition-opacity active:opacity-80"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--border-subtle)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${cmsSync.syncing ? 'animate-spin' : ''}`}
+                  style={{ color: 'var(--accent)' }}
+                />
+                {cmsSync.syncing ? 'যাচাই হচ্ছে...' : 'আপডেট চেক'}
+              </button>
+            </section>
+          )}
 
           {/* 4. Data Portability & Backup */}
           <section

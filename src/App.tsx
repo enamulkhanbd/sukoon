@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { AccountSwitchModal } from './components/AccountSwitchModal';
+import { AppMenuDrawer } from './components/AppMenuDrawer';
 import { BottomNav, type AppTab } from './components/BottomNav';
 import { DuaReaderView } from './components/DuaReaderView';
 import { DuasView } from './components/DuasView';
@@ -14,7 +16,7 @@ import { SettingsSheet } from './components/SettingsSheet';
 import { SplashScreen } from './components/SplashScreen';
 import { SurahListView } from './components/SurahListView';
 import { useToast } from './components/ToastProvider';
-import { DUA_MAP, type DuaItem } from './data/duas';
+import type { DuaItem } from './data/duas';
 import {
   DEFAULT_SETTINGS,
   GLASS_PRESET_OPACITY,
@@ -32,6 +34,21 @@ import {
 } from './db/database';
 import { useIslamicClock } from './hooks/useIslamicClock';
 import {
+  hydrateSyncMetaState,
+  syncCmsFromFirestore,
+} from './services/cmsSync';
+import { initCloudSyncLifecycle } from './services/cloudSyncService';
+import {
+  hydrateCustomDuasFromDb,
+  isCustomDuaId,
+  useCustomDuas,
+} from './services/customDuas';
+import { recordDailyUserHeartbeat } from './services/userTelemetry';
+import {
+  hydrateCatalogFromDb,
+  useDuasCatalog,
+} from './services/contentCatalog';
+import {
   buildPath,
   hidesBottomNav,
   isReaderRoute,
@@ -40,6 +57,8 @@ import {
 } from './router';
 import { applyThemeIcons } from './utils/themeIcons';
 import { getThemeVariantMeta } from './utils/themeRegistry';
+
+const LazyAdminPanelView = lazy(() => import('./components/admin/AdminPanelView'));
 import {
   DEFAULT_FASTING_LOCATION,
   resolveHijriOffsetSettings,
@@ -48,10 +67,16 @@ import { syncHijriCalendarConfig } from './services/hijriCalendarService';
 
 export function App() {
   const toast = useToast();
+  const { duaMap: DUA_MAP } = useDuasCatalog();
+  const { customDuaMap: CUSTOM_DUA_MAP } = useCustomDuas();
   const [dbReady, setDbReady] = useState(false);
   const [route, setRoute] = useState<AppRoute>(() => parseRoute());
   const [profileSection, setProfileSection] = useState<ProfileSection>('stats');
   const [openCreateRoutine, setOpenCreateRoutine] = useState(false);
+  const [highlightTemplateId, setHighlightTemplateId] = useState<string | null>(
+    null
+  );
+  const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(() => {
     const normalized = window.location.pathname.replace(/\/+$/, '');
@@ -74,8 +99,40 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    ensureDatabaseInitialized().then(() => setDbReady(true));
+    ensureDatabaseInitialized()
+      .then(() =>
+        Promise.all([
+          hydrateCatalogFromDb(),
+          hydrateCustomDuasFromDb(),
+          hydrateSyncMetaState(),
+        ])
+      )
+      .then(() => setDbReady(true));
   }, []);
+
+  // Optional personal Cloud Sync lifecycle (offline-first, active only when user signs in)
+  useEffect(() => {
+    if (!dbReady || route.type === 'admin') return;
+    return initCloudSyncLifecycle();
+  }, [dbReady, route.type]);
+
+  // Silent incremental delta sync from Firestore into IndexedDB (startup + reconnect)
+  useEffect(() => {
+    if (!dbReady) return;
+    void syncCmsFromFirestore({ toast });
+    if (route.type !== 'admin') {
+      void recordDailyUserHeartbeat(settings.theme);
+    }
+    const handleOnline = () => {
+      void syncCmsFromFirestore({ toast });
+      if (route.type !== 'admin') {
+        void recordDailyUserHeartbeat(settings.theme);
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbReady, toast]);
 
   // Normalize unknown/malformed initial URL to canonical clean path
   useEffect(() => {
@@ -259,6 +316,26 @@ export function App() {
     }
   }, [dbReady, route, isRoutineReadReady, activeRouteRoutine, navigate]);
 
+  // Redirect cleanly if a direct /dua/:id points to a deleted or missing dua
+  useEffect(() => {
+    if (!dbReady || route.type !== 'dua') return;
+    const isCustom = isCustomDuaId(route.duaId);
+    const exists = isCustom
+      ? Boolean(CUSTOM_DUA_MAP[route.duaId])
+      : Boolean(DUA_MAP[route.duaId]);
+    if (!exists) {
+      navigate(
+        {
+          type: 'tab',
+          tab: 'duas',
+          duaChapterId: null,
+          duaSubTab: isCustom ? 'custom' : null,
+        },
+        { replace: true }
+      );
+    }
+  }, [dbReady, route, CUSTOM_DUA_MAP, DUA_MAP, navigate]);
+
   // Apply theme, light/dark mode & glass attributes, PWA status bar color, dynamic favicon/app icon & cache for zero-flash splash
   useEffect(() => {
     if (rawSettings === undefined && !dbReady) return;
@@ -367,6 +444,18 @@ export function App() {
       );
       return;
     }
+    if (route.type === 'dua' && isCustomDuaId(route.duaId)) {
+      navigate(
+        {
+          type: 'tab',
+          tab: 'duas',
+          duaChapterId: null,
+          duaSubTab: 'custom',
+        },
+        { restoreScroll: true }
+      );
+      return;
+    }
     const prev = lastBaseRouteRef.current;
     if (!isReaderRoute(prev)) {
       if (route.type === 'dua' && prev.type === 'tab' && prev.tab === 'home') {
@@ -394,7 +483,7 @@ export function App() {
     } else {
       navigate({ type: 'tab', tab: 'surahs' }, { restoreScroll: true });
     }
-  }, [route, navigate]);
+  }, [route, DUA_MAP, navigate]);
 
   const handleOpenSurah = useCallback(
     (surahId: number, initialAyah = 1, initialPage?: number) => {
@@ -464,6 +553,7 @@ export function App() {
         ...current,
         ...patch,
         key: 'app',
+        userModifiedAt: Date.now(),
       });
     },
     []
@@ -484,12 +574,52 @@ export function App() {
     [settings.bookmarkedDuaIds, handleUpdateSettings, toast]
   );
 
+  const handleDismissFeaturedCard = useCallback(
+    async (cardId: string) => {
+      const current = settings.dismissedFeaturedCardIds ?? [];
+      if (current.includes(cardId)) return;
+      await handleUpdateSettings({
+        dismissedFeaturedCardIds: [...current, cardId],
+      });
+    },
+    [settings.dismissedFeaturedCardIds, handleUpdateSettings]
+  );
+
   if (!dbReady || (route.type === 'routineRead' && activeRouteRoutine === undefined)) {
     return <SplashScreen />;
   }
 
+  if (route.type === 'admin') {
+    return (
+      <Suspense fallback={<SplashScreen />}>
+        <LazyAdminPanelView
+          section={route.section}
+          onNavigateSection={(section) =>
+            navigate({ type: 'admin', section })
+          }
+          onExitAdmin={() => navigate({ type: 'tab', tab: 'home' })}
+        />
+      </Suspense>
+    );
+  }
+
+  const activeTab: AppTab = route.type === 'tab' ? route.tab : 'home';
+
   const globalOverlays = (
     <>
+      <AppMenuDrawer
+        open={menuOpen}
+        activeTab={activeTab}
+        onClose={() => setMenuOpen(false)}
+        onSelectProfile={(opts) => {
+          setProfileSection('stats');
+          navigate(
+            { type: 'tab', tab: 'profile' },
+            { replace: Boolean(opts?.replaceHistory) }
+          );
+        }}
+        onSelectSettings={() => setSettingsOpen(true)}
+      />
       <GlobalSearchOverlay
         open={searchOpen}
         bookmarkedDuaIds={settings.bookmarkedDuaIds ?? []}
@@ -518,11 +648,14 @@ export function App() {
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
       />
+      <AccountSwitchModal />
     </>
   );
 
   if (route.type === 'dua') {
-    const dua = DUA_MAP[route.duaId];
+    const dua = isCustomDuaId(route.duaId)
+      ? CUSTOM_DUA_MAP[route.duaId]
+      : DUA_MAP[route.duaId];
     if (dua) {
       return (
         <>
@@ -531,6 +664,17 @@ export function App() {
             dua={dua}
             settings={settings}
             onClose={closeReader}
+            onDeletedCustomDua={() =>
+              navigate(
+                {
+                  type: 'tab',
+                  tab: 'duas',
+                  duaChapterId: null,
+                  duaSubTab: 'custom',
+                },
+                { replace: true, restoreScroll: true }
+              )
+            }
             onUpdateSettings={handleUpdateSettings}
             onSelectDuaInChapter={(nextDua) =>
               navigate({ type: 'dua', duaId: nextDua.id }, { replace: true })
@@ -570,7 +714,9 @@ export function App() {
     const activeItem = items[route.itemIndex];
     if (activeItem) {
       if (activeItem.kind === 'dua') {
-        const dua = DUA_MAP[activeItem.duaId];
+        const dua = isCustomDuaId(activeItem.duaId)
+          ? CUSTOM_DUA_MAP[activeItem.duaId]
+          : DUA_MAP[activeItem.duaId];
         if (dua) {
           return (
             <>
@@ -670,10 +816,13 @@ export function App() {
     );
   }
 
-  const activeTab: AppTab = route.type === 'tab' ? route.tab : 'home';
   const activeDuaChapterId =
     route.type === 'tab' && route.tab === 'duas'
       ? route.duaChapterId ?? null
+      : null;
+  const activeDuaSubTab =
+    route.type === 'tab' && route.tab === 'duas'
+      ? route.duaSubTab ?? null
       : null;
 
   return (
@@ -681,9 +830,17 @@ export function App() {
       {activeTab === 'home' && (
         <HomeView
           settings={settings}
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
           onOpenSearch={() => setSearchOpen(true)}
           onOpenSettings={openSettings}
           onOpenSurah={handleOpenSurah}
+          onOpenDua={handleOpenDua}
+          onOpenRoutineTemplate={(templateId) => {
+            setHighlightTemplateId(templateId);
+            navigate({ type: 'tab', tab: 'routines' });
+          }}
+          onDismissFeaturedCard={handleDismissFeaturedCard}
           onOpenRoutineDetails={openRoutineDetails}
           onOpenStats={openStats}
           onOpenFastingSchedule={openRamadanSchedule}
@@ -697,6 +854,8 @@ export function App() {
       {activeTab === 'surahs' && (
         <SurahListView
           settings={settings}
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
           onOpenSurah={handleOpenSurah}
         />
       )}
@@ -704,7 +863,21 @@ export function App() {
         <DuasView
           settings={settings}
           selectedChapterId={activeDuaChapterId}
+          activeSubTab={activeDuaSubTab}
+          onChangeSubTab={(subTab) =>
+            navigate(
+              {
+                type: 'tab',
+                tab: 'duas',
+                duaChapterId: null,
+                duaSubTab: subTab,
+              },
+              { replace: true }
+            )
+          }
           savedFilterNonce={savedDuasNonce}
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
           onSelectChapter={(chapterId) =>
             navigate(
               { type: 'tab', tab: 'duas', duaChapterId: chapterId },
@@ -718,18 +891,23 @@ export function App() {
       {activeTab === 'routines' && (
         <RoutinesView
           settings={settings}
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
           onOpenRoutineDetails={openRoutineDetails}
           shouldOpenCreate={openCreateRoutine}
           onHandledCreate={() => setOpenCreateRoutine(false)}
+          highlightTemplateId={highlightTemplateId}
+          onClearHighlightTemplate={() => setHighlightTemplateId(null)}
         />
       )}
       {activeTab === 'profile' && (
         <ProfileView
           settings={settings}
           activeSection={profileSection}
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
           onChangeSection={setProfileSection}
           onUpdateSettings={handleUpdateSettings}
-          onOpenSettings={openSettings}
           onOpenFastingSchedule={openRamadanSchedule}
         />
       )}

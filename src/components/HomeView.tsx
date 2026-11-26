@@ -8,7 +8,9 @@ import {
   Flame,
   Search,
   Sparkles,
+  X,
 } from 'lucide-react';
+import type { DuaItem } from '../data/duas';
 import { SURAH_MAP } from '../data/surahs';
 import {
   db,
@@ -20,6 +22,10 @@ import {
   type Settings,
 } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
+import {
+  useActiveFeaturedCard,
+  useDuasCatalog,
+} from '../services/contentCatalog';
 import { countCompleteCachedSurahs } from '../services/quranApi';
 import {
   getActiveAnchorsForSettings,
@@ -31,7 +37,7 @@ import {
 } from '../utils/fasting';
 import {
   DAY_NAMES_BN,
-  DAY_SHORT_BN,
+  normalizeIndoPakText,
   toBanglaDigits,
 } from '../utils/formatters';
 import {
@@ -42,13 +48,19 @@ import {
 import { FastingCard } from './FastingCard';
 import { HeroCalligraphy } from './HeroCalligraphy';
 import { LastReadSurahCard } from './LastReadSurahCard';
+import { TwoLineMenuButton } from './NavigationChrome';
 import { SukoonLogo } from './SukoonLogo';
 
 interface HomeViewProps {
   settings: Settings;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onOpenSearch: () => void;
   onOpenSettings: () => void;
   onOpenSurah: (surahId: number, targetAyah?: number) => void;
+  onOpenDua: (dua: DuaItem) => void;
+  onOpenRoutineTemplate: (templateId: string) => void;
+  onDismissFeaturedCard: (cardId: string) => Promise<void>;
   onOpenRoutineDetails: (routine: Routine) => void;
   onOpenStats: () => void;
   onOpenFastingSchedule: () => void;
@@ -58,9 +70,14 @@ interface HomeViewProps {
 
 export function HomeView({
   settings,
+  menuOpen,
+  onOpenMenu,
   onOpenSearch,
   onOpenSettings,
   onOpenSurah,
+  onOpenDua,
+  onOpenRoutineTemplate,
+  onDismissFeaturedCard,
   onOpenRoutineDetails,
   onOpenStats,
   onOpenFastingSchedule,
@@ -69,6 +86,14 @@ export function HomeView({
 }: HomeViewProps) {
 
   const clock = useIslamicClock(settings);
+  const { duaMap } = useDuasCatalog();
+  const todayIso = `${clock.gregorianDate.getFullYear()}-${String(
+    clock.gregorianDate.getMonth() + 1
+  ).padStart(2, '0')}-${String(clock.gregorianDate.getDate()).padStart(2, '0')}`;
+  const featuredCard = useActiveFeaturedCard(
+    todayIso,
+    settings.dismissedFeaturedCardIds ?? []
+  );
   const now = clock.now;
   const todayIndex = clock.islamicWeekday;
   const fastingLocation = settings.fastingLocation ?? DEFAULT_FASTING_LOCATION;
@@ -133,9 +158,6 @@ export function HomeView({
   const todaysRoutines = (routines ?? []).filter((r) =>
     r.assignedDays.includes(todayIndex)
   );
-  const otherRoutines = (routines ?? []).filter(
-    (r) => !r.assignedDays.includes(todayIndex)
-  );
 
   const todayCompletedRoutinesCount = todaysRoutines.filter(
     (r) => (progressMap.get(r.id)?.percentage ?? 0) >= 100
@@ -158,7 +180,7 @@ export function HomeView({
   }).format(clock.gregorianDate);
 
   /** Clean minimal routine row with Apple-style circular progress ring (no dead bars or boxes). */
-  const renderRoutineRow = (routine: Routine, isToday: boolean) => {
+  const renderRoutineRow = (routine: Routine) => {
     const prog = progressMap.get(routine.id);
     const items = getRoutineItems(routine);
     const completedItemsCount = getCompletedItemIndexes(routine, prog).length;
@@ -168,13 +190,6 @@ export function HomeView({
     const ringRadius = 11;
     const ringCircumference = 2 * Math.PI * ringRadius;
     const ringOffset = ringCircumference * (1 - Math.min(100, Math.max(0, percentage)) / 100);
-
-    const scheduleLabel =
-      routine.assignedDays.length === 7
-        ? 'প্রতিদিন'
-        : routine.assignedDays.length === 0
-          ? 'ম্যানুয়াল'
-          : routine.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ');
 
     return (
       <div
@@ -245,7 +260,6 @@ export function HomeView({
               style={{ color: 'var(--text-muted)' }}
             >
               {toBanglaDigits(completedItemsCount)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন
-              {!isToday && ` • ${scheduleLabel}`}
             </p>
           </div>
         </div>
@@ -267,10 +281,11 @@ export function HomeView({
         className="w-full safe-top"
         style={{ backgroundColor: 'var(--bg-surface)' }}
       >
-        <div className="max-w-2xl mx-auto px-5 pt-3.5 pb-5 space-y-6">
+        <div className="max-w-2xl mx-auto px-5 pt-5 pb-5 space-y-6">
           {/* Minimal Top Brand Bar */}
           <div className="flex items-center justify-between gap-3">
             <SukoonLogo />
+            <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
           </div>
 
           {/* Serene Thuluth Calligraphic Centerpiece */}
@@ -320,6 +335,96 @@ export function HomeView({
           monthAnchors={hijriMonthAnchors}
           onOpenSchedule={onOpenFastingSchedule}
         />
+
+        {/* Admin-Published Home Spotlight Card */}
+        {featuredCard && (
+          <section
+            aria-label="বিশেষ আমল"
+            className="rounded-2xl p-4 sm:p-5 border space-y-3 relative"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1 min-w-0">
+                <div
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{featuredCard.badgeLabel || 'বিশেষ আমল'}</span>
+                </div>
+                <h2 className="text-base font-semibold leading-snug">
+                  {featuredCard.titleBangla}
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="কার্ডটি বন্ধ করুন"
+                onClick={() => void onDismissFeaturedCard(featuredCard.id)}
+                className="p-1.5 rounded-full transition-opacity active:opacity-60 cursor-pointer shrink-0 -mr-1 -mt-1"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {featuredCard.arabicSnippet && (
+              <p
+                dir="rtl"
+                className="font-indopak text-xl sm:text-2xl leading-[2.1] text-right px-3 py-2 rounded-xl"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {normalizeIndoPakText(featuredCard.arabicSnippet)}
+              </p>
+            )}
+
+            <p
+              className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-line"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {featuredCard.bodyBangla}
+            </p>
+
+            {featuredCard.action && featuredCard.action.type !== 'none' && (
+              <div className="pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const act = featuredCard.action;
+                    if (!act) return;
+                    if (act.type === 'surah' && act.surahId) {
+                      onOpenSurah(act.surahId, act.startAyah ?? 1);
+                    } else if (act.type === 'dua' && act.duaId) {
+                      const d = duaMap[act.duaId];
+                      if (d) onOpenDua(d);
+                    } else if (act.type === 'routineTemplate' && act.templateId) {
+                      onOpenRoutineTemplate(act.templateId);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    color: 'var(--accent-text)',
+                  }}
+                >
+                  <span>
+                    {featuredCard.action.ctaLabel ||
+                      (featuredCard.action.type === 'routineTemplate'
+                        ? 'রুটিন দেখুন'
+                        : 'পাঠ করুন')}
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Continue Reading — Single Focal Surface */}
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -512,7 +617,7 @@ export function HomeView({
           </div>
 
           {todaysRoutines.length > 0 ? (
-            <div>{todaysRoutines.map((r) => renderRoutineRow(r, true))}</div>
+            <div>{todaysRoutines.map((r) => renderRoutineRow(r))}</div>
           ) : (
             <div className="py-4 text-center space-y-1">
               <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -524,14 +629,6 @@ export function HomeView({
             </div>
           )}
         </section>
-
-        {/* Other / Manual Routines */}
-        {otherRoutines.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold">অন্যান্য রুটিন</h2>
-            <div>{otherRoutines.map((r) => renderRoutineRow(r, false))}</div>
-          </section>
-        )}
 
         {/* Quiet Offline Footnote */}
         {typeof cachedCount === 'number' && cachedCount < 114 && (

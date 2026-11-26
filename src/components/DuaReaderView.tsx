@@ -7,13 +7,17 @@ import {
   CheckCircle2,
   ChevronUp,
   Copy,
+  Pencil,
   SlidersHorizontal,
+  Trash2,
 } from 'lucide-react';
+import type { DuaItem } from '../data/duas';
+import { useDuasCatalog } from '../services/contentCatalog';
 import {
-  DUA_CHAPTER_MAP,
-  DUAS_BY_CHAPTER,
-  type DuaItem,
-} from '../data/duas';
+  deleteCustomDua,
+  isCustomDuaId,
+  useCustomDuas,
+} from '../services/customDuas';
 import {
   db,
   getRoutineItems,
@@ -30,6 +34,7 @@ import {
   normalizeIndoPakText,
   toBanglaDigits,
 } from '../utils/formatters';
+import { CustomDuaFormSheet } from './CustomDuaFormSheet';
 import {
   ReaderFreePager,
   ReaderQuickSettingsSheet,
@@ -51,6 +56,7 @@ interface DuaReaderViewProps {
   routineItemIndex?: number;
   routineTargetCount?: number;
   onClose: () => void;
+  onDeletedCustomDua?: () => void;
   onUpdateSettings: (patch: Partial<Settings>) => Promise<void>;
   onSelectDuaInChapter?: (nextDua: DuaItem) => void;
   onAdvanceRoutineItem?: (nextIndex: number) => void;
@@ -64,12 +70,15 @@ export function DuaReaderView({
   routineItemIndex,
   routineTargetCount,
   onClose,
+  onDeletedCustomDua,
   onUpdateSettings,
   onSelectDuaInChapter,
   onAdvanceRoutineItem,
   onOpenQuranRef,
 }: DuaReaderViewProps) {
   const toast = useToast();
+  const isCustomDua = isCustomDuaId(dua.id);
+  const { customDuaItems, customDuasRawMap } = useCustomDuas();
   const targetCount = Math.max(1, routineTargetCount ?? dua.repeatCount ?? 1);
   const [tapCount, setTapCount] = useState(0);
   const [partTapCounts, setPartTapCounts] = useState<Record<string, number>>({});
@@ -81,6 +90,9 @@ export function DuaReaderView({
   const [copied, setCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [counterSheetOpen, setCounterSheetOpen] = useState(false);
+  const [editCustomOpen, setEditCustomOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingCustom, setDeletingCustom] = useState(false);
   const [activeCounter, setActiveCounter] = useState<ActiveCounterTarget>({
     mode: 'single',
   });
@@ -97,15 +109,19 @@ export function DuaReaderView({
 
   const parts = dua.parts && dua.parts.length > 0 ? dua.parts : null;
   const hasAnyTransliteration = Boolean(
-    dua.transliteration || parts?.some((p) => p.transliteration)
+    dua.transliteration?.trim() || parts?.some((p) => p.transliteration?.trim())
   );
 
   const { supported: wakeLockSupported, active: wakeLockActive } = useWakeLock(
     settings.keepScreenAwake
   );
 
-  const chapter = DUA_CHAPTER_MAP[dua.chapterId];
-  const chapterDuas = DUAS_BY_CHAPTER[dua.chapterId] ?? [];
+  const { chapterMap: DUA_CHAPTER_MAP, duasByChapter: DUAS_BY_CHAPTER } =
+    useDuasCatalog();
+  const chapter = isCustomDua ? undefined : DUA_CHAPTER_MAP[dua.chapterId];
+  const chapterDuas = isCustomDua
+    ? customDuaItems
+    : (DUAS_BY_CHAPTER[dua.chapterId] ?? []);
   const chapterIdx = chapterDuas.findIndex((d) => d.id === dua.id);
   const prevChapterDua = chapterIdx > 0 ? chapterDuas[chapterIdx - 1] : null;
   const nextChapterDua =
@@ -122,8 +138,8 @@ export function DuaReaderView({
     if (!routine || routineItems.length === 0) return null;
     const idx =
       routineItemIndex !== undefined &&
-      routineItems[routineItemIndex]?.kind === 'dua' &&
-      routineItems[routineItemIndex].duaId === dua.id
+        routineItems[routineItemIndex]?.kind === 'dua' &&
+        routineItems[routineItemIndex].duaId === dua.id
         ? routineItemIndex
         : routineItems.findIndex((it) => it.kind === 'dua' && it.duaId === dua.id);
     if (idx === -1) return null;
@@ -152,7 +168,7 @@ export function DuaReaderView({
         routineItemIndex: routineNav.index,
         duaId: dua.id,
         completed: false,
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [dua.id, routine, routineNav]);
 
@@ -173,17 +189,19 @@ export function DuaReaderView({
   const handleCopy = async () => {
     const bodyText = parts
       ? parts
-          .map((part, idx) =>
-            [
-              `${toBanglaDigits(idx + 1)}. ${part.arabic}`,
-              part.transliteration ?? '',
-              part.translationBangla,
-            ]
-              .filter(Boolean)
-              .join('\n')
-          )
-          .join('\n\n')
-      : [dua.arabic, dua.translationBangla].join('\n\n');
+        .map((part, idx) =>
+          [
+            `${toBanglaDigits(idx + 1)}. ${part.arabic}`,
+            part.transliteration ?? '',
+            part.translationBangla,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        )
+        .join('\n\n')
+      : [dua.arabic.trim(), (dua.transliteration ?? '').trim(), dua.translationBangla.trim()]
+          .filter(Boolean)
+          .join('\n\n');
 
     const text = [
       dua.titleBangla,
@@ -203,6 +221,25 @@ export function DuaReaderView({
     }
   };
 
+  const handleConfirmDeleteCustomDua = async () => {
+    if (!isCustomDua || deletingCustom) return;
+    setDeletingCustom(true);
+    try {
+      await deleteCustomDua(dua.id);
+      setConfirmDeleteOpen(false);
+      toast.warning('দুআটি মুছে ফেলা হয়েছে');
+      if (onDeletedCustomDua) {
+        onDeletedCustomDua();
+      } else {
+        onClose();
+      }
+    } catch {
+      toast.error('দুআটি মুছে ফেলা যায়নি।');
+    } finally {
+      setDeletingCustom(false);
+    }
+  };
+
   const handleIncrementCounter = () => {
     const next = tapCountRef.current + 1;
     tapCountRef.current = next;
@@ -210,11 +247,21 @@ export function DuaReaderView({
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(next === targetCount ? [20, 40, 20] : 12);
     }
-    void recordDhikirDelta({ duaId: dua.id, delta: 1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: 1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
     if (next === targetCount && !singleRoundLoggedRef.current) {
       singleRoundLoggedRef.current = true;
       duaCompletedInSessionRef.current = true;
-      void recordDuaCompleted({ duaId: dua.id, delta: 1 });
+      void recordDuaCompleted({
+        duaId: dua.id,
+        delta: 1,
+        routineId: routine?.id,
+        routineItemIndex: routineNav?.index,
+      });
     }
   };
 
@@ -223,7 +270,12 @@ export function DuaReaderView({
     const next = tapCountRef.current - 1;
     tapCountRef.current = next;
     setTapCount(next);
-    void recordDhikirDelta({ duaId: dua.id, delta: -1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: -1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
   };
 
   const handleResetCounter = () => {
@@ -243,7 +295,12 @@ export function DuaReaderView({
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate(next === partTarget ? [20, 40, 20] : 12);
     }
-    void recordDhikirDelta({ duaId: dua.id, delta: 1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: 1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
 
     if (parts && next === partTarget && !multiPartRoundLoggedRef.current) {
       const allPartsDone = parts.every((p) => {
@@ -256,7 +313,12 @@ export function DuaReaderView({
       if (allPartsDone) {
         multiPartRoundLoggedRef.current = true;
         duaCompletedInSessionRef.current = true;
-        void recordDuaCompleted({ duaId: dua.id, delta: 1 });
+        void recordDuaCompleted({
+          duaId: dua.id,
+          delta: 1,
+          routineId: routine?.id,
+          routineItemIndex: routineNav?.index,
+        });
       }
     }
   };
@@ -267,7 +329,12 @@ export function DuaReaderView({
     const nextMap = { ...partTapCountsRef.current, [partId]: prevCount - 1 };
     partTapCountsRef.current = nextMap;
     setPartTapCounts(nextMap);
-    void recordDhikirDelta({ duaId: dua.id, delta: -1 });
+    void recordDhikirDelta({
+      duaId: dua.id,
+      delta: -1,
+      routineId: routine?.id,
+      routineItemIndex: routineNav?.index,
+    });
   };
 
   const handleResetPartCounter = (partId: string) => {
@@ -420,9 +487,22 @@ export function DuaReaderView({
     transliteration?: string;
     meaning: string;
     meaningLabel: string;
+    forceShowTranslit?: boolean;
   }) => {
-    const { transliteration, meaning, meaningLabel } = params;
-    const hasTranslit = Boolean(transliteration && showTransliteration);
+    const {
+      transliteration,
+      meaning,
+      meaningLabel,
+      forceShowTranslit = false,
+    } = params;
+    const cleanTranslit = (transliteration ?? '').trim();
+    const cleanMeaning = meaning.trim();
+    const hasTranslit = Boolean(
+      cleanTranslit && (showTransliteration || forceShowTranslit)
+    );
+    const hasMeaning = Boolean(cleanMeaning);
+    if (!hasTranslit && !hasMeaning) return null;
+
     return (
       <>
         {hasTranslit && (
@@ -437,20 +517,24 @@ export function DuaReaderView({
               className="text-sm leading-relaxed whitespace-pre-line"
               style={{ color: 'var(--text-secondary)' }}
             >
-              {transliteration}
+              {cleanTranslit}
             </p>
           </div>
         )}
 
-        <div className="space-y-1">
-          <div
-            className="text-xs font-medium"
-            style={{ color: 'var(--gold)' }}
-          >
-            {meaningLabel}
+        {hasMeaning && (
+          <div className="space-y-1">
+            <div
+              className="text-xs font-medium"
+              style={{ color: 'var(--gold)' }}
+            >
+              {meaningLabel}
+            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-line">
+              {cleanMeaning}
+            </p>
           </div>
-          <p className="text-sm leading-relaxed whitespace-pre-line">{meaning}</p>
-        </div>
+        )}
       </>
     );
   };
@@ -481,19 +565,19 @@ export function DuaReaderView({
   const routineNextAction = routineNav
     ? routineNav.nextItem
       ? {
-          label: `পরবর্তী অংশ: ${formatNormalizedRoutineItemLabel(routineNav.nextItem)}`,
-          action: () => {
-            setCounterSheetOpen(false);
-            void handleCompleteAndNext(routineNav.nextIndex);
-          },
-        }
+        label: `পরবর্তী অংশ: ${formatNormalizedRoutineItemLabel(routineNav.nextItem)}`,
+        action: () => {
+          setCounterSheetOpen(false);
+          void handleCompleteAndNext(routineNav.nextIndex);
+        },
+      }
       : {
-          label: 'রুটিন সমাপ্ত করে ফিরুন',
-          action: () => {
-            setCounterSheetOpen(false);
-            void handleCompleteRoutine();
-          },
-        }
+        label: 'রুটিন সমাপ্ত করে ফিরুন',
+        action: () => {
+          setCounterSheetOpen(false);
+          void handleCompleteRoutine();
+        },
+      }
     : null;
 
   const activePartIndex =
@@ -504,9 +588,9 @@ export function DuaReaderView({
     parts && activePartIndex !== null ? parts[activePartIndex] : null;
   const activePartTarget = activePart
     ? Math.max(
-        1,
-        routineTargetCount ?? activePart.repeatCount ?? dua.repeatCount ?? 1
-      )
+      1,
+      routineTargetCount ?? activePart.repeatCount ?? dua.repeatCount ?? 1
+    )
     : targetCount;
 
   const sheetTitle =
@@ -519,17 +603,16 @@ export function DuaReaderView({
   const sheetNextAction =
     parts && activePartIndex !== null && activePartIndex + 1 < parts.length
       ? {
-          label: `পরবর্তী জিকির (${toBanglaDigits(activePartIndex + 2)}/${toBanglaDigits(parts.length)})`,
-          action: () =>
-            openCounterSheet({ mode: 'part', partIndex: activePartIndex + 1 }),
-        }
+        label: `পরবর্তী জিকির (${toBanglaDigits(activePartIndex + 2)}/${toBanglaDigits(parts.length)})`,
+        action: () =>
+          openCounterSheet({ mode: 'part', partIndex: activePartIndex + 1 }),
+      }
       : routineNextAction;
 
   return (
     <div
-      className={`min-h-dvh paper-frame transition-[padding] duration-300 ${
-        counterSheetOpen ? 'pb-[56dvh]' : 'pb-16'
-      }`}
+      className={`min-h-dvh paper-frame transition-[padding] duration-300 ${counterSheetOpen ? 'pb-[56dvh]' : 'pb-16'
+        }`}
     >
       <TopBar
         mode="sticky"
@@ -553,20 +636,47 @@ export function DuaReaderView({
         subtitle={
           routine && routineNav
             ? routine.title
-            : chapter?.titleBangla ?? 'দুআ ও জিকির'
+            : isCustomDua
+              ? 'আমার দুআ'
+              : chapter?.titleBangla ?? 'দুআ ও জিকির'
         }
         rightActions={
           <>
-            <TopBarIconButton
-              onClick={handleToggleBookmark}
-              label="সংরক্ষণ করুন"
-              active={isBookmarked}
-            >
-              <Bookmark
-                className="w-4 h-4"
-                fill={isBookmarked ? 'currentColor' : 'none'}
-              />
-            </TopBarIconButton>
+            {isCustomDua ? (
+              <>
+                <TopBarIconButton
+                  onClick={() => {
+                    setCounterSheetOpen(false);
+                    setEditCustomOpen(true);
+                  }}
+                  label="সম্পাদনা করুন"
+                  active={editCustomOpen}
+                >
+                  <Pencil className="w-4 h-4" />
+                </TopBarIconButton>
+                <TopBarIconButton
+                  onClick={() => {
+                    setCounterSheetOpen(false);
+                    setConfirmDeleteOpen(true);
+                  }}
+                  label="মুছে ফেলুন"
+                  active={confirmDeleteOpen}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </TopBarIconButton>
+              </>
+            ) : (
+              <TopBarIconButton
+                onClick={handleToggleBookmark}
+                label="সংরক্ষণ করুন"
+                active={isBookmarked}
+              >
+                <Bookmark
+                  className="w-4 h-4"
+                  fill={isBookmarked ? 'currentColor' : 'none'}
+                />
+              </TopBarIconButton>
+            )}
             <TopBarIconButton
               onClick={handleCopy}
               label="কপি করুন"
@@ -603,8 +713,9 @@ export function DuaReaderView({
             {(dua.occasionNote
               ? dua.occasionNote.replace(/\s*\([০-৯0-9]+\s*বার\)\s*$/, '').trim()
               : '') ||
-              chapter?.titleBangla ||
-              'দুআ ও জিকির'}
+              (isCustomDua
+                ? dua.reference || 'আমার ব্যক্তিগত দুআ'
+                : chapter?.titleBangla || 'দুআ ও জিকির')}
           </span>
           <span
             className="text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0"
@@ -746,20 +857,22 @@ export function DuaReaderView({
           </>
         ) : (
           <>
-            {/* Pure Unboxed Arabic Recitation Directly on Page */}
-            <section className="py-1">
-              <p
-                dir="rtl"
-                lang="ar"
-                className="font-indopak text-right leading-[1.95] select-text whitespace-pre-line"
-                style={{
-                  fontSize: `${arabicFontSize}px`,
-                  color: 'var(--text-primary)',
-                }}
-              >
-                {normalizeIndoPakText(dua.arabic)}
-              </p>
-            </section>
+            {/* Pure Unboxed Arabic Recitation Directly on Page (only if Arabic present) */}
+            {dua.arabic.trim().length > 0 && (
+              <section className="py-1">
+                <p
+                  dir="rtl"
+                  lang="ar"
+                  className="font-indopak text-right leading-[1.95] select-text whitespace-pre-line"
+                  style={{
+                    fontSize: `${arabicFontSize}px`,
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {normalizeIndoPakText(dua.arabic)}
+                </p>
+              </section>
+            )}
 
             {/* Single Clean Interactive Action Strip (Tasbih or Mark-as-Read) */}
             {targetCount > 1 || routine ? (
@@ -772,7 +885,7 @@ export function DuaReaderView({
               })
             ) : (
               <div
-                className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3 transition-colors"
+                className="rounded-2xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap transition-colors"
                 style={{
                   backgroundColor: isStandaloneMarkedToday
                     ? 'var(--accent-soft)'
@@ -792,39 +905,71 @@ export function DuaReaderView({
                       : 'দুআটি পড়া শেষ হলে চিহ্নিত করুন'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void handleToggleStandaloneRead()}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer"
-                  style={{
-                    backgroundColor: isStandaloneMarkedToday
-                      ? 'var(--bg-elevated)'
-                      : 'var(--accent)',
-                    color: isStandaloneMarkedToday
-                      ? 'var(--accent)'
-                      : 'var(--accent-text)',
-                  }}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{isStandaloneMarkedToday ? 'চিহ্নিত' : 'পড়া হয়েছে'}</span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {isCustomDua && (
+                    <button
+                      type="button"
+                      onClick={() => openCounterSheet({ mode: 'single' })}
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded-full text-xs font-medium border transition-opacity active:opacity-80 cursor-pointer"
+                      style={{
+                        backgroundColor: 'var(--bg-elevated)',
+                        borderColor: 'var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      <span>
+                        {tapCount > 0
+                          ? `তাসবিহ (${toBanglaDigits(tapCount)})`
+                          : 'তাসবিহ'}
+                      </span>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleStandaloneRead()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer"
+                    style={{
+                      backgroundColor: isStandaloneMarkedToday
+                        ? 'var(--bg-elevated)'
+                        : 'var(--accent)',
+                      color: isStandaloneMarkedToday
+                        ? 'var(--accent)'
+                        : 'var(--accent-text)',
+                    }}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{isStandaloneMarkedToday ? 'চিহ্নিত' : 'পড়া হয়েছে'}</span>
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Open Bangla Transliteration, Meaning & Reference */}
-            <section className="space-y-5">
-              {renderTransliterationAndMeaning({
-                transliteration: dua.transliteration,
-                meaning: dua.translationBangla,
-                meaningLabel: 'বাংলা অর্থ ও ফজিলত',
-              })}
+            {/* Open Bangla Transliteration, Meaning & Reference (rendered only when non-empty) */}
+            {(Boolean(dua.transliteration?.trim()) ||
+              Boolean(dua.translationBangla.trim()) ||
+              Boolean(dua.reference) ||
+              Boolean(dua.quranRef)) && (
+              <section className="space-y-5">
+                {renderTransliterationAndMeaning({
+                  transliteration: dua.transliteration,
+                  meaning: dua.translationBangla,
+                  meaningLabel: isCustomDua
+                    ? 'বাংলা অর্থ / মোনাজাত'
+                    : 'বাংলা অর্থ ও ফজিলত',
+                  forceShowTranslit:
+                    isCustomDua &&
+                    !dua.arabic.trim() &&
+                    !dua.translationBangla.trim(),
+                })}
 
-              {(dua.reference || dua.quranRef) && (
-                <div className="flex items-center justify-between gap-3 flex-wrap text-xs pt-1">
-                  {renderReferenceFooter()}
-                </div>
-              )}
-            </section>
+                {(dua.reference || dua.quranRef) && (
+                  <div className="flex items-center justify-between gap-3 flex-wrap text-xs pt-1">
+                    {renderReferenceFooter()}
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
 
@@ -946,9 +1091,8 @@ export function DuaReaderView({
               }}
             >
               <span
-                className={`block w-5 h-5 rounded-full transition-transform ${
-                  showTransliteration ? 'translate-x-5' : 'translate-x-0'
-                }`}
+                className={`block w-5 h-5 rounded-full transition-transform ${showTransliteration ? 'translate-x-5' : 'translate-x-0'
+                  }`}
                 style={{
                   backgroundColor: showTransliteration
                     ? 'var(--accent-text)'
@@ -959,6 +1103,75 @@ export function DuaReaderView({
           </div>
         )}
       </ReaderQuickSettingsSheet>
+
+      {isCustomDua && (
+        <CustomDuaFormSheet
+          open={editCustomOpen}
+          editingDua={customDuasRawMap[dua.id] ?? null}
+          onClose={() => setEditCustomOpen(false)}
+        />
+      )}
+
+      {isCustomDua && confirmDeleteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]"
+          style={{ backgroundColor: 'var(--backdrop-scrim)' }}
+          onClick={() => !deletingCustom && setConfirmDeleteOpen(false)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-custom-dua-title"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl p-5 border space-y-4 shadow-xl"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+            }}
+          >
+            <div className="space-y-1.5">
+              <h2
+                id="delete-custom-dua-title"
+                className="text-base font-semibold"
+              >
+                দুআটি মুছে ফেলবেন?
+              </h2>
+              <p
+                className="text-xs leading-relaxed"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                “{dua.titleBangla}” আপনার “আমার দুআ” তালিকা থেকে স্থায়ীভাবে মুছে যাবে।
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                disabled={deletingCustom}
+                onClick={() => setConfirmDeleteOpen(false)}
+                className="flex-1 py-2.5 rounded-2xl text-xs font-medium cursor-pointer transition-opacity active:opacity-80"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                disabled={deletingCustom}
+                onClick={() => void handleConfirmDeleteCustomDua()}
+                className="flex-1 py-2.5 rounded-2xl text-xs font-semibold cursor-pointer transition-opacity active:opacity-85 disabled:opacity-60"
+                style={{
+                  backgroundColor: 'var(--danger)',
+                  color: '#ffffff',
+                }}
+              >
+                {deletingCustom ? 'মুছে ফেলা হচ্ছে...' : 'হ্যাঁ, মুছুন'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

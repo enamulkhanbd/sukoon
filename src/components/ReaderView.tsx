@@ -8,7 +8,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { SURAH_MAP } from '../data/surahs';
-import { SURAH_DESCRIPTIONS } from '../data/surahDescriptions';
+import { useSurahInfo } from '../services/contentCatalog';
 import {
   getRoutineItems,
   getSurahResumeAyah,
@@ -93,6 +93,7 @@ export function ReaderView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const surahInfo = useSurahInfo(surahId);
   const toast = useToast();
   const [chromeVisible, setChromeVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -516,13 +517,59 @@ export function ReaderView({
               </p>
             </div>
           </div>
-          {SURAH_DESCRIPTIONS[meta.id] && (
+          {surahInfo?.descriptionBangla && (
             <p
               className="text-[13px] sm:text-sm leading-relaxed"
               style={{ color: 'var(--text-secondary)' }}
             >
-              {SURAH_DESCRIPTIONS[meta.id]}
+              {surahInfo.descriptionBangla}
             </p>
+          )}
+          {surahInfo?.fazilatBangla && (
+            <div
+              className="rounded-xl px-3.5 py-2.5 text-left space-y-1 border"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                borderColor: 'var(--border-subtle)',
+              }}
+            >
+              <p
+                className="text-[11px] font-semibold"
+                style={{ color: 'var(--accent)' }}
+              >
+                ফযীলত
+              </p>
+              <p
+                className="text-xs leading-relaxed"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {surahInfo.fazilatBangla}
+              </p>
+              {surahInfo.fazilatRef && (
+                <p
+                  className="text-[11px]"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  — {surahInfo.fazilatRef}
+                </p>
+              )}
+            </div>
+          )}
+          {surahInfo && surahInfo.occasionTags.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {surahInfo.occasionTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2.5 py-0.5 rounded-full text-[11px] font-medium"
+                  style={{
+                    backgroundColor: 'var(--accent-soft)',
+                    color: 'var(--accent)',
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           )}
           <div
             className="text-xs leading-relaxed tabular-nums"

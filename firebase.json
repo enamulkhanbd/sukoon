@@ -1,0 +1,20 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "location": "asia-south1"
+  },
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Sukoon",
+        "supportEmail": "anamul.ipa@gmail.com",
+        "authorizedRedirectUris": [
+          "https://khan-13b09.firebaseapp.com/__/auth/handler",
+          "https://sukoon-ten.vercel.app",
+          "http://localhost:5173"
+        ]
+      }
+    }
+  }
+}

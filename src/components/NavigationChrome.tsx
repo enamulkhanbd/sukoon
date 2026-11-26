@@ -210,6 +210,62 @@ export function TopBarIconButton({
   );
 }
 
+interface TwoLineMenuButtonProps {
+  open: boolean;
+  onClick: () => void;
+  label?: string;
+}
+
+/**
+ * Minimal two-horizontal-line (`=`) hamburger menu trigger that smoothly morphs
+ * into a centered cross (`×`) icon when `open === true` (never three lines).
+ */
+export function TwoLineMenuButton({
+  open,
+  onClick,
+  label,
+}: TwoLineMenuButtonProps) {
+  const ariaLabel = label ?? (open ? 'মেনু বন্ধ করুন' : 'মেনু খুলুন');
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-expanded={open}
+      title={ariaLabel}
+      className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:scale-95 cursor-pointer shrink-0"
+      style={{
+        backgroundColor: open
+          ? 'var(--accent-soft)'
+          : 'color-mix(in srgb, var(--text-primary) 4.5%, transparent)',
+        color: open ? 'var(--accent)' : 'var(--text-secondary)',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="relative w-[17px] h-[17px] block pointer-events-none"
+      >
+        <span
+          className="absolute inset-x-0 top-1/2 -mt-[0.9px] h-[1.8px] rounded-full bg-current transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            transform: open
+              ? 'translateY(0px) rotate(45deg)'
+              : 'translateY(-3.2px) rotate(0deg)',
+          }}
+        />
+        <span
+          className="absolute inset-x-0 top-1/2 -mt-[0.9px] h-[1.8px] rounded-full bg-current transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          style={{
+            transform: open
+              ? 'translateY(0px) rotate(-45deg)'
+              : 'translateY(3.2px) rotate(0deg)',
+          }}
+        />
+      </span>
+    </button>
+  );
+}
+
 export interface UnderlineTabOption<T extends string> {
   id: T;
   label: string;
@@ -226,6 +282,8 @@ interface UnderlineTabsProps<T extends string> {
 
 /**
  * Plain, minimal editorial underline tab bar (zero box/pill clutter).
+ * Uses content-aware flex distribution when 4+ tabs are shown so narrow 360px
+ * mobile viewports never truncate multi-word Bangla tab labels.
  */
 export function UnderlineTabs<T extends string>({
   tabs,
@@ -234,11 +292,18 @@ export function UnderlineTabs<T extends string>({
   ariaLabel,
   accentColor = 'var(--accent)',
 }: UnderlineTabsProps<T>) {
+  const isDense = tabs.length >= 4;
   return (
     <div
-      className="grid border-b"
+      className={
+        isDense
+          ? 'flex items-center justify-between border-b overflow-x-auto no-scrollbar'
+          : 'grid border-b'
+      }
       style={{
-        gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+        ...(isDense
+          ? {}
+          : { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }),
         borderColor: 'var(--border-subtle)',
       }}
       role="tablist"
@@ -253,12 +318,16 @@ export function UnderlineTabs<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(tab.id)}
-            className="relative py-2.5 px-1 text-xs font-medium transition-colors cursor-pointer flex items-center justify-center gap-1 min-w-0"
+            className={`relative py-2.5 transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+              isDense
+                ? 'flex-auto px-1.5 text-[11.5px] sm:text-xs font-medium whitespace-nowrap shrink-0'
+                : 'px-1 text-xs font-medium min-w-0'
+            }`}
             style={{
               color: active ? accentColor : 'var(--text-muted)',
             }}
           >
-            <span className="truncate">{tab.label}</span>
+            <span className={isDense ? '' : 'truncate'}>{tab.label}</span>
             {tab.count !== undefined && (
               <span className="text-[11px] font-medium tabular-nums opacity-70 shrink-0">
                 {tab.count}
@@ -266,7 +335,9 @@ export function UnderlineTabs<T extends string>({
             )}
             {active && (
               <span
-                className="absolute inset-x-3 sm:inset-x-6 bottom-0 h-[2px] rounded-full"
+                className={`absolute bottom-0 h-[2px] rounded-full ${
+                  isDense ? 'inset-x-1.5 sm:inset-x-4' : 'inset-x-3 sm:inset-x-6'
+                }`}
                 style={{ backgroundColor: accentColor }}
               />
             )}

@@ -14,15 +14,13 @@ import {
   X,
 } from 'lucide-react';
 import {
-  DUA_CHAPTER_MAP,
-  DUA_CHAPTERS,
-  DUA_MAP,
-  DUAS,
   RUQYAH_QURAN_ITEM_IDS,
   SALAH_COMMON_DUA_IDS,
   SALAH_FAJR_SPECIAL_IDS,
   SALAH_MAGHRIB_SPECIAL_IDS,
+  type DuaItem,
 } from '../data/duas';
+import type { ActiveRoutineTemplate } from '../data/cmsTypes';
 import { SURAH_MAP, SURAHS } from '../data/surahs';
 import {
   computeRoutineProgressMetrics,
@@ -40,6 +38,15 @@ import {
 } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import {
+  useDuasCatalog,
+  useRoutineTemplates,
+} from '../services/contentCatalog';
+import {
+  isCustomDuaId,
+  searchCustomDuas,
+  useCustomDuas,
+} from '../services/customDuas';
+import {
   DAY_SHORT_BN,
   formatNormalizedRoutineItemLabel,
   formatRoutineSummaryBn,
@@ -49,6 +56,7 @@ import { searchDuas, searchSurahs } from '../utils/searchEngine';
 import {
   SoftSearchInput,
   TabHeader,
+  TwoLineMenuButton,
   UnderlineTabs,
   useBottomSheet,
 } from './NavigationChrome';
@@ -124,19 +132,49 @@ function createDraftDuaItem(duaId: string, targetCount: number): DraftDuaItem {
 
 interface RoutinesViewProps {
   settings: Settings;
+  menuOpen: boolean;
+  onOpenMenu: () => void;
   onOpenRoutineDetails: (routine: Routine) => void;
   shouldOpenCreate?: boolean;
   onHandledCreate?: () => void;
+  highlightTemplateId?: string | null;
+  onClearHighlightTemplate?: () => void;
 }
 
 export function RoutinesView({
   settings,
+  menuOpen,
+  onOpenMenu,
   onOpenRoutineDetails,
   shouldOpenCreate = false,
   onHandledCreate,
+  highlightTemplateId = null,
+  onClearHighlightTemplate,
 }: RoutinesViewProps) {
   const toast = useToast();
   const clock = useIslamicClock(settings);
+  const {
+    version: catalogVersion,
+    chapters: DUA_CHAPTERS,
+    chapterMap: DUA_CHAPTER_MAP,
+    duas: DUAS,
+    duaMap: DUA_MAP,
+  } = useDuasCatalog();
+  const {
+    customDuaItems,
+    customDuaMap,
+    version: customVersion,
+  } = useCustomDuas();
+  const lookupDua = (duaId: string) =>
+    isCustomDuaId(duaId) ? customDuaMap[duaId] : DUA_MAP[duaId];
+  const { templates: routineTemplates, templateMap: routineTemplateMap } =
+    useRoutineTemplates();
+  const [previewTemplate, setPreviewTemplate] =
+    useState<ActiveRoutineTemplate | null>(null);
+  const [updateCandidate, setUpdateCandidate] = useState<{
+    routine: Routine;
+    template: ActiveRoutineTemplate;
+  } | null>(null);
   const routines = useLiveQuery(
     () => db.routines.orderBy('createdAt').toArray(),
     []
@@ -184,7 +222,7 @@ export function RoutinesView({
   const [pickerTab, setPickerTab] = useState<'surah' | 'dua'>('surah');
   const [pickerQuery, setPickerQuery] = useState('');
   const [expandedDuaCategoryId, setExpandedDuaCategoryId] = useState<
-    number | null
+    number | 'custom' | null
   >(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -277,7 +315,7 @@ export function RoutinesView({
   };
 
   const addDuaItem = (duaId: string) => {
-    const dua = DUA_MAP[duaId];
+    const dua = lookupDua(duaId);
     if (!dua) return;
     setItems((prev) => [
       ...prev,
@@ -295,7 +333,7 @@ export function RoutinesView({
     setItems((prev) =>
       prev.filter((it) => !(it.kind === 'dua' && it.duaId === duaId))
     );
-    const name = DUA_MAP[duaId]?.titleBangla ?? 'দুআ';
+    const name = lookupDua(duaId)?.titleBangla ?? 'দুআ';
     toast.info(`“${name}” তালিকা থেকে সরানো হয়েছে`);
   };
 
@@ -315,7 +353,7 @@ export function RoutinesView({
     setItems((prev) => [
       ...prev,
       ...toAdd.map((id) =>
-        createDraftDuaItem(id, Math.max(1, DUA_MAP[id]?.repeatCount ?? 1))
+        createDraftDuaItem(id, Math.max(1, lookupDua(id)?.repeatCount ?? 1))
       ),
     ]);
     toast.success(`${toBanglaDigits(toAdd.length)}টি ${groupLabel} যুক্ত হয়েছে`);
@@ -327,7 +365,7 @@ export function RoutinesView({
     if (removed) {
       const name =
         removed.kind === 'dua'
-          ? DUA_MAP[removed.duaId]?.titleBangla ?? 'দুআ'
+          ? lookupDua(removed.duaId)?.titleBangla ?? 'দুআ'
           : SURAH_MAP[removed.surahId]?.nameBangla ?? 'সূরা';
       toast.info(`${name} তালিকা থেকে সরানো হয়েছে`);
     }
@@ -420,7 +458,7 @@ export function RoutinesView({
       prev.map((item, i) => {
         if (i !== index || item.kind !== 'dua') return item;
         const parsed = parseAyahNumberInput(item.countText);
-        const clamped = Math.min(Math.max(parsed ?? item.targetCount, 1), 1000);
+        const clamped = Math.min(Math.max(parsed ?? item.targetCount, 1), 10000);
         return {
           ...item,
           targetCount: clamped,
@@ -462,11 +500,11 @@ export function RoutinesView({
 
     for (const item of items) {
       if (item.kind === 'dua') {
-        const dua = DUA_MAP[item.duaId];
+        const dua = lookupDua(item.duaId);
         if (!dua) continue;
         const count = parseAyahNumberInput(item.countText);
-        if (count === null || count < 1 || count > 1000) {
-          const msg = `${dua.titleBangla}: সঠিক সংখ্যা দিন (১–১০০০)।`;
+        if (count === null || count < 1 || count > 10000) {
+          const msg = `${dua.titleBangla}: সঠিক সংখ্যা দিন (১–১০,০০০)।`;
           setFormError(msg);
           toast.warning(msg);
           return;
@@ -505,15 +543,23 @@ export function RoutinesView({
       }
     }
 
+    const nowTs = Date.now();
     const routine: Routine = {
-      id: editingRoutine ? editingRoutine.id : `routine-${Date.now()}`,
+      id: editingRoutine ? editingRoutine.id : `routine-${nowTs}`,
       title: trimmed,
       assignedDays,
       surahIds: validatedItems
         .filter((i): i is Exclude<RoutineItem, { kind: 'dua' }> => !isDuaRoutineItem(i))
         .map((i) => i.surahId),
       items: validatedItems,
-      createdAt: editingRoutine ? editingRoutine.createdAt : Date.now(),
+      ...(editingRoutine?.sourceTemplateId
+        ? {
+            sourceTemplateId: editingRoutine.sourceTemplateId,
+            sourceTemplateVersion: editingRoutine.sourceTemplateVersion,
+          }
+        : {}),
+      createdAt: editingRoutine ? editingRoutine.createdAt : nowTs,
+      updatedAt: nowTs,
     };
 
     await db.routines.put(routine);
@@ -521,77 +567,113 @@ export function RoutinesView({
     // Recalculate existing progress if routine items changed
     const existingProg = await db.routineProgress.get(routine.id);
     if (existingProg) {
-      const normalized = getRoutineItems(routine);
-      const oldItems = editingRoutine ? getRoutineItems(editingRoutine) : [];
-      const oldCompleted = editingRoutine
-        ? getCompletedItemIndexes(editingRoutine, existingProg)
-        : [];
-
-      const remappedCompleted: number[] = [];
-      const usedNew = new Set<number>();
-      for (const oldIdx of oldCompleted) {
-        const oldIt = oldItems[oldIdx];
-        if (!oldIt) continue;
-        const matchedNewIdx = normalized.findIndex((newIt, idx) => {
-          if (usedNew.has(idx)) return false;
-          if (oldIt.kind === 'dua' && newIt.kind === 'dua') {
-            return oldIt.duaId === newIt.duaId;
-          }
-          if (oldIt.kind === 'surah' && newIt.kind === 'surah') {
-            return (
-              oldIt.surahId === newIt.surahId &&
-              oldIt.startAyah === newIt.startAyah &&
-              oldIt.endAyah === newIt.endAyah
-            );
-          }
-          return false;
-        });
-        if (matchedNewIdx !== -1) {
-          usedNew.add(matchedNewIdx);
-          remappedCompleted.push(matchedNewIdx);
-        }
-      }
-      remappedCompleted.sort((a, b) => a - b);
-
-      let matchedLastIdx = -1;
-      if (existingProg.lastReadDuaId) {
-        matchedLastIdx = normalized.findIndex(
-          (it) => it.kind === 'dua' && it.duaId === existingProg.lastReadDuaId
-        );
-      } else if (existingProg.lastReadSurah > 0) {
-        matchedLastIdx = normalized.findIndex(
-          (it) =>
-            it.kind === 'surah' &&
-            it.surahId === existingProg.lastReadSurah &&
-            existingProg.lastReadAyah >= it.startAyah &&
-            existingProg.lastReadAyah <= it.endAyah
-        );
-      }
-
-      if (matchedLastIdx === -1 && remappedCompleted.length === 0) {
+      if (
+        !isRoutineProgressCurrent(
+          existingProg,
+          clock.islamicDayKey,
+          settings.fastingLocation,
+          settings.fastingMethod
+        )
+      ) {
         await db.routineProgress.delete(routine.id);
       } else {
-        const partialSurah =
-          matchedLastIdx !== -1 &&
-          normalized[matchedLastIdx]?.kind === 'surah' &&
-          !remappedCompleted.includes(matchedLastIdx)
-            ? { itemIndex: matchedLastIdx, ayahNumber: existingProg.lastReadAyah }
-            : undefined;
-        const { completedUnits, totalUnits, percentage } =
-          computeRoutineProgressMetrics(routine, remappedCompleted, partialSurah);
+        const normalized = getRoutineItems(routine);
+        const oldItems = editingRoutine ? getRoutineItems(editingRoutine) : [];
+        const oldCompleted = editingRoutine
+          ? getCompletedItemIndexes(editingRoutine, existingProg)
+          : [];
+        const oldCompletedSet = new Set(oldCompleted);
 
-        await db.routineProgress.update(routine.id, {
-          lastReadItemIndex: matchedLastIdx !== -1 ? matchedLastIdx : undefined,
-          lastReadSurah: matchedLastIdx !== -1 ? existingProg.lastReadSurah : 0,
-          lastReadAyah: matchedLastIdx !== -1 ? existingProg.lastReadAyah : 0,
-          lastReadDuaId: matchedLastIdx !== -1 ? existingProg.lastReadDuaId : undefined,
-          lastItemCompleted:
-            matchedLastIdx !== -1 && remappedCompleted.includes(matchedLastIdx),
-          completedItemIndexes: remappedCompleted,
-          completedAyahsCount: completedUnits,
-          totalAyahsCount: totalUnits,
-          percentage,
-        });
+        const remappedCompleted: number[] = [];
+        const remappedEarnedDhikir: Record<string, number> = {};
+        const remappedEarnedDuas: Record<string, number> = {};
+        const remappedEarnedAyahs: Record<string, number> = {};
+        const remappedManualGranted: NonNullable<typeof existingProg.manualGrantedByItem> = {};
+        const usedNew = new Set<number>();
+
+        for (let oldIdx = 0; oldIdx < oldItems.length; oldIdx++) {
+          const oldIt = oldItems[oldIdx];
+          if (!oldIt) continue;
+          const matchedNewIdx = normalized.findIndex((newIt, idx) => {
+            if (usedNew.has(idx)) return false;
+            if (oldIt.kind === 'dua' && newIt.kind === 'dua') {
+              return oldIt.duaId === newIt.duaId;
+            }
+            if (oldIt.kind === 'surah' && newIt.kind === 'surah') {
+              return (
+                oldIt.surahId === newIt.surahId &&
+                oldIt.startAyah === newIt.startAyah &&
+                oldIt.endAyah === newIt.endAyah
+              );
+            }
+            return false;
+          });
+          if (matchedNewIdx === -1) continue;
+          usedNew.add(matchedNewIdx);
+          const oldKey = String(oldIdx);
+          const newKey = String(matchedNewIdx);
+          if (oldCompletedSet.has(oldIdx)) {
+            remappedCompleted.push(matchedNewIdx);
+          }
+          if (existingProg.itemEarnedDhikir?.[oldKey]) {
+            remappedEarnedDhikir[newKey] = existingProg.itemEarnedDhikir[oldKey];
+          }
+          if (existingProg.itemEarnedDuas?.[oldKey]) {
+            remappedEarnedDuas[newKey] = existingProg.itemEarnedDuas[oldKey];
+          }
+          if (existingProg.itemEarnedAyahs?.[oldKey]) {
+            remappedEarnedAyahs[newKey] = existingProg.itemEarnedAyahs[oldKey];
+          }
+          if (existingProg.manualGrantedByItem?.[oldKey]) {
+            remappedManualGranted[newKey] = existingProg.manualGrantedByItem[oldKey];
+          }
+        }
+        remappedCompleted.sort((a, b) => a - b);
+
+        let matchedLastIdx = -1;
+        if (existingProg.lastReadDuaId) {
+          matchedLastIdx = normalized.findIndex(
+            (it) => it.kind === 'dua' && it.duaId === existingProg.lastReadDuaId
+          );
+        } else if (existingProg.lastReadSurah > 0) {
+          matchedLastIdx = normalized.findIndex(
+            (it) =>
+              it.kind === 'surah' &&
+              it.surahId === existingProg.lastReadSurah &&
+              existingProg.lastReadAyah >= it.startAyah &&
+              existingProg.lastReadAyah <= it.endAyah
+          );
+        }
+
+        if (matchedLastIdx === -1 && remappedCompleted.length === 0) {
+          await db.routineProgress.delete(routine.id);
+        } else {
+          const partialSurah =
+            matchedLastIdx !== -1 &&
+            normalized[matchedLastIdx]?.kind === 'surah' &&
+            !remappedCompleted.includes(matchedLastIdx)
+              ? { itemIndex: matchedLastIdx, ayahNumber: existingProg.lastReadAyah }
+              : undefined;
+          const { completedUnits, totalUnits, percentage } =
+            computeRoutineProgressMetrics(routine, remappedCompleted, partialSurah);
+
+          await db.routineProgress.update(routine.id, {
+            lastReadItemIndex: matchedLastIdx !== -1 ? matchedLastIdx : undefined,
+            lastReadSurah: matchedLastIdx !== -1 ? existingProg.lastReadSurah : 0,
+            lastReadAyah: matchedLastIdx !== -1 ? existingProg.lastReadAyah : 0,
+            lastReadDuaId: matchedLastIdx !== -1 ? existingProg.lastReadDuaId : undefined,
+            lastItemCompleted:
+              matchedLastIdx !== -1 && remappedCompleted.includes(matchedLastIdx),
+            completedItemIndexes: remappedCompleted,
+            itemEarnedDhikir: remappedEarnedDhikir,
+            itemEarnedDuas: remappedEarnedDuas,
+            itemEarnedAyahs: remappedEarnedAyahs,
+            manualGrantedByItem: remappedManualGranted,
+            completedAyahsCount: completedUnits,
+            totalAyahsCount: totalUnits,
+            percentage,
+          });
+        }
       }
     }
 
@@ -622,14 +704,118 @@ export function RoutinesView({
     return searchSurahs(trimmed).map((r) => r.surah);
   }, [pickerQuery]);
 
+  useEffect(() => {
+    if (highlightTemplateId && routineTemplateMap[highlightTemplateId]) {
+      setPreviewTemplate(routineTemplateMap[highlightTemplateId]);
+      onClearHighlightTemplate?.();
+    }
+  }, [highlightTemplateId, routineTemplateMap, onClearHighlightTemplate]);
+
+  const adoptedTemplateIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of routines ?? []) {
+      if (r.sourceTemplateId) set.add(r.sourceTemplateId);
+    }
+    return set;
+  }, [routines]);
+
+  const templateToRoutineItems = (
+    tpl: ActiveRoutineTemplate
+  ): { items: RoutineItem[]; surahIds: number[] } => {
+    const normalizedItems: RoutineItem[] = [];
+    const surahIds: number[] = [];
+    for (const raw of tpl.items) {
+      if (raw.kind === 'dua' && raw.duaId) {
+        normalizedItems.push({
+          kind: 'dua',
+          duaId: raw.duaId,
+          targetCount: raw.targetCount,
+        });
+      } else if (typeof raw.surahId === 'number' && SURAH_MAP[raw.surahId]) {
+        normalizedItems.push({
+          kind: 'surah',
+          surahId: raw.surahId,
+          startAyah: raw.startAyah,
+          endAyah: raw.endAyah,
+        });
+        if (!surahIds.includes(raw.surahId)) surahIds.push(raw.surahId);
+      }
+    }
+    return { items: normalizedItems, surahIds };
+  };
+
+  const handleAdoptTemplate = async (
+    tpl: ActiveRoutineTemplate,
+    openEditorAfter = false
+  ) => {
+    const { items: tplItems, surahIds } = templateToRoutineItems(tpl);
+    if (tplItems.length === 0) {
+      toast.warning('এই টেমপ্লেটে কোনো বৈধ আইটেম পাওয়া যায়নি।');
+      return;
+    }
+    const nowTs = Date.now();
+    const newRoutine: Routine = {
+      id: `routine-${nowTs}-${Math.random().toString(36).slice(2, 6)}`,
+      title: tpl.title,
+      assignedDays: [...tpl.assignedDays],
+      surahIds,
+      items: tplItems,
+      sourceTemplateId: tpl.id,
+      sourceTemplateVersion: tpl.version,
+      createdAt: nowTs,
+      updatedAt: nowTs,
+    };
+    await db.routines.put(newRoutine);
+    setPreviewTemplate(null);
+    toast.success(`“${tpl.title}” আপনার রুটিনে যুক্ত হয়েছে`);
+    if (openEditorAfter) {
+      openEditModal(newRoutine);
+    }
+  };
+
+  const handleApplyTemplateUpdate = async (
+    routine: Routine,
+    tpl: ActiveRoutineTemplate
+  ) => {
+    const { items: tplItems, surahIds } = templateToRoutineItems(tpl);
+    await db.routines.put({
+      ...routine,
+      surahIds,
+      items: tplItems,
+      sourceTemplateVersion: tpl.version,
+      updatedAt: Date.now(),
+    });
+    setUpdateCandidate(null);
+    toast.success(`“${routine.title}” নতুন ভার্সনে আপডেট হয়েছে`);
+  };
+
+  const handleDismissTemplateUpdate = async (
+    routine: Routine,
+    tpl: ActiveRoutineTemplate
+  ) => {
+    await db.routines.put({
+      ...routine,
+      sourceTemplateVersion: tpl.version,
+      updatedAt: Date.now(),
+    });
+    setUpdateCandidate(null);
+    toast.info('আপনার কাস্টম রুটিনটি অপরিবর্তিত রাখা হয়েছে।');
+  };
+
+  const filteredCustomDuas = useMemo(() => {
+    const trimmed = pickerQuery.trim();
+    if (!trimmed) return customDuaItems;
+    return searchCustomDuas(trimmed, customDuaItems);
+  }, [pickerQuery, customDuaItems, customVersion]);
+
   const filteredDuas = useMemo(() => {
     const trimmed = pickerQuery.trim();
     if (!trimmed) return DUAS;
     return searchDuas(trimmed).map((r) => r.dua);
-  }, [pickerQuery]);
+  }, [pickerQuery, DUAS, catalogVersion]);
 
   const groupedDuaCategories = useMemo(() => {
-    const byChapter = new Map<number, typeof DUAS>();
+    const byChapter = new Map<number, DuaItem[]>();
     for (const dua of filteredDuas) {
       const list = byChapter.get(dua.chapterId);
       if (list) {
@@ -642,7 +828,7 @@ export function RoutinesView({
       chapter: ch,
       duas: byChapter.get(ch.id) ?? [],
     })).filter((group) => group.duas.length > 0);
-  }, [filteredDuas]);
+  }, [filteredDuas, DUA_CHAPTERS]);
 
   const draftSummary = useMemo(
     () =>
@@ -670,21 +856,24 @@ export function RoutinesView({
       >
         <div className="max-w-2xl mx-auto px-5 pt-5 pb-6">
           <TabHeader
-            title="তিলাওয়াত রুটিন"
+            title="আমলের রুটিন"
             subtitle="দৈনিক বা সাপ্তাহিক আমলের জন্য কাস্টম সূরা ও দুআর তালিকা তৈরি করুন"
             rightAction={
-              <button
-                type="button"
-                onClick={openCreateModal}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
-                style={{
-                  backgroundColor: 'var(--accent)',
-                  color: 'var(--accent-text)',
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                নতুন রুটিন
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={openCreateModal}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium transition-opacity active:opacity-85 cursor-pointer shrink-0"
+                  style={{
+                    backgroundColor: 'var(--accent)',
+                    color: 'var(--accent-text)',
+                  }}
+                >
+                  <Plus className="w-4 h-4" />
+                  নতুন রুটিন
+                </button>
+                <TwoLineMenuButton open={menuOpen} onClick={onOpenMenu} />
+              </div>
             }
           />
         </div>
@@ -692,6 +881,122 @@ export function RoutinesView({
 
       {/* Open Editorial Canvas Below (Zero Boxes) */}
       <div className="max-w-2xl mx-auto px-5 pt-5">
+        {/* Suggested / Admin-Published Routine Templates (Top of List) */}
+        {routineTemplates.length > 0 && (
+          <section
+            className="mb-6 pb-6 border-b space-y-4"
+            style={{
+              borderColor:
+                'color-mix(in srgb, var(--border-subtle) 70%, transparent)',
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                  সাজেস্টেড রুটিন
+                </h2>
+                <p
+                  className="text-xs mt-0.5"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  ১ ট্যাপে নিজের রুটিনে যোগ করে নিজের মতো সাজিয়ে নিন
+                </p>
+              </div>
+              <span
+                className="text-[11px] tabular-nums"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {toBanglaDigits(routineTemplates.length)}টি
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {routineTemplates.map((tpl) => {
+                const isAdopted = adoptedTemplateIds.has(tpl.id);
+                const { items: tplItems } = templateToRoutineItems(tpl);
+                const summary = getRoutineSummaryCounts(tplItems);
+                return (
+                  <div
+                    key={tpl.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setPreviewTemplate(tpl)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setPreviewTemplate(tpl);
+                      }
+                    }}
+                    className="rounded-2xl p-4 border space-y-2 transition-opacity active:opacity-80 cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      borderColor: 'var(--border-subtle)',
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {tpl.seasonTag && (
+                            <span
+                              className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                              style={{
+                                backgroundColor: 'var(--gold-soft)',
+                                color: 'var(--gold)',
+                              }}
+                            >
+                              {tpl.seasonTag}
+                            </span>
+                          )}
+                          {isAdopted && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                              style={{
+                                backgroundColor: 'var(--accent-soft)',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              <Check className="w-2.5 h-2.5" />
+                              যোগ করা আছে
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-sm font-semibold leading-snug">
+                          {tpl.title}
+                        </h3>
+                        {tpl.description && (
+                          <p
+                            className="text-xs line-clamp-2 leading-relaxed"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            {tpl.description}
+                          </p>
+                        )}
+                      </div>
+                      <ChevronRight
+                        className="w-4 h-4 shrink-0 mt-1"
+                        style={{ color: 'var(--text-muted)' }}
+                      />
+                    </div>
+                    <p
+                      className="text-[11px]"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {tpl.assignedDays.length === 7
+                        ? 'প্রতিদিন'
+                        : tpl.assignedDays.length === 0
+                          ? 'ম্যানুয়াল'
+                          : tpl.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ')}
+                      {' • '}
+                      {formatRoutineSummaryBn(summary)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {(routines ?? []).length === 0 ? (
           <div className="py-12 text-center space-y-3">
             <div className="space-y-1">
@@ -748,9 +1053,35 @@ export function RoutinesView({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="font-semibold text-base truncate">
-                        {routine.title}
-                      </h2>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="font-semibold text-base truncate">
+                          {routine.title}
+                        </h2>
+                        {routine.sourceTemplateId &&
+                          routineTemplateMap[routine.sourceTemplateId] &&
+                          routineTemplateMap[routine.sourceTemplateId].version >
+                            (routine.sourceTemplateVersion ?? 0) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUpdateCandidate({
+                                  routine,
+                                  template:
+                                    routineTemplateMap[routine.sourceTemplateId!],
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer transition-opacity active:opacity-75"
+                              style={{
+                                backgroundColor: 'var(--accent-soft)',
+                                color: 'var(--accent)',
+                              }}
+                            >
+                              <Sparkles className="w-2.5 h-2.5" />
+                              আপডেট আছে
+                            </button>
+                          )}
+                      </div>
                       <p
                         className="text-xs mt-0.5"
                         style={{ color: 'var(--text-secondary)' }}
@@ -857,6 +1188,182 @@ export function RoutinesView({
           </div>
         )}
       </div>
+
+      {/* Template Preview & Adopt Modal */}
+      {previewTemplate && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-[2px]"
+          style={{ backgroundColor: 'var(--backdrop-scrim)' }}
+          onClick={() => setPreviewTemplate(null)}
+        >
+          <div
+            className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl border p-5 max-h-[85dvh] flex flex-col gap-4"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                {previewTemplate.seasonTag && (
+                  <span
+                    className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    style={{
+                      backgroundColor: 'var(--gold-soft)',
+                      color: 'var(--gold)',
+                    }}
+                  >
+                    {previewTemplate.seasonTag}
+                  </span>
+                )}
+                <h3 className="text-base font-semibold leading-snug">
+                  {previewTemplate.title}
+                </h3>
+                {previewTemplate.description && (
+                  <p
+                    className="text-xs leading-relaxed"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    {previewTemplate.description}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="বন্ধ করুন"
+                onClick={() => setPreviewTemplate(null)}
+                className="p-1.5 rounded-full cursor-pointer"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-1.5 pr-1">
+              {getRoutineItems({
+                surahIds: [],
+                items: templateToRoutineItems(previewTemplate).items,
+              }).map((it, idx) => (
+                <div
+                  key={idx}
+                  className="px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-2"
+                  style={{ backgroundColor: 'var(--bg-surface)' }}
+                >
+                  <span className="font-medium">
+                    {toBanglaDigits(idx + 1)}. {formatNormalizedRoutineItemLabel(it)}
+                  </span>
+                  <span
+                    className="text-[10px] shrink-0"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    {it.kind === 'dua' ? 'দুআ' : 'সূরা'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t"
+              style={{ borderColor: 'var(--border-subtle)' }}
+            >
+              <button
+                type="button"
+                onClick={() => void handleAdoptTemplate(previewTemplate, true)}
+                className="px-4 py-2 rounded-full text-xs font-medium border cursor-pointer transition-opacity active:opacity-80"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-subtle)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                যোগ করে এডিট করুন
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAdoptTemplate(previewTemplate, false)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium cursor-pointer transition-opacity active:opacity-85"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  color: 'var(--accent-text)',
+                }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                আমার রুটিনে যোগ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Non-Destructive Template Update Confirmation Modal */}
+      {updateCandidate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]"
+          style={{ backgroundColor: 'var(--backdrop-scrim)' }}
+          onClick={() => setUpdateCandidate(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border p-5 space-y-4"
+            style={{
+              backgroundColor: 'var(--bg-elevated)',
+              borderColor: 'var(--border-subtle)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1">
+              <p
+                className="text-[11px] font-semibold"
+                style={{ color: 'var(--accent)' }}
+              >
+                টেমপ্লেট আপডেট (ভার্সন {toBanglaDigits(updateCandidate.template.version)})
+              </p>
+              <h3 className="text-base font-semibold">
+                “{updateCandidate.routine.title}” আপডেট করবেন?
+              </h3>
+              <p
+                className="text-xs leading-relaxed"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                সাজেস্টেড রুটিনটির নতুন ভার্সন প্রকাশিত হয়েছে। আপডেট করলে সূরা ও দুআর তালিকা নতুন ভার্সন অনুযায়ী সাজানো হবে; আপনার নিজের কাস্টমাইজেশন রাখতে চাইলে “এখন না” চাপুন।
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void handleDismissTemplateUpdate(
+                    updateCandidate.routine,
+                    updateCandidate.template
+                  )
+                }
+                className="px-3.5 py-2 rounded-full text-xs font-medium border cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-subtle)',
+                }}
+              >
+                নিজেরটা রাখুন
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void handleApplyTemplateUpdate(
+                    updateCandidate.routine,
+                    updateCandidate.template
+                  )
+                }
+                className="px-4 py-2 rounded-full text-xs font-medium cursor-pointer"
+                style={{
+                  backgroundColor: 'var(--accent)',
+                  color: 'var(--accent-text)',
+                }}
+              >
+                নতুন ভার্সনে আপডেট করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create / Edit Routine Bottom Sheet (-72px from top over dimmed overlay) */}
       {sheetMounted && (
@@ -1022,9 +1529,12 @@ export function RoutinesView({
                   <div className="space-y-2">
                     {items.map((item, idx) => {
                       if (item.kind === 'dua') {
-                        const dua = DUA_MAP[item.duaId];
+                        const dua = lookupDua(item.duaId);
                         if (!dua) return null;
-                        const ch = DUA_CHAPTER_MAP[dua.chapterId];
+                        const isCustom = isCustomDuaId(dua.id);
+                        const ch = isCustom
+                          ? undefined
+                          : DUA_CHAPTER_MAP[dua.chapterId];
                         return (
                           <div
                             key={item.uid}
@@ -1074,7 +1584,9 @@ export function RoutinesView({
                                 className="text-[11px] truncate"
                                 style={{ color: 'var(--text-muted)' }}
                               >
-                                {ch?.titleBangla ?? 'দুআ ও জিকির'}
+                                {isCustom
+                                  ? 'আমার দুআ'
+                                  : ch?.titleBangla ?? 'দুআ ও জিকির'}
                               </span>
                               <div className="flex items-center gap-1.5 text-[11px]">
                                 <span style={{ color: 'var(--text-muted)' }}>পড়ার সংখ্যা:</span>
@@ -1215,7 +1727,11 @@ export function RoutinesView({
                   ariaLabel="সূরা বা দুআ নির্বাচন"
                   tabs={[
                     { id: 'surah', label: 'সূরা', count: toBanglaDigits(SURAHS.length) },
-                    { id: 'dua', label: 'দুআ ও জিকির', count: toBanglaDigits(DUAS.length) },
+                    {
+                      id: 'dua',
+                      label: 'দুআ ও জিকির',
+                      count: toBanglaDigits(DUAS.length + customDuaItems.length),
+                    },
                   ]}
                 />
 
@@ -1310,7 +1826,8 @@ export function RoutinesView({
                         </div>
                       );
                     })
-                  ) : groupedDuaCategories.length === 0 ? (
+                  ) : groupedDuaCategories.length === 0 &&
+                    filteredCustomDuas.length === 0 ? (
                     <div
                       className="px-4 py-8 text-center text-xs"
                       style={{ color: 'var(--text-muted)' }}
@@ -1318,7 +1835,150 @@ export function RoutinesView({
                       কোনো দুআ পাওয়া যায়নি।
                     </div>
                   ) : (
-                    groupedDuaCategories.map(({ chapter, duas }) => {
+                    <>
+                      {/* Clearly Separated Personal "আমার দুআ" Section */}
+                      {filteredCustomDuas.length > 0 && (() => {
+                        const isSearching = pickerQuery.trim().length > 0;
+                        const isCustomExpanded =
+                          isSearching || expandedDuaCategoryId === 'custom';
+                        const customIdsSet = new Set(
+                          filteredCustomDuas.map((d) => d.id)
+                        );
+                        const selectedInCustom = items.filter(
+                          (it) => it.kind === 'dua' && customIdsSet.has(it.duaId)
+                        ).length;
+
+                        return (
+                          <div
+                            className="rounded-2xl overflow-hidden border"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              borderColor:
+                                'color-mix(in srgb, var(--accent) 28%, var(--border-subtle))',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedDuaCategoryId((prev) =>
+                                  prev === 'custom' ? null : 'custom'
+                                )
+                              }
+                              aria-expanded={isCustomExpanded}
+                              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer transition-colors"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold leading-snug flex items-center gap-1.5">
+                                  <Sparkles
+                                    className="w-3.5 h-3.5 shrink-0"
+                                    style={{ color: 'var(--accent)' }}
+                                  />
+                                  <span>আমার দুআ</span>
+                                  <span
+                                    className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                                    style={{
+                                      backgroundColor: 'var(--accent-soft)',
+                                      color: 'var(--accent)',
+                                    }}
+                                  >
+                                    ব্যক্তিগত
+                                  </span>
+                                </div>
+                                <div
+                                  className="text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap"
+                                  style={{ color: 'var(--text-muted)' }}
+                                >
+                                  <span>
+                                    {toBanglaDigits(filteredCustomDuas.length)}টি ব্যক্তিগত দুআ
+                                  </span>
+                                  {selectedInCustom > 0 && (
+                                    <span
+                                      className="font-semibold"
+                                      style={{ color: 'var(--accent)' }}
+                                    >
+                                      • {toBanglaDigits(selectedInCustom)}টি নির্বাচিত
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <ChevronDown
+                                className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                                  isCustomExpanded ? 'rotate-180' : ''
+                                }`}
+                                style={{ color: 'var(--text-muted)' }}
+                              />
+                            </button>
+
+                            {isCustomExpanded && (
+                              <div className="px-2.5 pb-2.5 space-y-1.5">
+                                {filteredCustomDuas.map((dua) => {
+                                  const countInList = items.filter(
+                                    (it) => it.kind === 'dua' && it.duaId === dua.id
+                                  ).length;
+                                  return (
+                                    <div
+                                      key={dua.id}
+                                      className="w-full rounded-xl flex items-center justify-between gap-3 px-3 py-2.5 text-left text-xs transition-colors"
+                                      style={{
+                                        backgroundColor:
+                                          countInList > 0
+                                            ? 'var(--accent-soft)'
+                                            : 'var(--bg-elevated)',
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleDuaInPicker(dua.id)}
+                                        className="flex-1 min-w-0 text-left cursor-pointer space-y-0.5"
+                                      >
+                                        <div className="font-medium leading-snug">
+                                          {dua.titleBangla}
+                                        </div>
+                                        {dua.repeatCount && dua.repeatCount > 1 && (
+                                          <div
+                                            className="text-[11px]"
+                                            style={{ color: 'var(--text-muted)' }}
+                                          >
+                                            {toBanglaDigits(dua.repeatCount)} বার
+                                          </div>
+                                        )}
+                                      </button>
+
+                                      {countInList > 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleDuaInPicker(dua.id)}
+                                          title="তালিকা থেকে সরান"
+                                          className="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full shrink-0 cursor-pointer"
+                                          style={{
+                                            backgroundColor: 'var(--accent)',
+                                            color: 'var(--accent-text)',
+                                          }}
+                                        >
+                                          <Check className="w-3 h-3" />
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => addDuaItem(dua.id)}
+                                          aria-label={`${dua.titleBangla} যুক্ত করুন`}
+                                          className="p-1 cursor-pointer shrink-0"
+                                          style={{ color: 'var(--text-muted)' }}
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {groupedDuaCategories.map(({ chapter, duas }) => {
                       const isSearching = pickerQuery.trim().length > 0;
                       const isExpanded =
                         isSearching || expandedDuaCategoryId === chapter.id;
@@ -1517,7 +2177,8 @@ export function RoutinesView({
                           )}
                         </div>
                       );
-                    })
+                    })}
+                    </>
                   )}
                   </div>
                 </div>

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
-import { DUA_MAP } from '../data/duas';
+import { useDuasCatalog } from '../services/contentCatalog';
+import { isCustomDuaId, useCustomDuas } from '../services/customDuas';
 import { db, type Routine, type Settings } from '../db/database';
 import { useIslamicClock } from '../hooks/useIslamicClock';
 import { toBanglaDigits } from '../utils/formatters';
@@ -75,6 +76,8 @@ function getHeatmapCellColors(level: 0 | 1 | 2 | 3 | 4): {
 }
 
 export function StatsDashboard({ settings }: StatsDashboardProps) {
+  const { duaMap: DUA_MAP } = useDuasCatalog();
+  const { customDuaMap, version: customVersion } = useCustomDuas();
   const clock = useIslamicClock(settings);
   const [period, setPeriod] = useState<StatsPeriod>('weekly');
   const [weekOffset, setWeekOffset] = useState(0);
@@ -198,7 +201,8 @@ export function StatsDashboard({ settings }: StatsDashboardProps) {
 
   const topBreakdowns = useMemo(
     () => computeTopBreakdowns(activeRecords, routinesMap),
-    [activeRecords, routinesMap]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeRecords, routinesMap, customVersion]
   );
 
   const selectedDay: DayMetrics | null = useMemo(() => {
@@ -380,7 +384,10 @@ export function StatsDashboard({ settings }: StatsDashboardProps) {
                   .slice(0, 5)
                   .map((did) => {
                     const cnt = day.record?.duaCounts?.[did] ?? 1;
-                    const title = DUA_MAP[did]?.titleBangla ?? 'দুআ';
+                    const title =
+                      (isCustomDuaId(did)
+                        ? customDuaMap[did]?.titleBangla
+                        : DUA_MAP[did]?.titleBangla) ?? 'দুআ';
                     return cnt > 1 ? `${title} (×${toBanglaDigits(cnt)})` : title;
                   })
                   .join(' • ')}

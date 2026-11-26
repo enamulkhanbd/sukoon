@@ -232,15 +232,17 @@ export function AppMenuDrawer({
         {/* Top Header + Navigation Items */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <div
-            className="px-5 pt-4 pb-4 border-b flex items-center justify-between gap-3 safe-top"
+            className="safe-top border-b"
             style={{ borderColor: 'var(--border-subtle)' }}
           >
-            <SukoonLogo />
-            <TwoLineMenuButton
-              open={visible}
-              onClick={dismissDrawer}
-              label="মেনু বন্ধ করুন"
-            />
+            <div className="px-5 pt-5 pb-4 flex items-center justify-between gap-3">
+              <SukoonLogo />
+              <TwoLineMenuButton
+                open={visible}
+                onClick={dismissDrawer}
+                label="মেনু বন্ধ করুন"
+              />
+            </div>
           </div>
 
           <nav aria-label="মেনু নেভিগেশন" className="px-4 py-4 space-y-1.5">

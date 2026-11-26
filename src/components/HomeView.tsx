@@ -37,7 +37,6 @@ import {
 } from '../utils/fasting';
 import {
   DAY_NAMES_BN,
-  DAY_SHORT_BN,
   normalizeIndoPakText,
   toBanglaDigits,
 } from '../utils/formatters';
@@ -159,9 +158,6 @@ export function HomeView({
   const todaysRoutines = (routines ?? []).filter((r) =>
     r.assignedDays.includes(todayIndex)
   );
-  const otherRoutines = (routines ?? []).filter(
-    (r) => !r.assignedDays.includes(todayIndex)
-  );
 
   const todayCompletedRoutinesCount = todaysRoutines.filter(
     (r) => (progressMap.get(r.id)?.percentage ?? 0) >= 100
@@ -184,7 +180,7 @@ export function HomeView({
   }).format(clock.gregorianDate);
 
   /** Clean minimal routine row with Apple-style circular progress ring (no dead bars or boxes). */
-  const renderRoutineRow = (routine: Routine, isToday: boolean) => {
+  const renderRoutineRow = (routine: Routine) => {
     const prog = progressMap.get(routine.id);
     const items = getRoutineItems(routine);
     const completedItemsCount = getCompletedItemIndexes(routine, prog).length;
@@ -194,13 +190,6 @@ export function HomeView({
     const ringRadius = 11;
     const ringCircumference = 2 * Math.PI * ringRadius;
     const ringOffset = ringCircumference * (1 - Math.min(100, Math.max(0, percentage)) / 100);
-
-    const scheduleLabel =
-      routine.assignedDays.length === 7
-        ? 'প্রতিদিন'
-        : routine.assignedDays.length === 0
-          ? 'ম্যানুয়াল'
-          : routine.assignedDays.map((d) => DAY_SHORT_BN[d]).join(', ');
 
     return (
       <div
@@ -271,7 +260,6 @@ export function HomeView({
               style={{ color: 'var(--text-muted)' }}
             >
               {toBanglaDigits(completedItemsCount)}/{toBanglaDigits(items.length)}টি অংশ সম্পন্ন
-              {!isToday && ` • ${scheduleLabel}`}
             </p>
           </div>
         </div>
@@ -629,7 +617,7 @@ export function HomeView({
           </div>
 
           {todaysRoutines.length > 0 ? (
-            <div>{todaysRoutines.map((r) => renderRoutineRow(r, true))}</div>
+            <div>{todaysRoutines.map((r) => renderRoutineRow(r))}</div>
           ) : (
             <div className="py-4 text-center space-y-1">
               <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
@@ -641,14 +629,6 @@ export function HomeView({
             </div>
           )}
         </section>
-
-        {/* Other / Manual Routines */}
-        {otherRoutines.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-sm font-semibold">অন্যান্য রুটিন</h2>
-            <div>{otherRoutines.map((r) => renderRoutineRow(r, false))}</div>
-          </section>
-        )}
 
         {/* Quiet Offline Footnote */}
         {typeof cachedCount === 'number' && cachedCount < 114 && (

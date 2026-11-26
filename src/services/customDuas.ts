@@ -112,9 +112,19 @@ export async function deleteCustomDua(id: string): Promise<void> {
 
   await db.transaction(
     'rw',
-    [db.customDuas, db.routines, db.routineProgress, db.readingHistory],
+    [db.customDuas, db.routines, db.routineProgress, db.readingHistory, db.settings],
     async () => {
       await db.customDuas.delete(id);
+
+      const currentSettings = await db.settings.get('app');
+      if (currentSettings?.bookmarkedDuaIds?.includes(id)) {
+        await db.settings.put({
+          ...currentSettings,
+          bookmarkedDuaIds: currentSettings.bookmarkedDuaIds.filter((b) => b !== id),
+          userModifiedAt: now,
+        });
+      }
+
       const allRoutines = await db.routines.toArray();
       for (const routine of allRoutines) {
         if (!routine.items?.some((it) => isDuaRoutineItem(it) && it.duaId === id)) {
@@ -164,6 +174,10 @@ export async function deleteCustomDua(id: string): Promise<void> {
             getCompletedItemIndexes(routine, existingProg)
           );
           const remappedCompleted: number[] = [];
+          const remappedEarnedDhikir: Record<string, number> = {};
+          const remappedEarnedDuas: Record<string, number> = {};
+          const remappedEarnedAyahs: Record<string, number> = {};
+          const remappedManualGranted: NonNullable<typeof existingProg.manualGrantedByItem> = {};
           let remappedLastIdx = -1;
           let newIdx = 0;
 
@@ -172,8 +186,22 @@ export async function deleteCustomDua(id: string): Promise<void> {
             if (oldIt.kind === 'dua' && oldIt.duaId === id) {
               continue;
             }
+            const oldKey = String(oldIdx);
+            const newKey = String(newIdx);
             if (oldCompletedSet.has(oldIdx)) {
               remappedCompleted.push(newIdx);
+            }
+            if (existingProg.itemEarnedDhikir?.[oldKey]) {
+              remappedEarnedDhikir[newKey] = existingProg.itemEarnedDhikir[oldKey];
+            }
+            if (existingProg.itemEarnedDuas?.[oldKey]) {
+              remappedEarnedDuas[newKey] = existingProg.itemEarnedDuas[oldKey];
+            }
+            if (existingProg.itemEarnedAyahs?.[oldKey]) {
+              remappedEarnedAyahs[newKey] = existingProg.itemEarnedAyahs[oldKey];
+            }
+            if (existingProg.manualGrantedByItem?.[oldKey]) {
+              remappedManualGranted[newKey] = existingProg.manualGrantedByItem[oldKey];
             }
             if (existingProg.lastReadItemIndex === oldIdx) {
               remappedLastIdx = newIdx;
@@ -219,6 +247,10 @@ export async function deleteCustomDua(id: string): Promise<void> {
                 remappedLastIdx !== -1 &&
                 remappedCompleted.includes(remappedLastIdx),
               completedItemIndexes: remappedCompleted,
+              itemEarnedDhikir: remappedEarnedDhikir,
+              itemEarnedDuas: remappedEarnedDuas,
+              itemEarnedAyahs: remappedEarnedAyahs,
+              manualGrantedByItem: remappedManualGranted,
               completedAyahsCount: completedUnits,
               totalAyahsCount: totalUnits,
               percentage,

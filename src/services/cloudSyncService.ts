@@ -186,6 +186,7 @@ export function useCloudSyncState(): CloudSyncState {
 
 let authInitPromise: Promise<void> | null = null;
 let authUnsubscribe: (() => void) | null = null;
+let cachedAuthLoaded: Awaited<ReturnType<typeof loadFirebaseAuth>> = null;
 let personalHooksAttached = false;
 let autoSyncTimer: number | null = null;
 let syncInFlight = false;
@@ -732,9 +733,13 @@ async function performCloudSync(
         payload: stripUndefinedDeep({
           id: r.id,
           title: r.title.slice(0, 200),
-          assignedDays: r.assignedDays.filter(
-            (day) => Number.isInteger(day) && day >= 0 && day <= 6
-          ),
+          assignedDays: Array.from(
+            new Set(
+              r.assignedDays.filter(
+                (day) => Number.isInteger(day) && day >= 0 && day <= 6
+              )
+            )
+          ).slice(0, 7),
           surahIds: r.surahIds
             .filter((s) => Number.isInteger(s) && s >= 1 && s <= 114)
             .slice(0, 200),
@@ -942,6 +947,7 @@ export async function ensureCloudAuthReady(): Promise<void> {
         updateState({ configured: false, authReady: true });
         return;
       }
+      cachedAuthLoaded = loaded;
       const { auth, authModule } = loaded;
 
       try {
@@ -1057,12 +1063,15 @@ export async function signInWithGoogleForSync(): Promise<{
 
   updateState({ signingIn: true, error: null });
   try {
-    await ensureCloudAuthReady();
-    const loaded = await loadFirebaseAuth();
+    // Use preloaded auth synchronously so signInWithPopup stays inside the user gesture
+    // (critical on iOS/Safari/mobile PWAs to avoid popup-blocked -> cross-origin redirect).
+    const loaded = cachedAuthLoaded ?? (await loadFirebaseAuth());
     if (!loaded) {
       updateState({ signingIn: false });
       return { ok: false, error: 'ক্লাউড লগইন প্রস্তুত করা যায়নি।' };
     }
+    cachedAuthLoaded = loaded;
+    void ensureCloudAuthReady();
 
     const { auth, authModule } = loaded;
     const provider = new authModule.GoogleAuthProvider();

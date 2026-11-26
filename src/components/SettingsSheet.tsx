@@ -96,9 +96,9 @@ export function SettingsSheet({
 
     try {
       const currentState = window.history.state as
-        | { sukoonMenuDrawer?: boolean }
+        | { sukoonMenuDrawer?: boolean; sukoonSearchOverlay?: boolean }
         | null;
-      if (currentState?.sukoonMenuDrawer) {
+      if (currentState?.sukoonMenuDrawer || currentState?.sukoonSearchOverlay) {
         window.history.replaceState(
           { sukoonSettingsSheet: true },
           '',

@@ -458,7 +458,7 @@ export function RoutinesView({
       prev.map((item, i) => {
         if (i !== index || item.kind !== 'dua') return item;
         const parsed = parseAyahNumberInput(item.countText);
-        const clamped = Math.min(Math.max(parsed ?? item.targetCount, 1), 1000);
+        const clamped = Math.min(Math.max(parsed ?? item.targetCount, 1), 10000);
         return {
           ...item,
           targetCount: clamped,
@@ -503,8 +503,8 @@ export function RoutinesView({
         const dua = lookupDua(item.duaId);
         if (!dua) continue;
         const count = parseAyahNumberInput(item.countText);
-        if (count === null || count < 1 || count > 1000) {
-          const msg = `${dua.titleBangla}: সঠিক সংখ্যা দিন (১–১০০০)।`;
+        if (count === null || count < 1 || count > 10000) {
+          const msg = `${dua.titleBangla}: সঠিক সংখ্যা দিন (১–১০,০০০)।`;
           setFormError(msg);
           toast.warning(msg);
           return;
@@ -567,77 +567,113 @@ export function RoutinesView({
     // Recalculate existing progress if routine items changed
     const existingProg = await db.routineProgress.get(routine.id);
     if (existingProg) {
-      const normalized = getRoutineItems(routine);
-      const oldItems = editingRoutine ? getRoutineItems(editingRoutine) : [];
-      const oldCompleted = editingRoutine
-        ? getCompletedItemIndexes(editingRoutine, existingProg)
-        : [];
-
-      const remappedCompleted: number[] = [];
-      const usedNew = new Set<number>();
-      for (const oldIdx of oldCompleted) {
-        const oldIt = oldItems[oldIdx];
-        if (!oldIt) continue;
-        const matchedNewIdx = normalized.findIndex((newIt, idx) => {
-          if (usedNew.has(idx)) return false;
-          if (oldIt.kind === 'dua' && newIt.kind === 'dua') {
-            return oldIt.duaId === newIt.duaId;
-          }
-          if (oldIt.kind === 'surah' && newIt.kind === 'surah') {
-            return (
-              oldIt.surahId === newIt.surahId &&
-              oldIt.startAyah === newIt.startAyah &&
-              oldIt.endAyah === newIt.endAyah
-            );
-          }
-          return false;
-        });
-        if (matchedNewIdx !== -1) {
-          usedNew.add(matchedNewIdx);
-          remappedCompleted.push(matchedNewIdx);
-        }
-      }
-      remappedCompleted.sort((a, b) => a - b);
-
-      let matchedLastIdx = -1;
-      if (existingProg.lastReadDuaId) {
-        matchedLastIdx = normalized.findIndex(
-          (it) => it.kind === 'dua' && it.duaId === existingProg.lastReadDuaId
-        );
-      } else if (existingProg.lastReadSurah > 0) {
-        matchedLastIdx = normalized.findIndex(
-          (it) =>
-            it.kind === 'surah' &&
-            it.surahId === existingProg.lastReadSurah &&
-            existingProg.lastReadAyah >= it.startAyah &&
-            existingProg.lastReadAyah <= it.endAyah
-        );
-      }
-
-      if (matchedLastIdx === -1 && remappedCompleted.length === 0) {
+      if (
+        !isRoutineProgressCurrent(
+          existingProg,
+          clock.islamicDayKey,
+          settings.fastingLocation,
+          settings.fastingMethod
+        )
+      ) {
         await db.routineProgress.delete(routine.id);
       } else {
-        const partialSurah =
-          matchedLastIdx !== -1 &&
-          normalized[matchedLastIdx]?.kind === 'surah' &&
-          !remappedCompleted.includes(matchedLastIdx)
-            ? { itemIndex: matchedLastIdx, ayahNumber: existingProg.lastReadAyah }
-            : undefined;
-        const { completedUnits, totalUnits, percentage } =
-          computeRoutineProgressMetrics(routine, remappedCompleted, partialSurah);
+        const normalized = getRoutineItems(routine);
+        const oldItems = editingRoutine ? getRoutineItems(editingRoutine) : [];
+        const oldCompleted = editingRoutine
+          ? getCompletedItemIndexes(editingRoutine, existingProg)
+          : [];
+        const oldCompletedSet = new Set(oldCompleted);
 
-        await db.routineProgress.update(routine.id, {
-          lastReadItemIndex: matchedLastIdx !== -1 ? matchedLastIdx : undefined,
-          lastReadSurah: matchedLastIdx !== -1 ? existingProg.lastReadSurah : 0,
-          lastReadAyah: matchedLastIdx !== -1 ? existingProg.lastReadAyah : 0,
-          lastReadDuaId: matchedLastIdx !== -1 ? existingProg.lastReadDuaId : undefined,
-          lastItemCompleted:
-            matchedLastIdx !== -1 && remappedCompleted.includes(matchedLastIdx),
-          completedItemIndexes: remappedCompleted,
-          completedAyahsCount: completedUnits,
-          totalAyahsCount: totalUnits,
-          percentage,
-        });
+        const remappedCompleted: number[] = [];
+        const remappedEarnedDhikir: Record<string, number> = {};
+        const remappedEarnedDuas: Record<string, number> = {};
+        const remappedEarnedAyahs: Record<string, number> = {};
+        const remappedManualGranted: NonNullable<typeof existingProg.manualGrantedByItem> = {};
+        const usedNew = new Set<number>();
+
+        for (let oldIdx = 0; oldIdx < oldItems.length; oldIdx++) {
+          const oldIt = oldItems[oldIdx];
+          if (!oldIt) continue;
+          const matchedNewIdx = normalized.findIndex((newIt, idx) => {
+            if (usedNew.has(idx)) return false;
+            if (oldIt.kind === 'dua' && newIt.kind === 'dua') {
+              return oldIt.duaId === newIt.duaId;
+            }
+            if (oldIt.kind === 'surah' && newIt.kind === 'surah') {
+              return (
+                oldIt.surahId === newIt.surahId &&
+                oldIt.startAyah === newIt.startAyah &&
+                oldIt.endAyah === newIt.endAyah
+              );
+            }
+            return false;
+          });
+          if (matchedNewIdx === -1) continue;
+          usedNew.add(matchedNewIdx);
+          const oldKey = String(oldIdx);
+          const newKey = String(matchedNewIdx);
+          if (oldCompletedSet.has(oldIdx)) {
+            remappedCompleted.push(matchedNewIdx);
+          }
+          if (existingProg.itemEarnedDhikir?.[oldKey]) {
+            remappedEarnedDhikir[newKey] = existingProg.itemEarnedDhikir[oldKey];
+          }
+          if (existingProg.itemEarnedDuas?.[oldKey]) {
+            remappedEarnedDuas[newKey] = existingProg.itemEarnedDuas[oldKey];
+          }
+          if (existingProg.itemEarnedAyahs?.[oldKey]) {
+            remappedEarnedAyahs[newKey] = existingProg.itemEarnedAyahs[oldKey];
+          }
+          if (existingProg.manualGrantedByItem?.[oldKey]) {
+            remappedManualGranted[newKey] = existingProg.manualGrantedByItem[oldKey];
+          }
+        }
+        remappedCompleted.sort((a, b) => a - b);
+
+        let matchedLastIdx = -1;
+        if (existingProg.lastReadDuaId) {
+          matchedLastIdx = normalized.findIndex(
+            (it) => it.kind === 'dua' && it.duaId === existingProg.lastReadDuaId
+          );
+        } else if (existingProg.lastReadSurah > 0) {
+          matchedLastIdx = normalized.findIndex(
+            (it) =>
+              it.kind === 'surah' &&
+              it.surahId === existingProg.lastReadSurah &&
+              existingProg.lastReadAyah >= it.startAyah &&
+              existingProg.lastReadAyah <= it.endAyah
+          );
+        }
+
+        if (matchedLastIdx === -1 && remappedCompleted.length === 0) {
+          await db.routineProgress.delete(routine.id);
+        } else {
+          const partialSurah =
+            matchedLastIdx !== -1 &&
+            normalized[matchedLastIdx]?.kind === 'surah' &&
+            !remappedCompleted.includes(matchedLastIdx)
+              ? { itemIndex: matchedLastIdx, ayahNumber: existingProg.lastReadAyah }
+              : undefined;
+          const { completedUnits, totalUnits, percentage } =
+            computeRoutineProgressMetrics(routine, remappedCompleted, partialSurah);
+
+          await db.routineProgress.update(routine.id, {
+            lastReadItemIndex: matchedLastIdx !== -1 ? matchedLastIdx : undefined,
+            lastReadSurah: matchedLastIdx !== -1 ? existingProg.lastReadSurah : 0,
+            lastReadAyah: matchedLastIdx !== -1 ? existingProg.lastReadAyah : 0,
+            lastReadDuaId: matchedLastIdx !== -1 ? existingProg.lastReadDuaId : undefined,
+            lastItemCompleted:
+              matchedLastIdx !== -1 && remappedCompleted.includes(matchedLastIdx),
+            completedItemIndexes: remappedCompleted,
+            itemEarnedDhikir: remappedEarnedDhikir,
+            itemEarnedDuas: remappedEarnedDuas,
+            itemEarnedAyahs: remappedEarnedAyahs,
+            manualGrantedByItem: remappedManualGranted,
+            completedAyahsCount: completedUnits,
+            totalAyahsCount: totalUnits,
+            percentage,
+          });
+        }
       }
     }
 

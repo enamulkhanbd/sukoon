@@ -116,6 +116,11 @@ export function DuasView({
     [settings.bookmarkedDuaIds]
   );
 
+  const savedSystemDuasCount = useMemo(
+    () => DUAS.filter((d) => bookmarkedSet.has(d.id)).length,
+    [DUAS, bookmarkedSet]
+  );
+
   const normalizedQuery = query.trim();
   const normalizedChapterQuery = chapterQuery.trim();
   const isCustomTab = selectedChapterId === null && filter === 'custom';
@@ -462,7 +467,7 @@ export function DuasView({
               {
                 id: 'saved',
                 label: 'সংরক্ষিত',
-                count: toBanglaDigits(bookmarkedSet.size),
+                count: toBanglaDigits(savedSystemDuasCount),
               },
               {
                 id: 'custom',

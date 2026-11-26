@@ -166,11 +166,6 @@ export default function AdminPanelView({
             setDeniedEmail(rejected);
             setUser(null);
             setAuthLoading(false);
-            try {
-              await authModule.signOut(auth);
-            } catch {
-              // Ignore signout cleanup error
-            }
             return;
           }
           setDeniedEmail(null);

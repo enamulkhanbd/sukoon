@@ -152,8 +152,8 @@ export function hasMeaningfulLocalPersonalData(params: {
 }
 
 /**
- * Decides whether a sign-in should auto-merge, auto-pull cleanly, or prompt the user
- * because a different Gmail account was previously synced on this device.
+ * Decides whether an explicit sync should merge, replace clean local data, or
+ * prompt because a different Gmail account was previously synced on this device.
  */
 export function determineSignInSyncDecision(params: {
   newUid: string;

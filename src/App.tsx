@@ -33,11 +33,11 @@ import {
   type Settings,
 } from './db/database';
 import { useIslamicClock } from './hooks/useIslamicClock';
+import { initLocalSyncTracking } from './services/cloudSyncService';
 import {
   hydrateSyncMetaState,
   syncCmsFromFirestore,
 } from './services/cmsSync';
-import { initCloudSyncLifecycle } from './services/cloudSyncService';
 import {
   hydrateCustomDuasFromDb,
   isCustomDuaId,
@@ -110,11 +110,9 @@ export function App() {
       .then(() => setDbReady(true));
   }, []);
 
-  // Optional personal Cloud Sync lifecycle (offline-first, active only when user signs in)
   useEffect(() => {
-    if (!dbReady || route.type === 'admin') return;
-    return initCloudSyncLifecycle();
-  }, [dbReady, route.type]);
+    if (dbReady) initLocalSyncTracking();
+  }, [dbReady]);
 
   // Silent incremental delta sync from Firestore into IndexedDB (startup + reconnect)
   useEffect(() => {

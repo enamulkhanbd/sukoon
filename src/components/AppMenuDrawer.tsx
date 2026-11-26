@@ -174,7 +174,7 @@ export function AppMenuDrawer({
   const handleGoogleSignIn = async () => {
     const res = await signInWithGoogleForSync();
     if (res.ok) {
-      toast.success('Gmail সংযুক্ত হয়েছে • ডেটা সিংক হচ্ছে');
+      toast.success('Gmail সংযুক্ত হয়েছে • সিংক করতে বাটন চাপুন');
     } else if (!res.cancelled && res.error) {
       toast.error(res.error);
     }
@@ -391,7 +391,7 @@ export function AppMenuDrawer({
                       ? 'ক্লাউডে সিংক হচ্ছে...'
                       : cloud.lastSyncedAt
                         ? `সর্বশেষ সিংক: ${formatRelativeTimeBn(cloud.lastSyncedAt)}`
-                        : 'স্বয়ংক্রিয় ক্লাউড সিংক সক্রিয়'}
+                        : 'সিংক বাটন চাপলে ক্লাউডে সিংক হবে'}
                   </span>
                 </div>
 
@@ -469,7 +469,7 @@ export function AppMenuDrawer({
                       className="text-[11.5px] leading-relaxed"
                       style={{ color: 'var(--text-secondary)' }}
                     >
-                      ফোন বদলালেও যেন আপনার নিজের দুআ, রুটিন ও আমলের ধারাবাহিকতা হারিয়ে না যায়—Gmail দিয়ে নিরাপদ ক্লাউড ব্যাকআপ চালু রাখুন।
+                      আপনার ডেটা এই ডিভাইসেই থাকবে। প্রয়োজন হলে Gmail যুক্ত করে সিংক বাটন চাপুন, তাহলেই ক্লাউড ব্যাকআপ হবে।
                     </p>
                   </div>
                 </div>
@@ -506,7 +506,7 @@ export function AppMenuDrawer({
                     <span>
                       {cloud.signingIn
                         ? 'সংযুক্ত হচ্ছে...'
-                        : 'Gmail দিয়ে সিংক চালু করুন'}
+                        : 'Gmail অ্যাকাউন্ট যুক্ত করুন'}
                     </span>
                   </button>
                 ) : (

@@ -48,10 +48,7 @@ import {
 } from './firebase';
 
 const SYNC_META_STORAGE_KEY = 'sukoon-cloud-sync-meta-v1';
-const AUTH_HINT_STORAGE_KEY = 'sukoon-cloud-auth-hint';
 const REDIRECT_PENDING_KEY = 'sukoon-cloud-redirect-pending';
-const AUTO_SYNC_DEBOUNCE_MS = 2200;
-const VISIBILITY_PULL_COOLDOWN_MS = 120_000;
 const FIRESTORE_BATCH_LIMIT = 400;
 
 export interface CloudAuthUser {
@@ -188,32 +185,11 @@ let authInitPromise: Promise<void> | null = null;
 let authUnsubscribe: (() => void) | null = null;
 let cachedAuthLoaded: Awaited<ReturnType<typeof loadFirebaseAuth>> = null;
 let personalHooksAttached = false;
-let autoSyncTimer: number | null = null;
 let syncInFlight = false;
-let queuedSyncAfterFlight = false;
 
-// Track live mutations made while actively synced with the current account
+// Track local changes so the next explicit sync prefers those edits.
 const dirtyHistoryDatesWhileSynced = new Set<string>();
 let dirtySettingsListsWhileSynced = false;
-
-function clearAutoSyncTimer(): void {
-  if (autoSyncTimer !== null && typeof window !== 'undefined') {
-    window.clearTimeout(autoSyncTimer);
-    autoSyncTimer = null;
-  }
-}
-
-function scheduleDebouncedAutoSync(): void {
-  if (typeof window === 'undefined') return;
-  if (!state.user || state.pendingAccountConflict) return;
-  clearAutoSyncTimer();
-  autoSyncTimer = window.setTimeout(() => {
-    autoSyncTimer = null;
-    if (state.user && !state.pendingAccountConflict) {
-      void performCloudSync('merge');
-    }
-  }, AUTO_SYNC_DEBOUNCE_MS);
-}
 
 function ensurePersonalMutationObserver(): void {
   if (personalHooksAttached) return;
@@ -261,11 +237,11 @@ function ensurePersonalMutationObserver(): void {
         }
       }
     }
-
-    if (state.user && !state.pendingAccountConflict) {
-      scheduleDebouncedAutoSync();
-    }
   });
+}
+
+export function initLocalSyncTracking(): void {
+  ensurePersonalMutationObserver();
 }
 
 async function fetchCloudSnapshot(uid: string): Promise<{
@@ -455,12 +431,11 @@ async function performCloudSync(
   const activeUser = state.user;
   if (!activeUser || !isFirebaseConfigured()) return false;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    updateState({ error: 'ইন্টারনেট সংযোগ নেই। অনলাইনে এলে স্বয়ংক্রিয়ভাবে সিংক হবে।' });
+    updateState({ error: 'ইন্টারনেট সংযোগ নেই। অনলাইনে এসে সিংক বাটন চাপুন।' });
     return false;
   }
 
   if (syncInFlight) {
-    queuedSyncAfterFlight = true;
     return false;
   }
 
@@ -854,12 +829,6 @@ async function performCloudSync(
     return false;
   } finally {
     syncInFlight = false;
-    if (queuedSyncAfterFlight && state.user && !state.pendingAccountConflict) {
-      queuedSyncAfterFlight = false;
-      scheduleDebouncedAutoSync();
-    } else {
-      queuedSyncAfterFlight = false;
-    }
   }
 }
 
@@ -880,55 +849,13 @@ function limitNumberMap(
   return out;
 }
 
-async function handleAuthenticatedUser(fbUser: CloudAuthUser): Promise<void> {
-  const [customDuas, routines, readingHistory, globalLastRead, settings] =
-    await Promise.all([
-      db.customDuas.toArray(),
-      db.routines.toArray(),
-      db.readingHistory.toArray(),
-      db.globalLastRead.toArray(),
-      db.settings.get('app'),
-    ]);
-
-  const hasLocalData = hasMeaningfulLocalPersonalData({
-    customDuas,
-    routines,
-    readingHistory,
-    globalLastRead,
-    settings,
-  });
-
-  const decision = determineSignInSyncDecision({
-    newUid: fbUser.uid,
-    lastSyncedUid: syncMeta.lastSyncedUid,
-    lastSyncedEmail: syncMeta.lastSyncedEmail,
-    hasLocalData,
-  });
-
-  if (decision.action === 'prompt-account-switch') {
-    updateState({
-      user: fbUser,
-      authReady: true,
-      pendingAccountConflict: {
-        previousUid: decision.previousUid,
-        previousEmail: decision.previousEmail,
-        newUid: fbUser.uid,
-        newEmail: fbUser.email,
-        newDisplayName: fbUser.displayName,
-      },
-      error: null,
-    });
-    return;
-  }
-
+function handleAuthenticatedUser(fbUser: CloudAuthUser): void {
   updateState({
     user: fbUser,
     authReady: true,
     pendingAccountConflict: null,
     error: null,
   });
-
-  await performCloudSync(decision.action);
 }
 
 export async function ensureCloudAuthReady(): Promise<void> {
@@ -962,7 +889,6 @@ export async function ensureCloudAuthReady(): Promise<void> {
       authUnsubscribe?.();
       authUnsubscribe = authModule.onAuthStateChanged(auth, (fbUser) => {
         if (!fbUser) {
-          clearAutoSyncTimer();
           dirtyHistoryDatesWhileSynced.clear();
           dirtySettingsListsWhileSynced = false;
           updateState({
@@ -974,13 +900,7 @@ export async function ensureCloudAuthReady(): Promise<void> {
           return;
         }
 
-        try {
-          window.localStorage.setItem(AUTH_HINT_STORAGE_KEY, '1');
-        } catch {
-          // Ignore storage error
-        }
-
-        void handleAuthenticatedUser({
+        handleAuthenticatedUser({
           uid: fbUser.uid,
           email: fbUser.email,
           displayName: fbUser.displayName,
@@ -993,60 +913,6 @@ export async function ensureCloudAuthReady(): Promise<void> {
   })();
 
   return authInitPromise;
-}
-
-/**
- * Initializes background Cloud Sync listeners after local DB hydration.
- * Avoids downloading `firebase/auth` immediately on cold start for offline-only users
- * who have never signed in, deferring check to idle time or drawer open.
- */
-export function initCloudSyncLifecycle(): () => void {
-  if (!isFirebaseConfigured() || typeof window === 'undefined') {
-    return () => {};
-  }
-
-  ensurePersonalMutationObserver();
-
-  const hasHint =
-    window.localStorage.getItem(AUTH_HINT_STORAGE_KEY) === '1' ||
-    window.sessionStorage.getItem(REDIRECT_PENDING_KEY) === '1';
-
-  let idleTimer: number | null = null;
-  if (hasHint) {
-    void ensureCloudAuthReady();
-  } else {
-    idleTimer = window.setTimeout(() => {
-      void ensureCloudAuthReady();
-    }, 1800);
-  }
-
-  const handleOnline = () => {
-    if (state.user && !state.pendingAccountConflict) {
-      void performCloudSync('merge');
-    }
-  };
-
-  const handleVisibility = () => {
-    if (
-      document.visibilityState === 'visible' &&
-      state.user &&
-      !state.pendingAccountConflict
-    ) {
-      const elapsed = Date.now() - (state.lastSyncedAt ?? 0);
-      if (elapsed >= VISIBILITY_PULL_COOLDOWN_MS) {
-        void performCloudSync('merge');
-      }
-    }
-  };
-
-  window.addEventListener('online', handleOnline);
-  document.addEventListener('visibilitychange', handleVisibility);
-
-  return () => {
-    if (idleTimer !== null) window.clearTimeout(idleTimer);
-    window.removeEventListener('online', handleOnline);
-    document.removeEventListener('visibilitychange', handleVisibility);
-  };
 }
 
 export async function signInWithGoogleForSync(): Promise<{
@@ -1079,11 +945,6 @@ export async function signInWithGoogleForSync(): Promise<{
 
     try {
       await authModule.signInWithPopup(auth, provider);
-      try {
-        window.localStorage.setItem(AUTH_HINT_STORAGE_KEY, '1');
-      } catch {
-        // Ignore
-      }
       return { ok: true };
     } catch (err: unknown) {
       const code =
@@ -1096,7 +957,6 @@ export async function signInWithGoogleForSync(): Promise<{
       ) {
         try {
           window.sessionStorage.setItem(REDIRECT_PENDING_KEY, '1');
-          window.localStorage.setItem(AUTH_HINT_STORAGE_KEY, '1');
         } catch {
           // Ignore
         }
@@ -1130,14 +990,8 @@ export async function signInWithGoogleForSync(): Promise<{
 }
 
 export async function signOutCloudSync(): Promise<void> {
-  clearAutoSyncTimer();
   dirtyHistoryDatesWhileSynced.clear();
   dirtySettingsListsWhileSynced = false;
-  try {
-    window.localStorage.removeItem(AUTH_HINT_STORAGE_KEY);
-  } catch {
-    // Ignore
-  }
   const loaded = await loadFirebaseAuth();
   if (loaded) {
     await loaded.authModule.signOut(loaded.auth);
@@ -1152,8 +1006,42 @@ export async function signOutCloudSync(): Promise<void> {
 
 export async function triggerManualCloudSync(): Promise<boolean> {
   if (!state.user || state.pendingAccountConflict) return false;
-  clearAutoSyncTimer();
-  return performCloudSync('merge');
+  const [customDuas, routines, readingHistory, globalLastRead, settings] =
+    await Promise.all([
+      db.customDuas.toArray(),
+      db.routines.toArray(),
+      db.readingHistory.toArray(),
+      db.globalLastRead.toArray(),
+      db.settings.get('app'),
+    ]);
+
+  const decision = determineSignInSyncDecision({
+    newUid: state.user.uid,
+    lastSyncedUid: syncMeta.lastSyncedUid,
+    lastSyncedEmail: syncMeta.lastSyncedEmail,
+    hasLocalData: hasMeaningfulLocalPersonalData({
+      customDuas,
+      routines,
+      readingHistory,
+      globalLastRead,
+      settings,
+    }),
+  });
+
+  if (decision.action === 'prompt-account-switch') {
+    updateState({
+      pendingAccountConflict: {
+        previousUid: decision.previousUid,
+        previousEmail: decision.previousEmail,
+        newUid: state.user.uid,
+        newEmail: state.user.email,
+        newDisplayName: state.user.displayName,
+      },
+    });
+    return false;
+  }
+
+  return performCloudSync(decision.action);
 }
 
 export async function resolveAccountConflict(

@@ -15,7 +15,6 @@ import {
   generateCustomDuaId,
   getCustomDuasSnapshot,
   isCustomDuaId,
-  isValidCustomDuaId,
   normalizeStoredCustomDua,
   setCustomDuasSnapshot,
   subscribeCustomDuasSnapshot,

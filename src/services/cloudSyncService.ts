@@ -784,9 +784,19 @@ async function performCloudSync(
     if (import.meta.env.DEV) {
       console.error('[CloudSync]', err);
     }
+    const code =
+      err && typeof err === 'object' && 'code' in err
+        ? String((err as { code?: unknown }).code ?? '')
+        : '';
+    let message = 'সিংক সম্পন্ন হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।';
+    if (code === 'permission-denied') {
+      message = 'ক্লাউড সিংক অনুমোদন পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করে চেষ্টা করুন।';
+    } else if (code === 'unauthenticated') {
+      message = 'আপনার সেশনের মেয়াদ শেষ হয়েছে। অনুগ্রহ করে পুনরায় Gmail দিয়ে লগইন করুন।';
+    }
     updateState({
       syncing: false,
-      error: 'সিংক সম্পন্ন হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।',
+      error: message,
     });
     return false;
   } finally {

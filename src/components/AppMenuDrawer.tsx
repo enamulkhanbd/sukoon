@@ -331,8 +331,12 @@ export function AppMenuDrawer({
           <div
             className="rounded-2xl p-3.5 border space-y-3"
             style={{
-              backgroundColor: 'var(--bg-elevated)',
-              borderColor: 'var(--border-subtle)',
+              backgroundColor: cloud.user
+                ? 'var(--bg-elevated)'
+                : 'color-mix(in srgb, var(--accent) 5%, var(--bg-elevated))',
+              borderColor: cloud.user
+                ? 'var(--border-subtle)'
+                : 'color-mix(in srgb, var(--accent) 20%, var(--border-subtle))',
             }}
           >
             {cloud.user ? (
@@ -434,34 +438,36 @@ export function AppMenuDrawer({
               </>
             ) : (
               <>
-                <div className="flex items-start gap-2.5">
+                <div className="flex items-start gap-3">
                   <span
-                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-xs"
                     style={{
                       backgroundColor: 'var(--accent-soft)',
                       color: 'var(--accent)',
                     }}
                   >
-                    <Cloud className="w-4 h-4" />
+                    <Cloud className="w-[18px] h-[18px]" />
                   </span>
-                  <div className="min-w-0 space-y-0.5">
+                  <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="text-xs font-semibold">ক্লাউড সিংক</h3>
+                      <h3 className="text-[13px] font-semibold leading-tight">
+                        আপনার আমল সুরক্ষিত রাখুন
+                      </h3>
                       <span
-                        className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                        className="text-[10px] font-medium px-2 py-0.5 rounded-full"
                         style={{
-                          backgroundColor: 'var(--bg-surface)',
-                          color: 'var(--text-muted)',
+                          backgroundColor: 'var(--accent-soft)',
+                          color: 'var(--accent)',
                         }}
                       >
                         ঐচ্ছিক
                       </span>
                     </div>
                     <p
-                      className="text-[11px] leading-relaxed"
+                      className="text-[11.5px] leading-relaxed"
                       style={{ color: 'var(--text-secondary)' }}
                     >
-                      আমার দুআ, রুটিন, বুকমার্ক ও আমলের ইতিহাস ক্লাউডে ব্যাকআপ রাখতে Gmail দিয়ে যুক্ত হোন।
+                      ফোন বদলালেও যেন আপনার নিজের দুআ, রুটিন ও আমলের ধারাবাহিকতা হারিয়ে না যায়—Gmail দিয়ে নিরাপদ ক্লাউড ব্যাকআপ চালু রাখুন।
                     </p>
                   </div>
                 </div>
@@ -480,10 +486,10 @@ export function AppMenuDrawer({
                     type="button"
                     disabled={cloud.signingIn}
                     onClick={() => void handleGoogleSignIn()}
-                    className="w-full py-2.5 px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60"
+                    className="w-full py-2.5 px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60 shadow-xs"
                     style={{
                       backgroundColor: 'var(--bg-page)',
-                      borderColor: 'var(--border-subtle)',
+                      borderColor: 'color-mix(in srgb, var(--accent) 22%, var(--border-subtle))',
                       color: 'var(--text-primary)',
                     }}
                   >
@@ -498,7 +504,7 @@ export function AppMenuDrawer({
                     <span>
                       {cloud.signingIn
                         ? 'সংযুক্ত হচ্ছে...'
-                        : 'Gmail দিয়ে লগইন করুন'}
+                        : 'Gmail দিয়ে সিংক চালু করুন'}
                     </span>
                   </button>
                 ) : (
